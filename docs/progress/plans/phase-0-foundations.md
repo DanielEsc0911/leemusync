@@ -713,7 +713,7 @@ git commit -m "ci: add cargo-deny, CI workflow and dependabot" \
   -m "Co-Authored-By: Claude <noreply@anthropic.com>"
 ```
 
-- [ ] **Step 7: Publish (maintainer approval required).** The remote `origin` is `git@github.com:DanielEsc0911/leemusync.git`, and `main` and the work branch are pushed. Push the latest commits, open a PR `chore/phase-0-foundations` → `main`, confirm every CI job is green, and merge. In repository settings: protect `main` (PR + required checks), enable private vulnerability reporting, secret scanning and push protection.
+- [x] **Step 7: Publish (maintainer approval required).** The remote `origin` is `git@github.com:DanielEsc0911/leemusync.git`, and `main` and the work branch are pushed. Push the latest commits, open a PR `chore/phase-0-foundations` → `main`, confirm every CI job is green, and merge. In repository settings: protect `main` (PR + required checks), enable private vulnerability reporting, secret scanning and push protection.
 
 ---
 
