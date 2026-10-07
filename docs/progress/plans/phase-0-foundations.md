@@ -230,7 +230,7 @@ git commit -m "build: scaffold Rust workspace with layered crates" \
 **Interfaces:**
 - Produces: `cargo xtask docs-check`, `cargo xtask layers`. Each exits 0 with `xtask <task>: ok`, or exits 1 with one `error: …` line per problem. Internal: `docs::check(&Path) -> Result<(), Vec<String>>`, `layers::check(&Path) -> Result<(), Vec<String>>`, `docs::relative_links(&str) -> Vec<String>`, `layers::violations(&[(String, Vec<String>)]) -> Result<(), Vec<String>>`.
 
-- [ ] **Step 1: Manifests and alias**
+- [x] **Step 1: Manifests and alias**
 
 `Cargo.toml` → `members = ["crates/*", "xtask"]`.
 
@@ -257,7 +257,7 @@ Then run `cargo add serde_json --package xtask` (records the current version; `C
 xtask = "run --quiet --package xtask --"
 ```
 
-- [ ] **Step 2: Write the failing tests.** `xtask/src/docs.rs` (tests first, with a stub that returns nothing):
+- [x] **Step 2: Write the failing tests.** `xtask/src/docs.rs` (tests first, with a stub that returns nothing):
 
 ```rust
 //! `docs-check`: relative Markdown links resolve, every spec is listed in
@@ -338,12 +338,12 @@ mod layers;
 fn main() {}
 ```
 
-- [ ] **Step 3: Run and watch them fail**
+- [x] **Step 3: Run and watch them fail**
 
 Run: `cargo test -p xtask`
 Expected: FAIL in `keeps_relative_links_without_fragments`, `rejects_upward_dependency` and `rejects_crate_missing_from_table`.
 
-- [ ] **Step 4: Implement `docs.rs`** (replace the stub; keep the tests module):
+- [x] **Step 4: Implement `docs.rs`** (replace the stub; keep the tests module):
 
 ```rust
 //! `docs-check`: relative Markdown links resolve, every spec is listed in
@@ -459,7 +459,7 @@ fn display(base: &Path, path: &Path) -> String {
 }
 ```
 
-- [ ] **Step 5: Implement `layers.rs`** (replace the stub; keep the tests module):
+- [x] **Step 5: Implement `layers.rs`** (replace the stub; keep the tests module):
 
 ```rust
 //! `layers`: internal crates may only depend on the layers below them.
@@ -535,7 +535,7 @@ fn violations(graph: &[(String, Vec<String>)]) -> Result<(), Vec<String>> {
 }
 ```
 
-- [ ] **Step 6: Implement `main.rs`**
+- [x] **Step 6: Implement `main.rs`**
 
 ```rust
 //! Repository checks, run as `cargo xtask <task>`.
@@ -576,20 +576,20 @@ fn repo_root() -> PathBuf {
 }
 ```
 
-- [ ] **Step 7: Verify**
+- [x] **Step 7: Verify**
 
 Run: `cargo test -p xtask` → Expected: PASS (6 tests).
 Run: `cargo xtask docs-check` → Expected: `xtask docs-check: ok` (the existing docs are consistent; fix any real error it reports).
 Run: `cargo xtask layers` → Expected: `xtask layers: ok`.
 
-- [ ] **Step 8: Wire into `just lint`.** Append to the `lint` recipe:
+- [x] **Step 8: Wire into `just lint`.** Append to the `lint` recipe:
 ```just
     cargo xtask layers
     cargo xtask docs-check
 ```
 Run: `just check` → green.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 ```bash
 git add Cargo.toml Cargo.lock .cargo/ xtask/ justfile
 git commit -m "build(xtask): add docs-check and layers checks" \

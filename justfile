@@ -12,6 +12,8 @@ fmt:
 lint:
     cargo fmt --all --check
     cargo clippy --workspace --all-targets -- -D warnings
+    cargo xtask layers
+    cargo xtask docs-check
 
 # All tests
 test:
