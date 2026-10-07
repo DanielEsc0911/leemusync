@@ -1,0 +1,22 @@
+# Rust
+/target/
+
+# Flutter / Dart (app/ also has its own .gitignore from `flutter create`)
+.dart_tool/
+build/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.idea/
+.vscode/
+*.swp
+
+# Local agent settings
+.claude/settings.local.json
+
+# Secrets never belong in the repo
+*.env
+.env*
