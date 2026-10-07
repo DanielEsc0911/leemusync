@@ -13,6 +13,6 @@
 ## Status board
 | Plan | Phase | Status | Updated |
 |---|---|---|---|
-| [phase-0-foundations](plans/phase-0-foundations.md) | 0 | In progress (Task 1 done; next Task 2) | 2026-10-07 |
+| [phase-0-foundations](plans/phase-0-foundations.md) | 0 | In progress (Tasks 1–2 done; next Task 3) | 2026-10-07 |
 
 Status values: Not started · In progress · Blocked (reason) · Done (awaiting cleanup).

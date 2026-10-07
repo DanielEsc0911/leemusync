@@ -14,6 +14,7 @@
 - Workspace lints: `unsafe_code = "forbid"`; clippy `all` = deny, `pedantic` = warn; `unwrap_used`, `dbg_macro`, `todo` = deny (unwrap/expect allowed in tests via `clippy.toml`). CI runs clippy with `-D warnings`.
 - `xtask` dependencies: `serde_json` only.
 - Code snippets here are correct but not always in rustfmt layout. Run `just fmt` before `just check` (found in Task 1).
+- Clippy's `assert_is_empty` lint (denied via `clippy::all`) rejects `assert!(x.is_empty())`. Use `assert_eq!(x, Vec::<String>::new())` (found in Task 2).
 - Commits: Conventional Commits. Author = maintainer. Trailer `Co-Authored-By: <agent> <no-reply address>` ([git-workflow](../../specs/git-workflow.md)).
 
 ## Open decisions (maintainer)
@@ -281,12 +282,15 @@ mod tests {
 
     #[test]
     fn skips_external_anchor_and_mail_links() {
-        assert!(relative_links("[a](https://x.y) [b](#top) [c](mailto:a@b.c)").is_empty());
+        assert_eq!(
+            relative_links("[a](https://x.y) [b](#top) [c](mailto:a@b.c)"),
+            Vec::<String>::new()
+        );
     }
 
     #[test]
     fn skips_fenced_code() {
-        assert!(relative_links("```\n[a](nope.md)\n```").is_empty());
+        assert_eq!(relative_links("```\n[a](nope.md)\n```"), Vec::<String>::new());
     }
 }
 ```
@@ -925,7 +929,7 @@ mod tests {
 
     #[test]
     fn accepts_identical_keys() {
-        assert!(diff("app_es.arb", &set(&["a"]), &set(&["a"])).is_empty());
+        assert_eq!(diff("app_es.arb", &set(&["a"]), &set(&["a"])), Vec::<String>::new());
     }
 }
 ```
