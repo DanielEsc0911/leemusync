@@ -1,7 +1,8 @@
 # Builds every release artifact. Spec: docs/specs/release.md.
 # Tag v*: version check, every artifact, SHA256SUMS, attestations, draft GitHub Release.
 # Manual run: same, but uploads one workflow artifact instead of a release.
-# PR touching this file or packaging/**: dry run, workflow artifacts only, no attestation.
+# PR touching this file or packaging/**: dry run with read-only permissions, workflow
+# artifacts only, no attestation, and APKs always debug-signed (never the release key).
 name: release
 
 on:
@@ -77,6 +78,8 @@ jobs:
           git clone --depth 1 --branch "$flutter_version" https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
           echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
       - name: Install nfpm and appimagetool (pinned, checksum-verified)
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           case "${{ matrix.arch }}" in
             x86_64) nfpm_arch=x86_64 ;;
@@ -90,7 +93,7 @@ jobs:
           tar -xzf "$nfpm_tgz" nfpm && install -m755 nfpm bin/nfpm
           ait="appimagetool-${{ matrix.arch }}.AppImage"
           curl -fsSLO "https://github.com/AppImage/appimagetool/releases/download/${APPIMAGETOOL_VERSION}/${ait}"
-          digest="$(curl -fsSL -H 'Authorization: Bearer ${{ github.token }}' \
+          digest="$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
             "https://api.github.com/repos/AppImage/appimagetool/releases/tags/${APPIMAGETOOL_VERSION}" \
             | jq -r --arg n "$ait" '.assets[] | select(.name == $n) | .digest')"
           echo "${digest#sha256:}  ${ait}" | sha256sum -c
@@ -253,7 +256,8 @@ jobs:
       - name: Decode the release keystore
         id: keystore
         env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          # PR builds never see the release key (docs/specs/release.md, Signing).
+          ANDROID_KEYSTORE_BASE64: ${{ github.event_name != 'pull_request' && secrets.ANDROID_KEYSTORE_BASE64 || '' }}
         run: |
           if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
             path="$RUNNER_TEMP/leemusync-release.jks"
@@ -269,9 +273,9 @@ jobs:
       - name: Build split APKs
         working-directory: app
         env:
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.ANDROID_KEYSTORE_PASSWORD || '' }}
+          ANDROID_KEY_ALIAS: ${{ github.event_name != 'pull_request' && secrets.ANDROID_KEY_ALIAS || '' }}
+          ANDROID_KEY_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.ANDROID_KEY_PASSWORD || '' }}
         run: flutter build apk --release --split-per-abi
       - name: Rename APKs
         env:
@@ -292,6 +296,7 @@ jobs:
           if-no-files-found: error
 
   publish:
+    if: github.event_name != 'pull_request'
     needs: [version, linux, headless, windows, macos, android]
     runs-on: ubuntu-latest
     permissions:
@@ -310,8 +315,7 @@ jobs:
         run: |
           sha256sum * > SHA256SUMS
           cat SHA256SUMS
-      - name: Build-provenance attestation (tag and manual runs)
-        if: github.event_name != 'pull_request'
+      - name: Build-provenance attestation
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: dist/*
@@ -321,9 +325,32 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: gh release create "$GITHUB_REF_NAME" --draft --verify-tag --title "LeemuSync $VERSION" dist/*
-      - name: Upload combined artifact (manual and PR runs)
+      - name: Upload combined artifact (manual runs)
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: leemusync-${{ env.VERSION }}
+          path: dist/*
+          if-no-files-found: error
+
+  pr-bundle:
+    # Dry run for PRs: read-only token (workflow default), no attestation, no release.
+    if: github.event_name == 'pull_request'
+    needs: [version, linux, headless, windows, macos, android]
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: dist
+          merge-multiple: true
+      - name: SHA256SUMS
+        working-directory: dist
+        run: |
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: leemusync-${{ env.VERSION }}
           path: dist/*
