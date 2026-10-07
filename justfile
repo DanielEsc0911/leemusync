@@ -4,9 +4,10 @@
 default:
     @just --list
 
-# Format all code
+# Format Rust and Dart
 fmt:
     cargo fmt --all
+    cd app && dart format lib test
 
 # Lints and repo checks (no tests)
 lint:
@@ -15,10 +16,15 @@ lint:
     cargo deny check
     cargo xtask layers
     cargo xtask docs-check
+    cargo xtask i18n-check
+    cd app && flutter gen-l10n
+    cd app && dart format --output=none --set-exit-if-changed lib test
+    cd app && flutter analyze
 
-# All tests
+# Rust and Flutter tests
 test:
     cargo test --workspace
+    cd app && flutter test
 
 # Everything CI runs; must pass before every commit
 check: lint test

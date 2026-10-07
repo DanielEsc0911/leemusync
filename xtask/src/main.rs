@@ -1,6 +1,7 @@
 //! Repository checks, run as `cargo xtask <task>`.
 
 mod docs;
+mod i18n;
 mod layers;
 
 use std::path::{Path, PathBuf};
@@ -12,8 +13,9 @@ fn main() -> ExitCode {
     let result = match task.as_str() {
         "docs-check" => docs::check(&root),
         "layers" => layers::check(&root),
+        "i18n-check" => i18n::check(&root),
         _ => Err(vec![format!(
-            "unknown task `{task}`; available: docs-check, layers"
+            "unknown task `{task}`; available: docs-check, layers, i18n-check"
         )]),
     };
     match result {

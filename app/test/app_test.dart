@@ -1,0 +1,17 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:leemusync/main.dart';
+
+void main() {
+  testWidgets('shows synced status in English', (tester) async {
+    await tester.pumpWidget(const LeemuSyncApp(locale: Locale('en')));
+    await tester.pumpAndSettle();
+    expect(find.text('All saves synced'), findsOneWidget);
+  });
+
+  testWidgets('shows synced status in Spanish', (tester) async {
+    await tester.pumpWidget(const LeemuSyncApp(locale: Locale('es')));
+    await tester.pumpAndSettle();
+    expect(find.text('Todas las partidas están sincronizadas'), findsOneWidget);
+  });
+}

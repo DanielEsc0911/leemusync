@@ -15,6 +15,7 @@
 - `xtask` dependencies: `serde_json` only.
 - Code snippets here are correct but not always in rustfmt layout. Run `just fmt` before `just check` (found in Task 1).
 - Clippy's `assert_is_empty` lint (denied via `clippy::all`) rejects `assert!(x.is_empty())`. Use `assert_eq!(x, Vec::<String>::new())` (found in Task 2).
+- Clippy's `case_sensitive_file_extension_comparisons` (pedantic) rejects `name.ends_with(".ext")`. Compare `path.extension()` instead (found in Task 4).
 - Commits: Conventional Commits. Author = maintainer. Trailer `Co-Authored-By: <agent> <no-reply address>` ([git-workflow](../../specs/git-workflow.md)).
 
 ## Open decisions (maintainer)
@@ -713,7 +714,7 @@ git commit -m "ci: add cargo-deny, CI workflow and dependabot" \
   -m "Co-Authored-By: Claude <noreply@anthropic.com>"
 ```
 
-- [ ] **Step 7: Publish (maintainer approval required).** The remote `origin` is `git@github.com:DanielEsc0911/leemusync.git`, and `main` and the work branch are pushed. Push the latest commits, open a PR `chore/phase-0-foundations` → `main`, confirm every CI job is green, and merge. In repository settings: protect `main` (PR + required checks), enable private vulnerability reporting, secret scanning and push protection.
+- [x] **Step 7: Publish (maintainer approval required).** The remote `origin` is `git@github.com:DanielEsc0911/leemusync.git`, and `main` and the work branch are pushed. Push the latest commits, open a PR `chore/phase-0-foundations` → `main`, confirm every CI job is green, and merge. In repository settings: protect `main` (PR + required checks), enable private vulnerability reporting, secret scanning and push protection.
 
 ---
 
@@ -726,7 +727,7 @@ git commit -m "ci: add cargo-deny, CI workflow and dependabot" \
 **Interfaces:**
 - Produces: `LeemuSyncApp({Key? key, Locale? locale})` in `app/lib/main.dart`; ARB keys `appTitle`, `statusSynced`, `statusUploading(count)`; `cargo xtask i18n-check`; internal `i18n::check(&Path) -> Result<(), Vec<String>>`, `i18n::diff(&str, &BTreeSet<String>, &BTreeSet<String>) -> Vec<String>`.
 
-- [ ] **Step 1: Install Flutter (stable) and create the app** (`--org` from D22):
+- [x] **Step 1: Install Flutter (stable) and create the app** (`--org` from D22):
 ```bash
 flutter --version
 flutter create --org io.github.danielesc0911 --project-name leemusync \
@@ -734,7 +735,7 @@ flutter create --org io.github.danielesc0911 --project-name leemusync \
 ```
 Pin the version in `app/pubspec.yaml` under `environment:` → `flutter: <exact version from flutter --version>`. Set the top-level `version: 0.0.0+1` so it matches the workspace version ([release §Versioning](../../specs/release.md#versioning)).
 
-- [ ] **Step 2: Localisation setup**
+- [x] **Step 2: Localisation setup**
 ```bash
 cd app && flutter pub add flutter_localizations --sdk=flutter && flutter pub add intl:any
 ```
@@ -778,7 +779,7 @@ Append `lib/l10n/generated/` to `app/.gitignore` (the ARB files are the source o
 }
 ```
 
-- [ ] **Step 3: Strict analysis.** `app/analysis_options.yaml`:
+- [x] **Step 3: Strict analysis.** `app/analysis_options.yaml`:
 ```yaml
 include: package:flutter_lints/flutter.yaml
 
@@ -799,7 +800,7 @@ linter:
     - unawaited_futures
 ```
 
-- [ ] **Step 4: Write the failing widget test.** `app/test/app_test.dart`:
+- [x] **Step 4: Write the failing widget test.** `app/test/app_test.dart`:
 ```dart
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -821,7 +822,7 @@ void main() {
 ```
 Run: `cd app && flutter gen-l10n && flutter test` → Expected: FAIL (`LeemuSyncApp` isn't defined).
 
-- [ ] **Step 5: Implement.** `app/lib/main.dart`:
+- [x] **Step 5: Implement.** `app/lib/main.dart`:
 ```dart
 import 'package:flutter/material.dart';
 
@@ -862,7 +863,7 @@ class _StatusPlaceholder extends StatelessWidget {
 ```
 Run: `flutter test` → Expected: PASS (2 tests). Run: `flutter analyze` → `No issues found!`
 
-- [ ] **Step 6: `i18n-check`, test first.** `xtask/src/i18n.rs`:
+- [x] **Step 6: `i18n-check`, test first.** `xtask/src/i18n.rs`:
 ```rust
 //! `i18n-check`: every locale defines exactly the keys of the English source.
 //! Covers Flutter ARB files; extend when Fluent or native string files arrive
@@ -884,7 +885,7 @@ pub(crate) fn check(root: &Path) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
     for entry in entries.flatten() {
         let name = entry.file_name().to_string_lossy().into_owned();
-        if name == TEMPLATE || !name.ends_with(".arb") {
+        if name == TEMPLATE || entry.path().extension().is_none_or(|ext| ext != "arb") {
             continue;
         }
         match arb_keys(&entry.path()) {
@@ -939,7 +940,7 @@ In `xtask/src/main.rs`: add `mod i18n;`, add the arm `"i18n-check" => i18n::chec
 
 Run: `cargo xtask i18n-check` → `xtask i18n-check: ok`. Then delete `statusSynced` from `app_es.arb` and run it again. Expected: exit code 1 and an error line saying `app_es.arb` is missing key `statusSynced`. Restore the key.
 
-- [ ] **Step 7: Final `justfile`**
+- [x] **Step 7: Final `justfile`**
 ```just
 # LeemuSync task runner. `just --list` shows every recipe.
 # On Windows, run from Git Bash (just uses `sh`).
@@ -973,7 +974,7 @@ test:
 check: lint test
 ```
 
-- [ ] **Step 8: CI and Dependabot.** In `ci.yml` add `- run: cargo xtask i18n-check` to `repo-checks`, and add the job below (pin the action SHA as in Task 3 Step 3). In `dependabot.yml` add the `pub` ecosystem with `directory: /app`.
+- [x] **Step 8: CI and Dependabot.** In `ci.yml` add `- run: cargo xtask i18n-check` to `repo-checks`, and add the job below (pin the action SHA as in Task 3 Step 3). In `dependabot.yml` add the `pub` ecosystem with `directory: /app`.
 ```yaml
   flutter:
     runs-on: ubuntu-latest
@@ -992,7 +993,7 @@ check: lint test
       - run: flutter test
 ```
 
-- [ ] **Step 9: Verify and commit.** `just check` → green. Then:
+- [x] **Step 9: Verify and commit.** `just check` → green. Then:
 ```bash
 git add app/ xtask/ justfile .github/
 git commit -m "feat(app): add Flutter shell with English and Spanish strings" \

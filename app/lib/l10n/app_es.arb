@@ -1,0 +1,6 @@
+{
+  "@@locale": "es",
+  "appTitle": "LeemuSync",
+  "statusSynced": "Todas las partidas están sincronizadas",
+  "statusUploading": "{count, plural, =1{Subiendo 1 cambio} other{Subiendo {count} cambios}}"
+}
