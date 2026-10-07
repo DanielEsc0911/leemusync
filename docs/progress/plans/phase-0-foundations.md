@@ -15,6 +15,7 @@
 - `xtask` dependencies: `serde_json` only.
 - Code snippets here are correct but not always in rustfmt layout. Run `just fmt` before `just check` (found in Task 1).
 - Clippy's `assert_is_empty` lint (denied via `clippy::all`) rejects `assert!(x.is_empty())`. Use `assert_eq!(x, Vec::<String>::new())` (found in Task 2).
+- Clippy's `case_sensitive_file_extension_comparisons` (pedantic) rejects `name.ends_with(".ext")`. Compare `path.extension()` instead (found in Task 4).
 - Commits: Conventional Commits. Author = maintainer. Trailer `Co-Authored-By: <agent> <no-reply address>` ([git-workflow](../../specs/git-workflow.md)).
 
 ## Open decisions (maintainer)
@@ -884,7 +885,7 @@ pub(crate) fn check(root: &Path) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
     for entry in entries.flatten() {
         let name = entry.file_name().to_string_lossy().into_owned();
-        if name == TEMPLATE || !name.ends_with(".arb") {
+        if name == TEMPLATE || entry.path().extension().is_none_or(|ext| ext != "arb") {
             continue;
         }
         match arb_keys(&entry.path()) {
