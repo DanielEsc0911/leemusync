@@ -66,3 +66,12 @@ Used in code, docs and UI (`es`: "jugador"). One term everywhere avoids translat
 
 ### D21 Encryption from RustCrypto/BLAKE3 primitives, not the `age` file format (2026-10-07)
 The early chat suggested `age`. The repo needs AEAD with associated data bound to each object's kind and id, plus keyed content ids. `age` provides neither. The construction in [security §Cryptography](specs/security.md#cryptography) uses audited primitives only, with no custom algorithms.
+
+### D22 App and bundle id `io.github.danielesc0911.leemusync` (2026-10-07)
+The project has no domain. A reverse-DNS id under the maintainer's GitHub namespace is unique to them and valid on Android, iOS, macOS, Windows and Linux (lowercase). It's only permanent after the first store publication, so it can still change before then if a domain is bought.
+
+### D23 Distribution before store accounts (2026-10-07)
+There's no Apple Developer or Google Play account yet. GitHub Releases ship `.apk` (self-generated release key), `.msi`, `.exe`, `.dmg` (ad-hoc signed), `.deb`, `.rpm`, `.AppImage` and `.tar.gz`, each with SHA-256 checksums and GitHub build-provenance attestations. iOS is limited to developer testing on the maintainer's own device until a membership exists. Refines D16. Details: [release](specs/release.md).
+
+### D24 Standard per-format packaging tools (2026-10-07)
+WiX (`.msi`), Inno Setup (`.exe`), `hdiutil` (`.dmg`), nfpm (`.deb`/`.rpm`), appimagetool (`.AppImage`), `tar`. Each is the de-facto tool for its format, and the release path keeps few third-party layers (B2). Rejected for now: all-in-one packagers (e.g. fastforge, cargo-packager). None was confirmed to cover all eight requested formats, and each adds a layer to the supply chain. Revisit if V-PKG-5 finds one that does.

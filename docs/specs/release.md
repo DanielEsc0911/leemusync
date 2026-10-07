@@ -1,40 +1,86 @@
 # Release
 
-> **Status:** Draft · **Related:** [rules](../rules.md) (B2, F2, P7), [security §Supply chain](security.md#supply-chain), [testing](testing.md), [git-workflow](git-workflow.md), [progress](../progress/README.md) · **Code:** `.github/workflows/`, `packaging/` (planned)
+> **Status:** Draft · **Related:** [rules](../rules.md) (B2, F2, P6, P7), [decisions](../decisions.md) (D16, D22, D23, D24), [security §Supply chain](security.md#supply-chain), [testing](testing.md#device-lab), [git-workflow](git-workflow.md), [progress](../progress/README.md) · **Code:** `.github/workflows/release.yml`, `packaging/` (planned, Phase 0 Task 5)
 
 ## Purpose
-Ship signed, reproducible builds for every platform without ever shipping something half-wired (F2).
+Ship verifiable builds for every platform from one pipeline, without ever shipping something half-wired (F2). Repository: `github.com/DanielEsc0911/leemusync`.
 
 ## Versioning
 | Thing | Scheme |
 |---|---|
-| App (all platforms together) | SemVer `MAJOR.MINOR.PATCH`, one version for every artifact |
+| App (all platforms together) | SemVer `MAJOR.MINOR.PATCH[-pre]`, one version for every artifact |
 | Repo format | Integer `format` in `repo.json`. Newer clients migrate. Older clients refuse to write and explain why |
 | Profile schema, config, IPC `api_version` | Integers with tested migrations (B1) |
+
+A release tag `vX.Y.Z[-pre]` must match `workspace.package.version` in `Cargo.toml` and `version` in `app/pubspec.yaml` (build number after `+` ignored). `cargo xtask version-check <tag>` enforces it, and the release workflow fails otherwise.
 
 ## CI (GitHub Actions)
 | Workflow | Trigger | Runs |
 |---|---|---|
 | `ci.yml` | PR, push to `main` | fmt, clippy `-D warnings`, tests (Linux/Windows/macOS), `cargo deny`, `xtask layers/docs-check/i18n-check`, Flutter format/analyze/test |
-| `nightly.yml` | Schedule | Fuzzing, Docker backend conformance, mobile builds, integration tests |
-| `release.yml` | Tag `v*` | Build matrix → sign → checksums + SBOM + Sigstore → draft GitHub Release |
+| `release.yml` | Tag `v*`, or manual (`workflow_dispatch`) | Build every artifact below → `SHA256SUMS` → build-provenance attestations → draft GitHub Release (tag) or workflow artifacts only (manual) |
+| `nightly.yml` | Schedule (later) | Fuzzing, Docker backend conformance, integration tests |
 
-## Targets
-Windows x64/arm64 (MSIX + portable zip) · macOS universal (notarised DMG) · Linux x86_64/arm64 (Flatpak + tarball; `.deb`/`.rpm` for the daemon) · Linux armv7 (headless daemon/CLI) · Android (AAB for Play, APK for GitHub/F-Droid) · iOS (App Store / TestFlight).
+## Artifacts
+Every desktop package contains the Flutter app plus the `leemusync` CLI and `leemusyncd` daemon. File names: `leemusync-<version>-<os>-<arch>.<ext>`.
 
-## Channels (planned)
-GitHub Releases · Flathub · winget · Homebrew cask · F-Droid · Google Play · App Store. Each one has a short guide under `packaging/` when it's added.
+| Format | Platform | Runner | Tool |
+|---|---|---|---|
+| `.msi` (one per language: `en`, `es`) | Windows x64 | `windows-latest` | WiX Toolset |
+| `.exe` installer (English/Spanish selectable) | Windows x64 | `windows-latest` | Inno Setup |
+| `.dmg` | macOS universal (Apple Silicon + Intel) | `macos-latest` | `hdiutil` (built into macOS) |
+| `.deb`, `.rpm` | Linux x86_64, arm64 | `ubuntu-22.04`, `ubuntu-22.04-arm` | nfpm |
+| `.AppImage` | Linux x86_64, arm64 | same | appimagetool |
+| `.tar.gz` | Linux desktop bundle (x86_64, arm64), plus headless CLI + daemon (x86_64, aarch64, armv7) | same | `tar` |
+| `.apk` (one per ABI: arm64-v8a, armeabi-v7a, x86_64) | Android | `ubuntu-latest` | `flutter build apk --split-per-abi` |
+| `SHA256SUMS` | all | release job | `sha256sum` |
+
+- Linux builds run on the oldest supported Ubuntu runner (22.04), so the glibc baseline works on Fedora, Arch/CachyOS, Debian and Ubuntu.
+- Windows arm64 artifacts are added once SP1 confirms Flutter support (V-DESK-4).
+- No iOS artifact until an Apple Developer membership exists ([D23](../decisions.md#d23-distribution-before-store-accounts-2026-10-07)).
+
+## Install layout
+GUI and CLI never share a folder, because Windows and macOS file systems are case-insensitive (`LeemuSync` ≙ `leemusync`).
+
+| Package | GUI | CLI + daemon |
+|---|---|---|
+| Windows `.msi` / `.exe` | `%ProgramFiles%\LeemuSync\LeemuSync.exe` + Start Menu shortcut with AppUserModelID (needed for toasts) | `%ProgramFiles%\LeemuSync\bin\` (added to `PATH`) |
+| macOS `.dmg` | `LeemuSync.app` | `LeemuSync.app/Contents/Helpers/` |
+| Linux `.deb` / `.rpm` | `/opt/leemusync/leemusync-gui`, symlink `/usr/bin/leemusync-gui`, desktop file + icon under `/usr/share` | `/usr/bin/leemusync`, `/usr/bin/leemusyncd` |
+| `.AppImage` | AppRun → `leemusync-gui` | `usr/bin/` inside the image |
+| `.tar.gz` | `leemusync/leemusync-gui` | `leemusync/bin/` |
+
+GUI executable names: `LeemuSync.exe` (Windows), `LeemuSync.app` (macOS), `leemusync-gui` (Linux). App and bundle id: `io.github.danielesc0911.leemusync` ([D22](../decisions.md#d22-app-and-bundle-id-iogithubdanielesc0911leemusync-2026-10-07)).
 
 ## Signing
-- Apple: Developer Program membership needed for iOS distribution and macOS notarisation (a maintainer cost to plan for).
-- Windows: Authenticode, for example through a free code-signing programme for open-source projects (Verify when applying).
-- Android: an upload key held by the maintainer. F-Droid signs its own builds.
-- Every artifact: SHA-256 checksums plus a Sigstore signature.
+| Platform | Now ([D23](../decisions.md#d23-distribution-before-store-accounts-2026-10-07)) | Later |
+|---|---|---|
+| Android | A release key generated by the maintainer (`keytool`), stored as GitHub secrets. **Back the keystore up offline: losing it means existing installs can never update.** Manual runs without the secrets produce debug-signed APKs named `-debug` | Play App Signing (upload key) once a Play account exists |
+| macOS | Ad-hoc signed, not notarised → Gatekeeper warning. Users open it via System Settings → Privacy & Security → Open Anyway | Developer ID + notarisation (Apple Developer membership) |
+| Windows | Unsigned → SmartScreen warning | Authenticode through a free open-source signing programme (Verify when applying) |
+| Linux | Packages unsigned | Repository signing with Flatpak/AUR |
+| Every artifact | SHA-256 in `SHA256SUMS` + GitHub build-provenance attestation (Sigstore-backed, verify with `gh attestation verify <file> --repo DanielEsc0911/leemusync`) | + CycloneDX SBOM (Phase 7) |
+
+## Channels
+| Channel | When |
+|---|---|
+| GitHub Releases (every format above) | From Phase 0 |
+| Flathub, AUR, winget, Homebrew cask | Phase 7, or earlier on request |
+| F-Droid | Phase 4 or later |
+| Google Play | Once a Play developer account exists |
+| App Store / TestFlight | Once an Apple Developer membership exists |
 
 ## Release checklist
 1. Every progress plan in the release is done. Specs say **Implemented** where true.
-2. `CHANGELOG.md` `[Unreleased]` → version section.
-3. CI and nightly are green. The manual device pass is done ([testing](testing.md)).
-4. Strings complete in en and es, store listings included.
-5. Tag `vX.Y.Z` → `release.yml` → review the draft → publish.
+2. Bump the version in `Cargo.toml` and `app/pubspec.yaml`. Move `CHANGELOG.md` `[Unreleased]` → version section.
+3. CI is green. The manual device pass is done ([testing §Device lab](testing.md#device-lab)).
+4. Strings complete in en and es, including installers and store listings.
+5. Tag `vX.Y.Z` → `release.yml` → review the draft release (all files, `SHA256SUMS`, attestations) → publish.
 6. Clean up the published plans ([progress](../progress/README.md)).
+
+## Verify
+- **V-PKG-1** WiX version, culture builds (`en-US`, `es-ES`) and folder harvesting for the Flutter Windows build output (Phase 0 Task 5).
+- **V-PKG-2** WiX and Inno Setup availability on GitHub Windows runners, or the install method (Task 5).
+- **V-PKG-3** appimagetool on arm64 runners (Task 5).
+- **V-PKG-4** Flutter SDK and Linux build on `ubuntu-22.04-arm` (Task 5).
+- **V-PKG-5** Whether an all-in-one packager now covers all eight formats, which would let us revisit D24 (Task 5).

@@ -29,10 +29,11 @@ No continuous background process is possible. Lock warnings arrive when one of t
 Live Activity + Dynamic Island + Lock Screen/StandBy · App Intents (Sync Now, Play Game, Pull Saves) · local notifications · later widgets and a Control Center control. Details in [status-and-notifications §iOS](../ui/status-and-notifications.md#ios).
 
 ## Distribution
-App Store + TestFlight (needs an Apple Developer membership). Alternative EU marketplaces later.
+Now: no distribution. Development and testing run on the maintainer's iPhone with free Apple ID provisioning: apps expire after 7 days, and some capabilities may be unavailable (Verify SP5) ([D23](../../decisions.md#d23-distribution-before-store-accounts-2026-10-07)). Later: App Store + TestFlight (Apple Developer membership); alternative EU marketplaces.
 
 ## Verify
 - **V-IOS-1** Which emulators expose saves in Files, and their layouts (SP5).
 - **V-IOS-2** Security-scoped bookmarks to other apps' Files folders survive app restarts and updates (SP5).
 - **V-IOS-3** An App Intent triggered by a Shortcuts "app closed" automation can run the Rust engine to completion (SP5).
 - **V-IOS-4** Live Activity updates from `BGContinuedProcessingTask` and the duration limits (SP5).
+- **V-IOS-5** Which capabilities (Live Activities, App Groups, App Intents, background tasks) work with free Apple ID provisioning (SP5).

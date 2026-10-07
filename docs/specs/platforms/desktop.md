@@ -15,13 +15,14 @@ Desktop is where most emulators run. The daemon gives true 24/7 sync with native
 | Sleep inhibition | `SetThreadExecutionState` | IOPM assertion | logind `Inhibit` |
 | Process detection | Process list | Process list | `/proc` (Flatpak apps visible too) |
 | Keystore | Credential Manager | Keychain | Secret Service |
-| Packaging | MSIX + portable zip | Notarised DMG, Homebrew cask | Flatpak, tarball; `.deb`/`.rpm` for the daemon |
+| Packaging (now, [release §Artifacts](../release.md#artifacts)) | `.msi`, `.exe` installer | `.dmg` (ad-hoc signed until a Developer ID exists) | `.deb`, `.rpm`, `.AppImage`, `.tar.gz` |
+| Packaging (later) | winget | Homebrew cask, notarised DMG | Flatpak, AUR |
 
 ## Quirks
 - **Windows toasts** need an AppUserModelID registered by the installer (Start Menu shortcut). Portable mode falls back to tray balloons (Verify SP2).
 - **macOS notifications** need an app identity, so `leemusyncd` ships inside the app bundle as a helper and is registered as a LaunchAgent from there. Distribute outside the Mac App Store, because sandboxing would block reading other apps' save folders.
 - **macOS privacy (TCC):** `~/Documents` (e.g., RetroArch's default) triggers a permission prompt. Other apps' sandbox containers trigger the "access data from other apps" prompt. The grant flow explains this before the OS asks.
-- **Linux GNOME:** no tray without the AppIndicator extension (see [status](../ui/status-and-notifications.md#desktop-tray-and-menu-bar)).
+- **Linux GNOME:** no tray without the AppIndicator extension (see [status](../ui/status-and-notifications.md#desktop-tray-and-menu-bar)). XFCE and KDE show StatusNotifier icons natively. Test machines: [testing §Device lab](../testing.md#device-lab).
 - **Flatpak packaging vs. access:** a sandboxed LeemuSync needs filesystem permissions for emulator folders, including other Flatpaks' `~/.var/app/<id>/`. Spike SP2 decides between narrow static permissions, the document portal, or a native daemon package (Verify).
 - **Steam Deck (Game Mode):** no tray is visible, but the daemon still runs. A Decky plugin is a later idea.
 - **Portable emulators:** profiles use `{exe_dir}`. The user picks the executable in launcher setup.

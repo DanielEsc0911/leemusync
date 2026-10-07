@@ -29,7 +29,7 @@ Read this file, then only the docs your task needs. Headings are stable: grep th
 |---|---|---|
 | [specs/security.md](specs/security.md) | Threat model, crypto, keys, IPC, file confinement, supply chain | Draft |
 | [specs/reliability.md](specs/reliability.md) | Invariants, atomic writes, journal, local history, 24/7, sleep, budgets | Draft |
-| [specs/testing.md](specs/testing.md) | Test layers, simulation, goldens, performance, conformance | Draft |
+| [specs/testing.md](specs/testing.md) | Test layers, simulation, goldens, performance, conformance, device lab | Draft |
 
 ### Interfaces
 | Doc | Covers | Status |
@@ -51,7 +51,7 @@ Read this file, then only the docs your task needs. Headings are stable: grep th
 ### Delivery
 | Doc | Covers | Status |
 |---|---|---|
-| [specs/release.md](specs/release.md) | Versioning, CI, signing, distribution channels, changelog | Draft |
+| [specs/release.md](specs/release.md) | Versioning, CI, artifacts (`.apk` `.msi` `.exe` `.dmg` `.deb` `.rpm` `.AppImage` `.tar.gz`), install layout, signing, channels | Draft |
 | [specs/git-workflow.md](specs/git-workflow.md) | Branches, commit format, co-authorship, PR checklist | Decided |
 
 ## Progress

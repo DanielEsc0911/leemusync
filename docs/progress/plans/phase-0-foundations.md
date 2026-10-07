@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: use `subagent-driven-development` (recommended) or `executing-plans` to implement this plan task by task. Agents without those skills: do the tasks in order and tick each checkbox in the same commit as the work. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** a buildable, CI-checked skeleton (Rust workspace, xtask checks, Flutter app with en/es), plus proven answers to every platform risk (spikes SP1–SP7) recorded in the specs, so Phase 1 starts on solid ground.
+**Goal:** a buildable, CI-checked skeleton (Rust workspace, xtask checks, Flutter app with en/es) with a release pipeline that produces `.apk` `.msi` `.exe` `.dmg` `.deb` `.rpm` `.AppImage` `.tar.gz`, plus proven answers to every platform risk (spikes SP1–SP7) recorded in the specs, so Phase 1 starts on solid ground.
 
 **Architecture:** a Rust workspace laid out per [architecture §Layers](../../specs/architecture.md#layers). `xtask` (std + `serde_json` only) enforces docs, layers and i18n. The Flutter app lives in `app/`. Spikes are timeboxed throwaway branches; their *results* go into spec Verify sections and decisions, never only into this plan.
 
@@ -16,11 +16,11 @@
 - Commits: Conventional Commits. Author = maintainer. Trailer `Co-Authored-By: <agent> <no-reply address>` ([git-workflow](../../specs/git-workflow.md)).
 
 ## Open decisions (maintainer)
-| ID | Decision | Blocks |
+| ID | Decision | Outcome |
 |---|---|---|
-| OD1 | GitHub owner/org and repository name | Task 3 (push, CI run) |
-| OD2 | App/bundle id (reverse-DNS, permanent on the stores). Recommended: own a domain (e.g. `leemusync.app` → `app.leemusync`); otherwise `io.github.<owner>.leemusync` | Task 4 |
-| OD3 | Apple Developer membership; test devices: Samsung (One UI 8+), Xiaomi (HyperOS 3 global), iPhone with Dynamic Island, Raspberry Pi 5 | SP1, SP4, SP5 |
+| OD1 | Repository | Resolved: `github.com/DanielEsc0911/leemusync` (remote `origin` = `git@github.com:DanielEsc0911/leemusync.git`) |
+| OD2 | App/bundle id | Resolved: `io.github.danielesc0911.leemusync` ([D22](../../decisions.md#d22-app-and-bundle-id-iogithubdanielesc0911leemusync-2026-10-07)) |
+| OD3 | Store accounts and test devices | No Apple Developer or Play account yet ([D23](../../decisions.md#d23-distribution-before-store-accounts-2026-10-07)). Devices: [testing §Device lab](../../specs/testing.md#device-lab) |
 
 ---
 
@@ -66,6 +66,7 @@ members = ["crates/*"]
 version = "0.0.0"
 edition = "2024"
 license = "MPL-2.0"
+repository = "https://github.com/DanielEsc0911/leemusync"
 rust-version = "1.99" # same as rust-toolchain.toml
 
 [workspace.lints.rust]
@@ -100,6 +101,7 @@ description = "LeemuSync command-line interface."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
 rust-version.workspace = true
 publish = false
 
@@ -703,7 +705,7 @@ git commit -m "ci: add cargo-deny, CI workflow and dependabot" \
   -m "Co-Authored-By: Claude <noreply@anthropic.com>"
 ```
 
-- [ ] **Step 7: Publish (maintainer approval required; needs OD1).** Create the GitHub repository, add the remote, push `main`, and confirm every CI job is green. In repository settings: protect `main` (PR + required checks), enable private vulnerability reporting, secret scanning and push protection.
+- [ ] **Step 7: Publish (maintainer approval required).** The remote `origin` already points to `git@github.com:DanielEsc0911/leemusync.git` (empty repo). Push `main`, push the work branch, open a PR, confirm every CI job is green, and merge. In repository settings: protect `main` (PR + required checks), enable private vulnerability reporting, secret scanning and push protection.
 
 ---
 
@@ -716,13 +718,13 @@ git commit -m "ci: add cargo-deny, CI workflow and dependabot" \
 **Interfaces:**
 - Produces: `LeemuSyncApp({Key? key, Locale? locale})` in `app/lib/main.dart`; ARB keys `appTitle`, `statusSynced`, `statusUploading(count)`; `cargo xtask i18n-check`; internal `i18n::check(&Path) -> Result<(), Vec<String>>`, `i18n::diff(&str, &BTreeSet<String>, &BTreeSet<String>) -> Vec<String>`.
 
-- [ ] **Step 1: Install Flutter (stable) and create the app** (needs OD2 for `--org`):
+- [ ] **Step 1: Install Flutter (stable) and create the app** (`--org` from D22):
 ```bash
 flutter --version
-flutter create --org <OD2 reverse-domain> --project-name leemusync \
+flutter create --org io.github.danielesc0911 --project-name leemusync \
   --platforms android,ios,macos,windows,linux --empty app
 ```
-Pin the version in `app/pubspec.yaml` under `environment:` → `flutter: <exact version from flutter --version>`.
+Pin the version in `app/pubspec.yaml` under `environment:` → `flutter: <exact version from flutter --version>`. Set the top-level `version: 0.0.0+1` so it matches the workspace version ([release §Versioning](../../specs/release.md#versioning)).
 
 - [ ] **Step 2: Localisation setup**
 ```bash
@@ -991,6 +993,252 @@ git commit -m "feat(app): add Flutter shell with English and Spanish strings" \
 
 ---
 
+### Task 5: Release pipeline (`.apk` `.msi` `.exe` `.dmg` `.deb` `.rpm` `.AppImage` `.tar.gz`)
+
+Spec: [release](../../specs/release.md) (Artifacts, Install layout, Signing). Decisions: D22, D23, D24.
+
+**Files:**
+- Create: `xtask/src/metadata.rs`, `xtask/src/version.rs`, `.github/workflows/release.yml`, `packaging/README.md`, `packaging/icons/leemusync.png`, `packaging/linux/nfpm.yaml`, `packaging/linux/io.github.danielesc0911.leemusync.desktop`, `packaging/windows/leemusync.iss`, `packaging/windows/leemusync.wxs`, `packaging/windows/en-us.wxl`, `packaging/windows/es-es.wxl`, `packaging/macos/make-dmg.sh`
+- Modify: `xtask/src/layers.rs`, `xtask/src/main.rs`, `app/windows/CMakeLists.txt`, `app/windows/runner/Runner.rc`, `app/linux/CMakeLists.txt`, `app/macos/Runner/Configs/AppInfo.xcconfig`, `app/android/app/build.gradle.kts`, `.gitignore`, `docs/specs/release.md`
+
+**Interfaces:**
+- Consumes: binaries `leemusync` and `leemusyncd` (Task 1), the Flutter app (Task 4), `xtask` (Task 2).
+- Produces: `cargo xtask version-check <tag>`; internal `metadata::load(&Path) -> Result<serde_json::Value, Vec<String>>`, `version::compare(&str, &str, &str) -> Result<(), Vec<String>>`; `release.yml` jobs `version`, `linux`, `headless`, `windows`, `macos`, `android`, `publish`.
+
+**Permanent identifiers (never change after the first release):**
+- Inno Setup `AppId`: `{350A21EC-E42B-4C95-8E97-B1433D66294D}`
+- WiX `UpgradeCode`: `95ABB515-7BAD-4E28-AC9F-BF5865B70A15`
+- App/bundle id and Windows AppUserModelID: `io.github.danielesc0911.leemusync`
+
+- [ ] **Step 1: Shared `cargo metadata` loader (refactor; tests must stay green).** Move the command call out of `layers.rs` into `xtask/src/metadata.rs`:
+
+```rust
+//! Shared `cargo metadata` loader for xtask checks.
+
+use std::path::Path;
+use std::process::Command;
+
+use serde_json::Value;
+
+pub(crate) fn load(root: &Path) -> Result<Value, Vec<String>> {
+    let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
+    let output = Command::new(cargo)
+        .args(["metadata", "--format-version", "1", "--no-deps"])
+        .current_dir(root)
+        .output()
+        .map_err(|e| vec![format!("cannot run cargo metadata: {e}")])?;
+    if !output.status.success() {
+        return Err(vec![String::from_utf8_lossy(&output.stderr).into_owned()]);
+    }
+    serde_json::from_slice(&output.stdout).map_err(|e| vec![format!("invalid cargo metadata: {e}")])
+}
+```
+In `layers.rs`, `check` starts with `let metadata = crate::metadata::load(root)?;`. Remove the inline call and the now-unused `Command` and `Value` imports (clippy fails on unused imports). Add `mod metadata;` to `main.rs`. Run `cargo test -p xtask` and `cargo xtask layers` → both still pass.
+
+- [ ] **Step 2: `version-check`, test first.** `xtask/src/version.rs` with the tests below and a stub `fn compare(..) -> Result<(), Vec<String>> { Ok(()) }` → `cargo test -p xtask` FAILS in `rejects_mismatch` and `rejects_tag_without_v`. Then the full file:
+
+```rust
+//! `version-check <tag>`: a release tag `vX.Y.Z[-pre]` must equal the workspace
+//! version (Cargo.toml) and the app version (app/pubspec.yaml, build number ignored).
+
+use std::fs;
+use std::path::Path;
+
+pub(crate) fn check(root: &Path, tag: &str) -> Result<(), Vec<String>> {
+    let metadata = crate::metadata::load(root)?;
+    let cargo_version = metadata["packages"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|package| package["name"] == "leemusync-cli")
+        .and_then(|package| package["version"].as_str())
+        .ok_or_else(|| vec!["leemusync-cli not found in cargo metadata".to_string()])?
+        .to_string();
+    let pubspec = fs::read_to_string(root.join("app/pubspec.yaml"))
+        .map_err(|e| vec![format!("app/pubspec.yaml: {e}")])?;
+    let app_version = pubspec
+        .lines()
+        .find_map(|line| line.strip_prefix("version:"))
+        .map(|version| version.trim().to_string())
+        .ok_or_else(|| vec!["app/pubspec.yaml: no top-level `version:` line".to_string()])?;
+    compare(tag, &cargo_version, &app_version)
+}
+
+fn compare(tag: &str, cargo_version: &str, app_version: &str) -> Result<(), Vec<String>> {
+    let Some(wanted) = tag.strip_prefix('v') else {
+        return Err(vec![format!("tag `{tag}` must start with `v`")]);
+    };
+    let app = app_version.split('+').next().unwrap_or_default();
+    let mut errors = Vec::new();
+    if cargo_version != wanted {
+        errors.push(format!("Cargo.toml version {cargo_version} != tag {wanted}"));
+    }
+    if app != wanted {
+        errors.push(format!("app/pubspec.yaml version {app} != tag {wanted}"));
+    }
+    if errors.is_empty() { Ok(()) } else { Err(errors) }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::compare;
+
+    #[test]
+    fn accepts_matching_versions_ignoring_build_number() {
+        assert_eq!(compare("v0.0.1-alpha.1", "0.0.1-alpha.1", "0.0.1-alpha.1+1"), Ok(()));
+    }
+
+    #[test]
+    fn rejects_mismatch() {
+        assert_eq!(
+            compare("v0.2.0", "0.1.0", "0.2.0+3"),
+            Err(vec!["Cargo.toml version 0.1.0 != tag 0.2.0".to_string()])
+        );
+    }
+
+    #[test]
+    fn rejects_tag_without_v() {
+        assert!(compare("0.1.0", "0.1.0", "0.1.0").is_err());
+    }
+}
+```
+In `main.rs`: `mod version;`, the arm `"version-check" => version::check(&root, &std::env::args().nth(2).unwrap_or_default()),`, and `version-check <tag>` in the unknown-task message. Run: `cargo test -p xtask` → PASS. `cargo xtask version-check v0.0.0` → ok only if `pubspec.yaml` says `version: 0.0.0+1`; set it so.
+
+- [ ] **Step 3: GUI executable names and placeholder icon** (release §Install layout)
+  - `app/windows/CMakeLists.txt`: `set(BINARY_NAME "leemusync")` → `set(BINARY_NAME "LeemuSync")`. In `app/windows/runner/Runner.rc`, set `FileDescription` and `ProductName` to `LeemuSync`.
+  - `app/linux/CMakeLists.txt`: `set(BINARY_NAME "leemusync")` → `set(BINARY_NAME "leemusync-gui")`. Keep `APPLICATION_ID` = `io.github.danielesc0911.leemusync`.
+  - `app/macos/Runner/Configs/AppInfo.xcconfig`: `PRODUCT_NAME = LeemuSync`.
+  - `cp app/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_256.png packaging/icons/leemusync.png` (Flutter's default icon; placeholder until the Phase 3 brand).
+  - Run `cd app && flutter build linux --release` → `build/linux/x64/release/bundle/leemusync-gui` exists, and `flutter test` still passes.
+
+- [ ] **Step 4: Linux packaging.** `packaging/linux/io.github.danielesc0911.leemusync.desktop`:
+```ini
+[Desktop Entry]
+Type=Application
+Name=LeemuSync
+Comment=Keep your emulator saves in sync on every device
+Comment[es]=Mantén tus partidas guardadas sincronizadas en todos tus dispositivos
+Exec=leemusync-gui
+Icon=io.github.danielesc0911.leemusync
+Terminal=false
+Categories=Game;Utility;
+```
+`packaging/linux/nfpm.yaml` (the workflow exports `LEEMUSYNC_VERSION` and `NFPM_ARCH` = `amd64`|`arm64`, and stages files under `dist/stage/`):
+```yaml
+name: leemusync
+arch: ${NFPM_ARCH}
+platform: linux
+version: ${LEEMUSYNC_VERSION}
+version_schema: semver
+maintainer: Daniel <daescalona@proton.me>
+description: Keep your emulator saves in sync on every device, using storage you own.
+homepage: https://github.com/DanielEsc0911/leemusync
+license: MPL-2.0
+contents:
+  - src: dist/stage/gui/
+    dst: /opt/leemusync/
+    type: tree
+  - src: /opt/leemusync/leemusync-gui
+    dst: /usr/bin/leemusync-gui
+    type: symlink
+  - src: dist/stage/bin/leemusync
+    dst: /usr/bin/leemusync
+  - src: dist/stage/bin/leemusyncd
+    dst: /usr/bin/leemusyncd
+  - src: packaging/linux/io.github.danielesc0911.leemusync.desktop
+    dst: /usr/share/applications/io.github.danielesc0911.leemusync.desktop
+  - src: packaging/icons/leemusync.png
+    dst: /usr/share/icons/hicolor/256x256/apps/io.github.danielesc0911.leemusync.png
+overrides:
+  deb:
+    depends: [libgtk-3-0]
+  rpm:
+    depends: [gtk3]
+```
+Commands (pin the nfpm and appimagetool versions in the workflow; check each flag with `--help` at that version, V-PKG-3):
+```bash
+nfpm package --config packaging/linux/nfpm.yaml --packager deb --target dist/out/
+nfpm package --config packaging/linux/nfpm.yaml --packager rpm --target dist/out/
+# APPIMAGE_ARCH = x86_64 | aarch64
+# AppImage: AppDir = GUI bundle + usr/bin/{leemusync,leemusyncd} + .desktop + icon + AppRun (exec "$APPDIR/leemusync-gui" "$@")
+ARCH="$APPIMAGE_ARCH" appimagetool dist/AppDir "dist/out/leemusync-${LEEMUSYNC_VERSION}-linux-${APPIMAGE_ARCH}.AppImage"
+# tar.gz layout: leemusync/leemusync-gui (+ bundle files) and leemusync/bin/ (release §Install layout)
+mkdir -p dist/tar/leemusync && cp -r dist/stage/gui/. dist/tar/leemusync/ && cp -r dist/stage/bin dist/tar/leemusync/bin
+tar -C dist/tar -czf "dist/out/leemusync-${LEEMUSYNC_VERSION}-linux-${APPIMAGE_ARCH}.tar.gz" leemusync
+```
+Check: `dpkg-deb -c` and `rpm -qlp` list exactly the install layout; nfpm turns `-alpha.1` into a version that sorts before the final release (deb `~`). Record the result.
+
+- [ ] **Step 5: Windows packaging.** Both installers install the layout from release §Install layout and remove it cleanly on uninstall.
+  - `packaging/windows/leemusync.iss` (Inno Setup 6.3+): `AppId={{350A21EC-E42B-4C95-8E97-B1433D66294D}`, `AppName=LeemuSync`, `AppVersion` from env `LEEMUSYNC_VERSION`, `VersionInfoVersion` = numeric `X.Y.Z.0`, `DefaultDirName={autopf}\LeemuSync`, `ArchitecturesAllowed=x64compatible`, `ArchitecturesInstallIn64BitMode=x64compatible`, `LicenseFile=..\..\LICENSE`, `ChangesEnvironment=yes`, `WizardStyle=modern`, `OutputBaseFilename=leemusync-<version>-windows-x64-setup`. `[Languages]`: `en` = `compiler:Default.isl`, `es` = `compiler:Languages\Spanish.isl` (P6). `[Files]`: GUI bundle → `{app}`, CLI + daemon → `{app}\bin`. `[Icons]`: Start Menu shortcut to `{app}\LeemuSync.exe` with `AppUserModelID: "io.github.danielesc0911.leemusync"`. Add `{app}\bin` to the machine `PATH` on install and remove it on uninstall, without duplicates.
+  - `packaging/windows/leemusync.wxs` (WiX v5+, V-PKG-1): `Package` with `UpgradeCode="95ABB515-7BAD-4E28-AC9F-BF5865B70A15"`, `Version` = **numeric** `X.Y.Z` (MSI rejects `-alpha`; the pre-release only appears in the file name), `MajorUpgrade`, `MediaTemplate EmbedCab="yes"`. GUI files under `ProgramFiles64Folder\LeemuSync` (harvested from the Flutter output folder), `bin\` with CLI + daemon, a Start Menu shortcut with `ShortcutProperty Key="System.AppUserModel.ID" Value="io.github.danielesc0911.leemusync"`, and an `Environment` element appending `[INSTALLFOLDER]bin` to the system `PATH`. User-visible strings in `en-us.wxl` / `es-es.wxl`. Build one MSI per culture: `wix build -culture en-US …` and `-culture es-ES …` → `…-windows-x64-en.msi`, `…-windows-x64-es.msi`.
+  - Test both on the Windows machine: install → `LeemuSync` in the Start Menu, `leemusync` works in a new terminal → uninstall → nothing left behind.
+
+- [ ] **Step 6: macOS DMG.** `packaging/macos/make-dmg.sh`:
+```bash
+#!/usr/bin/env bash
+# Usage: make-dmg.sh <path/to/LeemuSync.app> <dir with leemusync + leemusyncd> <output.dmg>
+set -euo pipefail
+app="$1"; helpers="$2"; out="$3"
+mkdir -p "$app/Contents/Helpers"
+cp "$helpers/leemusync" "$helpers/leemusyncd" "$app/Contents/Helpers/"
+codesign --force --deep --sign - "$app"   # ad-hoc signature (D23); Developer ID later
+stage="$(mktemp -d)"
+cp -R "$app" "$stage/"
+ln -s /Applications "$stage/Applications"
+hdiutil create -volname LeemuSync -srcfolder "$stage" -ov -format UDZO "$out"
+```
+The CLI and daemon are universal binaries: build `aarch64-apple-darwin` and `x86_64-apple-darwin`, then `lipo -create -output <out> <arm64> <x86_64>`. Test on the MacBook: open the DMG → drag to Applications → Open Anyway → the app starts; `LeemuSync.app/Contents/Helpers/leemusync` prints its version.
+
+- [ ] **Step 7: Android release signing.** In `app/android/app/build.gradle.kts`, sign `release` with the maintainer key when CI provides it; otherwise fall back to the debug key:
+```kotlin
+val releaseKeystore = System.getenv("ANDROID_KEYSTORE_PATH")
+
+android {
+    signingConfigs {
+        if (releaseKeystore != null) {
+            create("release") {
+                storeFile = file(releaseKeystore)
+                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+            }
+        }
+    }
+    buildTypes {
+        release {
+            signingConfig = signingConfigs.getByName(if (releaseKeystore != null) "release" else "debug")
+        }
+    }
+}
+```
+Merge this into the generated `android { … }` block; don't create a second one. Add `*.jks` and `*.keystore` to `.gitignore`.
+**Maintainer, once:** `keytool -genkeypair -v -keystore leemusync-release.jks -keyalg RSA -keysize 4096 -validity 10000 -alias leemusync`. Store `base64` of the file and the passwords as repository secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. Keep two offline backups: losing the key means installed apps can never update.
+
+- [ ] **Step 8: `.github/workflows/release.yml`.** Triggers: `push: tags: ['v*']` and `workflow_dispatch`. Top-level `permissions: contents: read`. Every action pinned by SHA (Task 3 Step 3). Version = tag without `v`, or for manual runs `0.0.0-dev.<run_number>` for file names only.
+
+| Job | Runner(s) | Does |
+|---|---|---|
+| `version` | ubuntu-latest | Tag runs only: `cargo xtask version-check "$GITHUB_REF_NAME"` |
+| `linux` | `ubuntu-22.04` (x86_64), `ubuntu-22.04-arm` (arm64) | apt: `clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev`; `cargo build --release -p leemusync-cli -p leemusync-daemon`; `flutter build linux --release`; stage; nfpm deb + rpm; AppImage; tar.gz. If the Flutter action lacks linux-arm64 (V-PKG-4), clone Flutter at the version pinned in `pubspec.yaml` |
+| `headless` | ubuntu-22.04 | CLI + daemon `.tar.gz` for x86_64, aarch64, armv7 (`rustup target add`; apt `gcc-aarch64-linux-gnu gcc-arm-linux-gnueabihf`; `CARGO_TARGET_<TRIPLE>_LINKER`) |
+| `windows` | windows-latest | Rust release build; `flutter build windows --release`; Inno Setup → `.exe`; WiX → two `.msi` (V-PKG-2: install with `choco`/`dotnet tool` if absent) |
+| `macos` | macos-latest | Rust for both macOS targets + `lipo`; `flutter build macos --release`; `make-dmg.sh` |
+| `android` | ubuntu-latest | `actions/setup-java` (Temurin 17); decode `ANDROID_KEYSTORE_BASE64` to a temp file and export `ANDROID_KEYSTORE_PATH` when present; **tag runs fail if the secrets are missing**; `flutter build apk --release --split-per-abi`; rename to `leemusync-<v>-android-<abi>.apk` (`-debug` suffix when unsigned) |
+| `publish` | ubuntu-latest, needs all | Download artifacts; `sha256sum * > SHA256SUMS`; `actions/attest-build-provenance` over every file (job permissions: `id-token: write`, `attestations: write`, `contents: write`); tag → `gh release create "$GITHUB_REF_NAME" --draft --verify-tag --title "LeemuSync $VERSION" dist/*`; manual → upload one combined workflow artifact |
+
+- [ ] **Step 9: Dry run.** Push the branch and run the workflow manually (`gh workflow run release.yml --ref <branch>`). Download the artifacts and test each on the [Device lab](../../specs/testing.md#device-lab): `.exe` + `.msi` on Windows; `.rpm`, `.AppImage`, `.tar.gz` on Fedora; `.AppImage` + `.tar.gz` on CachyOS; `.deb` in an Ubuntu container (`dpkg -i` + `leemusync`); `.apk` on the Galaxy A25; `.dmg` on the MacBook. Write the results and the answers to V-PKG-1…5 into release.md.
+
+- [ ] **Step 10: Tag test (maintainer approval required).** Set the version to `0.0.1-alpha.1` in `Cargo.toml` and `app/pubspec.yaml` (`0.0.1-alpha.1+1`). Tag `v0.0.1-alpha.1` and push the tag. Confirm the draft release lists every format + `SHA256SUMS`, and that `gh attestation verify <file> --repo DanielEsc0911/leemusync` passes. Leave it as a draft (don't publish) or delete the draft and tag, as the maintainer decides.
+
+- [ ] **Step 11: Commit.** `just check` → green, then:
+```bash
+git add xtask/ packaging/ .github/workflows/release.yml app/ .gitignore docs/specs/release.md
+git commit -m "ci(release): build apk, msi, exe, dmg, deb, rpm, AppImage and tar.gz" \
+  -m "Co-Authored-By: Claude <noreply@anthropic.com>"
+```
+
+---
+
 ## Spikes
 Each spike runs on a `spike/<id>-<slug>` branch, timeboxed (default 2 days). The code is throwaway unless a later task adopts it. **Done** means every listed Verify item is answered with evidence (versions, devices, logs, screenshots, links). The results are written into the named specs and decisions (W1, W3) and committed to `main` as `docs(spike): …`.
 
@@ -998,14 +1246,14 @@ Each spike runs on a `spike/<id>-<slug>` branch, timeboxed (default 2 days). The
 - **Answers:** D4 (FRB + UniFFI in one cdylib, one engine instance), V-DESK-4, V-SEC-2.
 - [ ] Create `crates/bridge` (cdylib + staticlib) with flutter_rust_bridge exposing `fn core_version() -> String` and UniFFI exposing `fn engine_ping() -> String`. Both read and increment one global counter, which proves there's a single instance.
 - [ ] Call FRB from Dart and UniFFI from Kotlin (Android) and Swift (iOS) in the same app. Confirm the counter is shared.
-- [ ] Build and run on Windows x64, Windows arm64, macOS, Linux x64, Linux arm64 (Pi 5), Android arm64, iOS device.
+- [ ] Build and run on Windows x64, macOS (MacBook Air M4), Linux x86_64 (Fedora XFCE, CachyOS), Android arm64 (Galaxy A25), iOS (iPhone 15 Pro, free Apple ID provisioning). Build and test without a device on Windows arm64 and Linux arm64 (GitHub ARM runners). See [testing §Device lab](../../specs/testing.md#device-lab).
 - [ ] Make one HTTPS request with `rustls` + platform verifier on each target.
 - [ ] Measure per target: cold start, app size, idle RSS, frame times for a 120 Hz animation test screen (profile mode).
 - [ ] **Record:** architecture (bridge details), decisions D2/D4 (confirm or supersede), desktop V-DESK-4, security V-SEC-2, design-system budgets (adjust with data).
 
 ### SP2: Desktop daemon presence
 - **Answers:** V-DESK-1/2/3, V-REL-1/2, V-SEC-3, V-STAT-4.
-- [ ] Prototype daemon: tray icon with state swap + menu; actionable notification; on Windows, macOS, Linux KDE and GNOME (with and without the AppIndicator extension).
+- [ ] Prototype daemon: tray icon with state swap + menu; actionable notification; on Windows, macOS, Linux XFCE (Fedora), CachyOS's desktop, and GNOME in a VM (with and without the AppIndicator extension).
 - [ ] Service registration: systemd user unit (+ linger), `SMAppService` LaunchAgent from a signed bundle, Windows logon task with restart. Confirm the tray works when started by each.
 - [ ] Sleep inhibition during a fake transfer, then release. Resume event delivery.
 - [ ] Keystore read/write from the daemon on each OS, including headless Linux.
@@ -1022,12 +1270,13 @@ Each spike runs on a `spike/<id>-<slug>` branch, timeboxed (default 2 days). The
 ### SP4: Android live surfaces
 - **Answers:** V-STAT-1/2, V-AND-4.
 - [ ] Post a `ProgressStyle` notification requesting promotion on Android 16. Record the requirements (permission, flags, style limits, user toggles).
-- [ ] Verify the chip on Pixel, Now Bar on Samsung One UI 8+, Super Island on Xiaomi HyperOS 3 (global). Screenshots.
+- [ ] Verify the status-bar chip on the Android 16 emulator (Pixel image), the Now Bar on the Galaxy A25 (record its One UI version first), and Super Island on the Redmi Note 15 Pro (record its HyperOS version and region). Screenshots.
 - [ ] Fallback on Android 13–15 devices.
 - [ ] **Record:** status-and-notifications, android.
 
 ### SP5: iOS access and integrations
-- **Answers:** V-IOS-1/2/3/4, V-PROF-3, V-STAT-3.
+- **Answers:** V-IOS-1/2/3/4/5, V-PROF-3, V-STAT-3.
+- [ ] With free Apple ID provisioning on the iPhone 15 Pro: which capabilities work (Live Activities, App Groups, App Intents, background tasks)? Note the 7-day re-signing limit.
 - [ ] For RetroArch, PPSSPP, Delta, Gamma, Provenance, Folium, DolphiniOS, MeloNX: are saves exposed in Files? Where? Same format as desktop?
 - [ ] Security-scoped bookmark to another app's Files folder: survives restart and update?
 - [ ] App Intent triggered by a Shortcuts "app is closed" automation runs the Rust bridge to completion.
@@ -1051,7 +1300,7 @@ Each spike runs on a `spike/<id>-<slug>` branch, timeboxed (default 2 days). The
 
 ---
 
-### Task 5: Close Phase 0
+### Task 6: Close Phase 0
 - [ ] Every Verify item targeted by SP1–SP7 is answered: moved into its spec's body with evidence, or re-scoped with a reason.
 - [ ] Decisions confirmed or superseded (D2, D4, D10 at least). New decisions added (Flatpak, MEGA, Android all-files access).
 - [ ] Spec statuses updated. `cargo xtask docs-check` green.

@@ -6,7 +6,7 @@ Each phase ends with a demo of its exit criteria on real devices. Scenario IDs (
 
 ## Phase 0: Foundations and spikes
 - **Goal:** a CI-checked skeleton, plus answers to every platform risk before any feature code is written.
-- **Deliverables:** Rust workspace + xtask checks; Flutter app shell (en/es); CI; spikes SP1–SP7 recorded in the specs; Phase 1 plan.
+- **Deliverables:** Rust workspace + xtask checks; Flutter app shell (en/es); CI; release pipeline producing `.apk` `.msi` `.exe` `.dmg` `.deb` `.rpm` `.AppImage` `.tar.gz`; spikes SP1–SP7 recorded in the specs; Phase 1 plan.
 - **Exit:** `just check` green on Linux, Windows and macOS CI. Every Verify item targeted by a spike is resolved or re-scoped.
 
 ## Phase 1: Sync engine + CLI (desktop)
