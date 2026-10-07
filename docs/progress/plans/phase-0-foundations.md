@@ -13,6 +13,7 @@
 - Package names `leemusync-<dir>`. Every crate: `publish = false`, `license = "MPL-2.0"`, `edition = "2024"`, `[lints] workspace = true`.
 - Workspace lints: `unsafe_code = "forbid"`; clippy `all` = deny, `pedantic` = warn; `unwrap_used`, `dbg_macro`, `todo` = deny (unwrap/expect allowed in tests via `clippy.toml`). CI runs clippy with `-D warnings`.
 - `xtask` dependencies: `serde_json` only.
+- Code snippets here are correct but not always in rustfmt layout. Run `just fmt` before `just check` (found in Task 1).
 - Commits: Conventional Commits. Author = maintainer. Trailer `Co-Authored-By: <agent> <no-reply address>` ([git-workflow](../../specs/git-workflow.md)).
 
 ## Open decisions (maintainer)
@@ -130,7 +131,10 @@ fn prints_name_and_version() {
         .output()
         .expect("binary runs");
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert_eq!(stdout.trim(), format!("leemusync {}", env!("CARGO_PKG_VERSION")));
+    assert_eq!(
+        stdout.trim(),
+        format!("leemusync {}", env!("CARGO_PKG_VERSION"))
+    );
 }
 ```
 
