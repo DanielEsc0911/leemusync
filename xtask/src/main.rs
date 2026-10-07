@@ -3,6 +3,8 @@
 mod docs;
 mod i18n;
 mod layers;
+mod metadata;
+mod version;
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -14,8 +16,9 @@ fn main() -> ExitCode {
         "docs-check" => docs::check(&root),
         "layers" => layers::check(&root),
         "i18n-check" => i18n::check(&root),
+        "version-check" => version::check(&root, &std::env::args().nth(2).unwrap_or_default()),
         _ => Err(vec![format!(
-            "unknown task `{task}`; available: docs-check, layers, i18n-check"
+            "unknown task `{task}`; available: docs-check, layers, i18n-check, version-check <tag>"
         )]),
     };
     match result {

@@ -2,9 +2,6 @@
 //! The table mirrors docs/specs/architecture.md (Layers); change both together.
 
 use std::path::Path;
-use std::process::Command;
-
-use serde_json::Value;
 
 const ALLOWED: &[(&str, &[&str])] = &[
     ("leemusync-core", &[]),
@@ -36,17 +33,7 @@ const ALLOWED: &[(&str, &[&str])] = &[
 ];
 
 pub(crate) fn check(root: &Path) -> Result<(), Vec<String>> {
-    let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
-    let output = Command::new(cargo)
-        .args(["metadata", "--format-version", "1", "--no-deps"])
-        .current_dir(root)
-        .output()
-        .map_err(|e| vec![format!("cannot run cargo metadata: {e}")])?;
-    if !output.status.success() {
-        return Err(vec![String::from_utf8_lossy(&output.stderr).into_owned()]);
-    }
-    let metadata: Value = serde_json::from_slice(&output.stdout)
-        .map_err(|e| vec![format!("invalid cargo metadata: {e}")])?;
+    let metadata = crate::metadata::load(root)?;
     let packages = metadata["packages"].as_array().cloned().unwrap_or_default();
     let graph: Vec<(String, Vec<String>)> = packages
         .iter()

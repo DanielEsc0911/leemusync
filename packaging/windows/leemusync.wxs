@@ -1,0 +1,49 @@
+<!-- LeemuSync MSI (WiX v5+). Layout: docs/specs/release.md (Install layout).
+     Build one MSI per culture from the repo root:
+       wix build packaging/windows/leemusync.wxs -arch x64 -culture en-US -loc packaging/windows/en-us.wxl
+         -d Version=0.0.1 -d GuiDir=<flutter Release folder> -d BinDir=<dir with leemusync.exe + leemusyncd.exe>
+         -o leemusync-<version>-windows-x64-en.msi
+     Version must be numeric X.Y.Z (MSI rejects pre-release suffixes; those only appear in the file name).
+     UpgradeCode is permanent: never change it after the first release. -->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="LeemuSync"
+           Manufacturer="!(loc.Manufacturer)"
+           Version="$(var.Version)"
+           UpgradeCode="95ABB515-7BAD-4E28-AC9F-BF5865B70A15"
+           Language="!(loc.Language)"
+           Scope="perMachine">
+    <MajorUpgrade DowngradeErrorMessage="!(loc.DowngradeError)" />
+    <MediaTemplate EmbedCab="yes" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="LeemuSync">
+        <Directory Id="BINFOLDER" Name="bin" />
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder" />
+
+    <Feature Id="Main" Title="LeemuSync">
+      <!-- GUI: everything in the Flutter Release folder. -->
+      <Files Directory="INSTALLFOLDER" Include="$(var.GuiDir)\**" />
+
+      <!-- CLI + daemon, added to the system PATH. -->
+      <Component Directory="BINFOLDER">
+        <File Source="$(var.BinDir)\leemusync.exe" />
+        <File Source="$(var.BinDir)\leemusyncd.exe" />
+        <Environment Id="PathBin" Name="PATH" Value="[BINFOLDER]" Action="set" Part="last" Permanent="no" System="yes" />
+      </Component>
+
+      <!-- Start Menu shortcut; the AppUserModelID is needed for toasts. -->
+      <Component Directory="ProgramMenuFolder">
+        <Shortcut Id="StartMenuShortcut"
+                  Name="LeemuSync"
+                  Description="!(loc.ShortcutDescription)"
+                  Target="[INSTALLFOLDER]LeemuSync.exe"
+                  WorkingDirectory="INSTALLFOLDER">
+          <ShortcutProperty Key="System.AppUserModel.ID" Value="io.github.danielesc0911.leemusync" />
+        </Shortcut>
+        <RegistryValue Root="HKLM" Key="Software\LeemuSync" Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </Feature>
+  </Package>
+</Wix>

@@ -1,0 +1,6 @@
+<WixLocalization Culture="es-ES" Codepage="1252" xmlns="http://wixtoolset.org/schemas/v4/wxl">
+  <String Id="Language" Value="3082" />
+  <String Id="Manufacturer" Value="Colaboradores de LeemuSync" />
+  <String Id="ShortcutDescription" Value="Mantén tus partidas guardadas sincronizadas en todos tus dispositivos" />
+  <String Id="DowngradeError" Value="Ya hay instalada una versión más reciente de LeemuSync." />
+</WixLocalization>

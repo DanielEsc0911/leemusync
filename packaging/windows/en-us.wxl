@@ -1,0 +1,6 @@
+<WixLocalization Culture="en-US" Codepage="1252" xmlns="http://wixtoolset.org/schemas/v4/wxl">
+  <String Id="Language" Value="1033" />
+  <String Id="Manufacturer" Value="LeemuSync contributors" />
+  <String Id="ShortcutDescription" Value="Keep your emulator saves in sync on every device" />
+  <String Id="DowngradeError" Value="A newer version of LeemuSync is already installed." />
+</WixLocalization>

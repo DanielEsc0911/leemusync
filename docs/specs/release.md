@@ -1,6 +1,6 @@
 # Release
 
-> **Status:** Draft · **Related:** [rules](../rules.md) (B2, F2, P6, P7), [decisions](../decisions.md) (D16, D22, D23, D24), [security §Supply chain](security.md#supply-chain), [testing](testing.md#device-lab), [git-workflow](git-workflow.md), [progress](../progress/README.md) · **Code:** `.github/workflows/release.yml`, `packaging/` (planned, Phase 0 Task 5)
+> **Status:** Draft · **Related:** [rules](../rules.md) (B2, F2, P6, P7), [decisions](../decisions.md) (D16, D22, D23, D24), [security §Supply chain](security.md#supply-chain), [testing](testing.md#device-lab), [git-workflow](git-workflow.md), [progress](../progress/README.md) · **Code:** `.github/workflows/release.yml`, `packaging/`, `xtask/src/version.rs`
 
 ## Purpose
 Ship verifiable builds for every platform from one pipeline, without ever shipping something half-wired (F2). Repository: `github.com/DanielEsc0911/leemusync`.
@@ -31,10 +31,12 @@ Every desktop package contains the Flutter app plus the `leemusync` CLI and `lee
 | `.dmg` | macOS universal (Apple Silicon + Intel) | `macos-latest` | `hdiutil` (built into macOS) |
 | `.deb`, `.rpm` | Linux x86_64, arm64 | `ubuntu-22.04`, `ubuntu-22.04-arm` | nfpm |
 | `.AppImage` | Linux x86_64, arm64 | same | appimagetool |
-| `.tar.gz` | Linux desktop bundle (x86_64, arm64), plus headless CLI + daemon (x86_64, aarch64, armv7) | same | `tar` |
+| `.tar.gz` | Linux desktop bundle (x86_64, arm64), plus headless CLI + daemon (x86_64, aarch64, armv7; file names end in `-headless`) | same | `tar` |
 | `.apk` (one per ABI: arm64-v8a, armeabi-v7a, x86_64) | Android | `ubuntu-latest` | `flutter build apk --split-per-abi` |
 | `SHA256SUMS` | all | release job | `sha256sum` |
 
+- Manual and PR runs use the version `0.0.0-dev.<run number>` in file names. Pre-release versions sort before the final release: nfpm writes `0.0.1-alpha.1` as `0.0.1~alpha.1` in both `.deb` and `.rpm` (checked locally with nfpm 2.47.0: `rpm.vercmp("0.0.1~alpha.1", "0.0.1")` = -1).
+- The `.msi` `Version` is the numeric `X.Y.Z` (MSI rejects pre-release suffixes). The pre-release only appears in the file name.
 - Linux builds run on the oldest supported Ubuntu runner (22.04), so the glibc baseline works on Fedora, Arch/CachyOS, Debian and Ubuntu.
 - Windows arm64 artifacts are added once SP1 confirms Flutter support (V-DESK-4).
 - No iOS artifact until an Apple Developer membership exists ([D23](../decisions.md#d23-distribution-before-store-accounts-2026-10-07)).
@@ -47,7 +49,7 @@ GUI and CLI never share a folder, because Windows and macOS file systems are cas
 | Windows `.msi` / `.exe` | `%ProgramFiles%\LeemuSync\LeemuSync.exe` + Start Menu shortcut with AppUserModelID (needed for toasts) | `%ProgramFiles%\LeemuSync\bin\` (added to `PATH`) |
 | macOS `.dmg` | `LeemuSync.app` | `LeemuSync.app/Contents/Helpers/` |
 | Linux `.deb` / `.rpm` | `/opt/leemusync/leemusync-gui`, symlink `/usr/bin/leemusync-gui`, desktop file + icon under `/usr/share` | `/usr/bin/leemusync`, `/usr/bin/leemusyncd` |
-| `.AppImage` | AppRun → `leemusync-gui` | `usr/bin/` inside the image |
+| `.AppImage` | AppRun → `leemusync-gui` (bundle at the image root) | `usr/bin/` inside the image |
 | `.tar.gz` | `leemusync/leemusync-gui` | `leemusync/bin/` |
 
 GUI executable names: `LeemuSync.exe` (Windows), `LeemuSync.app` (macOS), `leemusync-gui` (Linux). App and bundle id: `io.github.danielesc0911.leemusync` ([D22](../decisions.md#d22-app-and-bundle-id-iogithubdanielesc0911leemusync-2026-10-07)).
@@ -81,6 +83,6 @@ GUI executable names: `LeemuSync.exe` (Windows), `LeemuSync.app` (macOS), `leemu
 ## Verify
 - **V-PKG-1** WiX version, culture builds (`en-US`, `es-ES`) and folder harvesting for the Flutter Windows build output (Phase 0 Task 5).
 - **V-PKG-2** WiX and Inno Setup availability on GitHub Windows runners, or the install method (Task 5).
-- **V-PKG-3** appimagetool on arm64 runners (Task 5).
+- **V-PKG-3** appimagetool on arm64 runners (Task 5). Pinned 1.9.1; the workflow runs it extracted (no FUSE on runners). Works on x86_64 Fedora 44; arm64 unproven.
 - **V-PKG-4** Flutter SDK and Linux build on `ubuntu-22.04-arm` (Task 5).
 - **V-PKG-5** Whether an all-in-one packager now covers all eight formats, which would let us revisit D24 (Task 5).
