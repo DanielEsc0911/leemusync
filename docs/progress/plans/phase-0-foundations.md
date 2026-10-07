@@ -35,7 +35,7 @@
 **Interfaces:**
 - Produces: binaries `leemusync` (package `leemusync-cli`) and `leemusyncd` (package `leemusync-daemon`), each printing `<bin> <version>`. Library crates exist, empty, with their responsibility in the crate docs.
 
-- [ ] **Step 1: Install toolchains**
+- [x] **Step 1: Install toolchains**
 
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
@@ -45,7 +45,7 @@ rustc --version && just --version && cargo deny --version
 ```
 Expected: three version lines. (The fish shell uses `source "$HOME/.cargo/env.fish"`.)
 
-- [ ] **Step 2: Pin the toolchain.** Write `rust-toolchain.toml`, using the exact version `rustc --version` printed (e.g. `1.99.0`):
+- [x] **Step 2: Pin the toolchain.** Write `rust-toolchain.toml`, using the exact version `rustc --version` printed (e.g. `1.99.0`):
 
 ```toml
 [toolchain]
@@ -54,7 +54,7 @@ components = ["rustfmt", "clippy"]
 profile = "minimal"
 ```
 
-- [ ] **Step 3: Write the workspace manifest and lint config**
+- [x] **Step 3: Write the workspace manifest and lint config**
 
 `Cargo.toml`:
 ```toml
@@ -91,7 +91,7 @@ allow-unwrap-in-tests = true
 allow-expect-in-tests = true
 ```
 
-- [ ] **Step 4: Write the failing CLI version test**
+- [x] **Step 4: Write the failing CLI version test**
 
 `crates/cli/Cargo.toml`:
 ```toml
@@ -134,12 +134,12 @@ fn prints_name_and_version() {
 }
 ```
 
-- [ ] **Step 5: Run it and watch it fail**
+- [x] **Step 5: Run it and watch it fail**
 
 Run: `cargo test -p leemusync-cli`
 Expected: FAIL. `assertion left == right failed`, left `""`, right `"leemusync 0.0.0"`.
 
-- [ ] **Step 6: Implement**
+- [x] **Step 6: Implement**
 
 `crates/cli/src/main.rs`:
 ```rust
@@ -152,7 +152,7 @@ fn main() {
 
 Run: `cargo test -p leemusync-cli` → Expected: PASS (1 test).
 
-- [ ] **Step 7: Same for the daemon (test first, then implementation)**
+- [x] **Step 7: Same for the daemon (test first, then implementation)**
 
 `crates/daemon/Cargo.toml`: identical to the CLI manifest except `name = "leemusync-daemon"`, `description = "LeemuSync always-on sync daemon."`, and `[[bin]] name = "leemusyncd"`.
 
@@ -168,7 +168,7 @@ fn main() {
 ```
 Run: `cargo test -p leemusync-daemon` → PASS.
 
-- [ ] **Step 8: Library crates.** For each row, create `crates/<dir>/Cargo.toml` (same shape as the CLI manifest, without `[[bin]]`) and `crates/<dir>/src/lib.rs` with only the crate doc comment:
+- [x] **Step 8: Library crates.** For each row, create `crates/<dir>/Cargo.toml` (same shape as the CLI manifest, without `[[bin]]`) and `crates/<dir>/src/lib.rs` with only the crate doc comment:
 
 | dir | `description` | `lib.rs` |
 |---|---|---|
@@ -179,7 +179,7 @@ Run: `cargo test -p leemusync-daemon` → PASS.
 | engine | Sync engine orchestration. | `//! Sync engine: scanning, snapshots, transfers, leases, journal.`<br>`//! Spec: docs/specs/architecture.md (Engine internals), docs/specs/reliability.md.` |
 | ipc | Same-user local IPC transport. | `//! Same-user local IPC: framing, handshake, engine client and server.`<br>`//! Spec: docs/specs/architecture.md (IPC).` |
 
-- [ ] **Step 9: Task runner.** `justfile`:
+- [x] **Step 9: Task runner.** `justfile`:
 
 ```just
 # LeemuSync task runner. `just --list` shows every recipe.
@@ -205,9 +205,9 @@ test:
 check: lint test
 ```
 
-- [ ] **Step 10: Verify.** Run: `just check` → Expected: fmt clean, clippy no warnings, 2 tests pass.
+- [x] **Step 10: Verify.** Run: `just check` → Expected: fmt clean, clippy no warnings, 2 tests pass.
 
-- [ ] **Step 11: Commit**
+- [x] **Step 11: Commit**
 
 ```bash
 git add rust-toolchain.toml Cargo.toml Cargo.lock clippy.toml justfile crates/
