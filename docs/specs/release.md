@@ -18,7 +18,7 @@ A release tag `vX.Y.Z[-pre]` must match `workspace.package.version` in `Cargo.to
 | Workflow | Trigger | Runs |
 |---|---|---|
 | `ci.yml` | PR, push to `main` | fmt, clippy `-D warnings`, tests (Linux/Windows/macOS), `cargo deny`, `xtask layers/docs-check/i18n-check`, Flutter format/analyze/test |
-| `release.yml` | Tag `v*`, or manual (`workflow_dispatch`) | Build every artifact below → `SHA256SUMS` → build-provenance attestations → draft GitHub Release (tag) or workflow artifacts only (manual) |
+| `release.yml` | Tag `v*`; manual (`workflow_dispatch`); PRs touching `release.yml` or `packaging/**` | Build every artifact below → `SHA256SUMS` → build-provenance attestations (tag and manual runs) → draft GitHub Release (tag), or workflow artifacts only (manual, PR) |
 | `nightly.yml` | Schedule (later) | Fuzzing, Docker backend conformance, integration tests |
 
 ## Artifacts
