@@ -726,7 +726,7 @@ git commit -m "ci: add cargo-deny, CI workflow and dependabot" \
 **Interfaces:**
 - Produces: `LeemuSyncApp({Key? key, Locale? locale})` in `app/lib/main.dart`; ARB keys `appTitle`, `statusSynced`, `statusUploading(count)`; `cargo xtask i18n-check`; internal `i18n::check(&Path) -> Result<(), Vec<String>>`, `i18n::diff(&str, &BTreeSet<String>, &BTreeSet<String>) -> Vec<String>`.
 
-- [ ] **Step 1: Install Flutter (stable) and create the app** (`--org` from D22):
+- [x] **Step 1: Install Flutter (stable) and create the app** (`--org` from D22):
 ```bash
 flutter --version
 flutter create --org io.github.danielesc0911 --project-name leemusync \
@@ -734,7 +734,7 @@ flutter create --org io.github.danielesc0911 --project-name leemusync \
 ```
 Pin the version in `app/pubspec.yaml` under `environment:` → `flutter: <exact version from flutter --version>`. Set the top-level `version: 0.0.0+1` so it matches the workspace version ([release §Versioning](../../specs/release.md#versioning)).
 
-- [ ] **Step 2: Localisation setup**
+- [x] **Step 2: Localisation setup**
 ```bash
 cd app && flutter pub add flutter_localizations --sdk=flutter && flutter pub add intl:any
 ```
@@ -778,7 +778,7 @@ Append `lib/l10n/generated/` to `app/.gitignore` (the ARB files are the source o
 }
 ```
 
-- [ ] **Step 3: Strict analysis.** `app/analysis_options.yaml`:
+- [x] **Step 3: Strict analysis.** `app/analysis_options.yaml`:
 ```yaml
 include: package:flutter_lints/flutter.yaml
 
@@ -799,7 +799,7 @@ linter:
     - unawaited_futures
 ```
 
-- [ ] **Step 4: Write the failing widget test.** `app/test/app_test.dart`:
+- [x] **Step 4: Write the failing widget test.** `app/test/app_test.dart`:
 ```dart
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -821,7 +821,7 @@ void main() {
 ```
 Run: `cd app && flutter gen-l10n && flutter test` → Expected: FAIL (`LeemuSyncApp` isn't defined).
 
-- [ ] **Step 5: Implement.** `app/lib/main.dart`:
+- [x] **Step 5: Implement.** `app/lib/main.dart`:
 ```dart
 import 'package:flutter/material.dart';
 
@@ -862,7 +862,7 @@ class _StatusPlaceholder extends StatelessWidget {
 ```
 Run: `flutter test` → Expected: PASS (2 tests). Run: `flutter analyze` → `No issues found!`
 
-- [ ] **Step 6: `i18n-check`, test first.** `xtask/src/i18n.rs`:
+- [x] **Step 6: `i18n-check`, test first.** `xtask/src/i18n.rs`:
 ```rust
 //! `i18n-check`: every locale defines exactly the keys of the English source.
 //! Covers Flutter ARB files; extend when Fluent or native string files arrive
@@ -939,7 +939,7 @@ In `xtask/src/main.rs`: add `mod i18n;`, add the arm `"i18n-check" => i18n::chec
 
 Run: `cargo xtask i18n-check` → `xtask i18n-check: ok`. Then delete `statusSynced` from `app_es.arb` and run it again. Expected: exit code 1 and an error line saying `app_es.arb` is missing key `statusSynced`. Restore the key.
 
-- [ ] **Step 7: Final `justfile`**
+- [x] **Step 7: Final `justfile`**
 ```just
 # LeemuSync task runner. `just --list` shows every recipe.
 # On Windows, run from Git Bash (just uses `sh`).
@@ -973,7 +973,7 @@ test:
 check: lint test
 ```
 
-- [ ] **Step 8: CI and Dependabot.** In `ci.yml` add `- run: cargo xtask i18n-check` to `repo-checks`, and add the job below (pin the action SHA as in Task 3 Step 3). In `dependabot.yml` add the `pub` ecosystem with `directory: /app`.
+- [x] **Step 8: CI and Dependabot.** In `ci.yml` add `- run: cargo xtask i18n-check` to `repo-checks`, and add the job below (pin the action SHA as in Task 3 Step 3). In `dependabot.yml` add the `pub` ecosystem with `directory: /app`.
 ```yaml
   flutter:
     runs-on: ubuntu-latest
@@ -992,7 +992,7 @@ check: lint test
       - run: flutter test
 ```
 
-- [ ] **Step 9: Verify and commit.** `just check` → green. Then:
+- [x] **Step 9: Verify and commit.** `just check` → green. Then:
 ```bash
 git add app/ xtask/ justfile .github/
 git commit -m "feat(app): add Flutter shell with English and Spanish strings" \

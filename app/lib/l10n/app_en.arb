@@ -1,0 +1,12 @@
+{
+  "@@locale": "en",
+  "appTitle": "LeemuSync",
+  "@appTitle": { "description": "Product name. Never translated." },
+  "statusSynced": "All saves synced",
+  "@statusSynced": { "description": "Home status when nothing is pending." },
+  "statusUploading": "{count, plural, =1{Uploading 1 change} other{Uploading {count} changes}}",
+  "@statusUploading": {
+    "description": "Status while uploads are in flight.",
+    "placeholders": { "count": { "type": "int" } }
+  }
+}
