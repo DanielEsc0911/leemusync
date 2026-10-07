@@ -31,7 +31,7 @@ Priority when several apply: `error` > `attention` > `syncing` > `offline` > `pa
 - Icon states: synced · syncing (low-rate frame animation, ≤ 4 fps, to save CPU) · paused · offline · attention · error. Monochrome template image on macOS, light/dark variants on Windows, symbolic icons on Linux.
 - Tooltip = status text.
 - Menu: status line · Sync now · Pause (1 h / until resume) · Recent games ▸ Play · Open LeemuSync · Quit (warns if a transfer is active).
-- Linux GNOME shows tray icons only with the AppIndicator extension (Ubuntu ships it; Fedora Workstation doesn't). Without it: notifications + app only, and `doctor` explains.
+- Linux GNOME shows tray icons only with the AppIndicator extension (Ubuntu ships it; Fedora Workstation doesn't). Without it: notifications + app only, and `doctor` explains. KDE and XFCE show them natively.
 
 ## Android
 - **Ongoing progress notification** during transfers and play sessions (`NotificationCompat`, progress, Pause/Open actions).

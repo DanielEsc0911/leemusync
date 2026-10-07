@@ -1,6 +1,6 @@
 # Testing
 
-> **Status:** Draft · **Related:** [rules](../rules.md) (W2, F1, F2, F3, B3), [reliability](reliability.md#invariants), [storage-backends](storage-backends.md#conformance-suite), [design-system](ui/design-system.md#performance), [release](release.md) · **Code:** — (planned per crate/app)
+> **Status:** Draft · **Related:** [rules](../rules.md) (W2, F1, F2, F3, B3), [reliability](reliability.md#invariants), [storage-backends](storage-backends.md#conformance-suite), [design-system](ui/design-system.md#performance), [release](release.md), [platforms](platforms/desktop.md) · **Code:** — (planned per crate/app)
 
 ## Purpose
 Prove the rules automatically: no lost saves, identical UI, smooth frames, same flows on every platform.
@@ -19,7 +19,23 @@ Prove the rules automatically: no lost saves, identical UI, smooth frames, same 
 | Integration | `integration_test` on Android emulator, iOS simulator, desktop | Every flow in [navigation](ui/navigation.md) per size class |
 | Performance | `flutter drive --profile` + timeline summary; Rust `criterion` | Frame budgets ([design-system](ui/design-system.md#performance)), daemon budgets ([reliability](reliability.md#budgets)) |
 | Native | Kotlin unit/instrumented, XCTest | Services, notifications, Live Activities, App Intents |
-| Manual release pass | Checklist in [release](release.md) | Real devices: Pixel, Samsung (One UI 8+), Xiaomi (HyperOS 3), iPhone with Dynamic Island, Pi |
+| Manual release pass | Checklist in [release](release.md) | Real devices from the [Device lab](#device-lab) |
+
+## Device lab
+What the project can test on today (2026-10-07). Update this table when devices change.
+
+| Device | Availability | Covers |
+|---|---|---|
+| Fedora 44 PC, XFCE on X11 (the maintainer's main machine) | Always | Linux x86_64, XFCE tray (StatusNotifier), X11 |
+| PC dual-boot: Windows | Always | Windows x64: tray, toasts, MSI/EXE installers |
+| PC dual-boot: CachyOS (Arch-based; record the desktop environment) | Always | Linux x86_64 on Arch, AppImage/tar.gz, a second desktop environment |
+| Samsung Galaxy A25 | Always | Android, One UI (record the version; Now Bar availability is Verify SP4) |
+| MacBook Air M4 | Occasional | macOS Apple Silicon, `.dmg`, building and running iOS from Xcode |
+| iPhone 15 Pro | Occasional | iOS 17+, Dynamic Island, Live Activities (free Apple ID provisioning) |
+| Redmi Note 15 Pro (a friend's) | Occasional | Xiaomi HyperOS (record version and region; Super Island is Verify SP4) |
+| Android emulator, API 36 Pixel image | Local/CI | Stock Android 16 Live Updates |
+| GitHub ARM runners (`ubuntu-22.04-arm`, `windows-11-arm`) | CI | arm64 builds and tests. There's no Raspberry Pi yet, so test on a real Pi before any headless release |
+| GNOME (VM or live USB) | On demand | GNOME tray behaviour (no AppIndicator by default) |
 
 ## Rules
 - TDD: write the failing test first (W2).

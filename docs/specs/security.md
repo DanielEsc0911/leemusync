@@ -77,7 +77,7 @@ Same-user only: socket permissions plus a peer credential check ([architecture Â
 - New dependencies need a justification in the PR (P1). Prefer well-maintained, audited crates.
 - Pinned toolchains (`rust-toolchain.toml`, Flutter version in `pubspec.yaml`). GitHub Actions pinned by commit SHA, with least-privilege `permissions`.
 - Dependabot for cargo, pub and actions. GitHub secret scanning and push protection on.
-- Releases: reproducible builds where the platform allows, checksums, Sigstore signatures, SBOM (CycloneDX), plus platform signing (Apple notarisation, Authenticode, APK signing) ([release](release.md)).
+- Releases: reproducible builds where the platform allows, checksums, Sigstore-backed build-provenance attestations, SBOM (CycloneDX), plus platform signing (Apple notarisation, Authenticode, APK signing). What ships when, given there are no store accounts yet: [release Â§Signing](release.md#signing).
 - `unsafe` forbidden outside `bridge` (generated FFI).
 - Fuzzing (`cargo-fuzz`) for every parser of untrusted input: manifest decode, profile parse, path validation, IPC frames, lease decode.
 

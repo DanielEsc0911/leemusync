@@ -35,7 +35,7 @@ Live Updates (Android 16+; Now Bar on One UI 8; Super Island on HyperOS 3 global
 RetroArch, Dolphin, DuckStation, PPSSPP, Azahar, melonDS, NetherSX2/ARMSX2, Eden/Citron, Cemu (Android port), Vita3K, Lemuroid. For each: save path, whether it's user-movable, launch intent and extras, and its tier.
 
 ## Distribution
-Google Play (AAB) · F-Droid (reproducible build from source: Flutter + Rust NDK, Verify) · GitHub APK.
+Now: GitHub Releases APKs (one per ABI) signed with the maintainer's own release key ([D23](../../decisions.md#d23-distribution-before-store-accounts-2026-10-07)). Later: Google Play (AAB, once a Play account exists), F-Droid (reproducible build from source: Flutter + Rust NDK, Verify). Test devices: [testing §Device lab](../testing.md#device-lab).
 
 ## Verify
 - **V-AND-1** All-files-access eligibility on Play for a save-sync app (SP3).

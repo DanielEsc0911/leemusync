@@ -1,0 +1,12 @@
+[package]
+name = "leemusync-store"
+description = "Storage backend interface and adapters."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lints]
+workspace = true
