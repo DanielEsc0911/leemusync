@@ -608,7 +608,7 @@ git commit -m "build(xtask): add docs-check and layers checks" \
 - Create: `deny.toml`, `.github/workflows/ci.yml`, `.github/dependabot.yml`
 - Modify: `justfile` (add `cargo deny check` to `lint`)
 
-- [ ] **Step 1: `deny.toml`**
+- [x] **Step 1: `deny.toml`**
 
 ```toml
 [graph]
@@ -638,7 +638,7 @@ allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 ```
 Run: `cargo deny check` → Expected: `advisories ok, bans ok, licenses ok, sources ok`. A license outside the list needs a written reason and maintainer approval before it's added.
 
-- [ ] **Step 2: `.github/workflows/ci.yml`**
+- [x] **Step 2: `.github/workflows/ci.yml`**
 
 ```yaml
 name: ci
@@ -682,14 +682,14 @@ jobs:
 ```
 `rustup toolchain install` with no arguments installs the toolchain from `rust-toolchain.toml` (rustup ≥ 1.28). If the runner's rustup is older, use `rustup show` instead.
 
-- [ ] **Step 3: Pin actions by commit SHA** (B2). For each `uses:` line, find the SHA of the newest release tag of that major version and write `uses: owner/repo@<sha> # vX.Y.Z`:
+- [x] **Step 3: Pin actions by commit SHA** (B2). For each `uses:` line, find the SHA of the newest release tag of that major version and write `uses: owner/repo@<sha> # vX.Y.Z`:
 ```bash
 git ls-remote --tags https://github.com/actions/checkout | grep -E 'refs/tags/v5\.[0-9]+\.[0-9]+(\^\{\})?$' | tail -2
 git ls-remote --tags https://github.com/EmbarkStudios/cargo-deny-action | grep -E 'refs/tags/v2\.[0-9]+\.[0-9]+(\^\{\})?$' | tail -2
 ```
 Use the `^{}` (peeled) SHA when it's listed.
 
-- [ ] **Step 4: `.github/dependabot.yml`**
+- [x] **Step 4: `.github/dependabot.yml`**
 
 ```yaml
 version: 2
@@ -704,9 +704,9 @@ updates:
       interval: weekly
 ```
 
-- [ ] **Step 5: Add `cargo deny check` to the `just lint` recipe** (after clippy). Run `just check` → green.
+- [x] **Step 5: Add `cargo deny check` to the `just lint` recipe** (after clippy). Run `just check` → green.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 ```bash
 git add deny.toml .github/ justfile
 git commit -m "ci: add cargo-deny, CI workflow and dependabot" \
