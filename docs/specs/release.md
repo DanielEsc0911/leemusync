@@ -63,6 +63,18 @@ Findings:
 - On XFCE without a running `xdg-desktop-portal`, the GTK runner logs harmless `CRITICAL … Failed to read XDG desktop portal settings` lines. The app still runs.
 - Not yet tested (deferred by the maintainer on 2026-10-08): V-PKG-6.
 
+## Tag test results (2026-10-08)
+Annotated tag `v0.0.1-alpha.1` on commit `4382675` (the merge of PR #12). Workflow `release`, [run 37832589541](https://github.com/DanielEsc0911/leemusync/actions/runs/37832589541): `version` (tag/version check passed), `linux` x86_64 and aarch64, `headless`, `windows`, `macos`, `android` and `publish` all succeeded; `pr-bundle` was skipped, as designed for tags.
+
+- Android signing: the maintainer stored the release key as the four secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. The `android` job's "Decode the release keystore" step ran, so the APKs are release-signed and have no `-debug` suffix.
+- Draft release "LeemuSync 0.0.1-alpha.1", created by github-actions: 18 files + `SHA256SUMS` (GitHub also shows its two automatic "Source code" archives). Each file is `leemusync-0.0.1-alpha.1-` followed by: `android-arm64-v8a.apk`, `android-armeabi-v7a.apk`, `android-x86_64.apk`, `linux-aarch64-headless.tar.gz`, `linux-armv7-headless.tar.gz`, `linux-x86_64-headless.tar.gz`, `linux-aarch64.AppImage`, `linux-aarch64.deb`, `linux-aarch64.rpm`, `linux-aarch64.tar.gz`, `linux-x86_64.AppImage`, `linux-x86_64.deb`, `linux-x86_64.rpm`, `linux-x86_64.tar.gz`, `macos-universal.dmg`, `windows-x64-en.msi`, `windows-x64-es.msi`, `windows-x64-setup.exe`. This matches every row of the [Artifacts](#artifacts) table.
+- Sizes: APKs 11.9–15.8 MB, desktop Linux packages 8.2–8.9 MB, headless tarballs 299–315 KB, `.dmg` 17 MB, each `.msi` 8.66 MB, `.exe` 9.38 MB.
+- The SHA-256 digest GitHub shows for each asset equals its line in `SHA256SUMS`.
+- Attestations: each of the 19 files (18 + `SHA256SUMS`) has exactly one build-provenance attestation whose subject name and digest match, made by `.github/workflows/release.yml` at `refs/tags/v0.0.1-alpha.1` in run 37832589541. They were fetched without login from the public API `GET https://api.github.com/repos/DanielEsc0911/leemusync/attestations/sha256:<digest>`.
+- `gh attestation verify SHA256SUMS --bundle <bundle from the API> --repo DanielEsc0911/leemusync --source-ref refs/tags/v0.0.1-alpha.1 --signer-workflow DanielEsc0911/leemusync/.github/workflows/release.yml` passed with gh 2.102.0, not logged in (signer `release.yml@refs/tags/v0.0.1-alpha.1`, source commit `4382675`, one transparency-log timestamp). A tampered copy of `SHA256SUMS` and `--repo cli/cli` both failed, as expected.
+- Not done yet: `gh attestation verify <file>` on each of the 18 binaries, because draft-release assets can only be downloaded while signed in. They are covered indirectly: the verified `SHA256SUMS` lists their digests, and each has its own matching attestation. The arm64 APK gets a direct check when it is downloaded for SP3.
+- The maintainer decided on 2026-10-08 to keep the release as an unpublished draft. The tag stays.
+
 ## Install layout
 GUI and CLI never share a folder, because Windows and macOS file systems are case-insensitive (`LeemuSync` ≙ `leemusync`).
 
@@ -101,7 +113,7 @@ GUI executable names: `LeemuSync.exe` (Windows), `LeemuSync.app` (macOS), `leemu
 2. Bump the version in `Cargo.toml` and `app/pubspec.yaml`. Move `CHANGELOG.md` `[Unreleased]` → version section.
 3. CI is green. The manual device pass is done ([testing §Device lab](testing.md#device-lab)).
 4. Strings complete in en and es, including installers and store listings.
-5. Tag `vX.Y.Z` → `release.yml` → review the draft release (all files, `SHA256SUMS`, attestations) → publish.
+5. Tag `vX.Y.Z` → `release.yml` → review the draft release (all files, `SHA256SUMS`, attestations) → publish. Only a signed-in maintainer can see the draft. Attestations can be fetched anonymously by digest and checked with `gh attestation verify <file> --bundle <bundle>` without logging in.
 6. Clean up the published plans ([progress](../progress/README.md)).
 
 ## Verify
