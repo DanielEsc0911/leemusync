@@ -40,13 +40,13 @@ MEGA isn't an OpenDAL service. In order of preference:
 Decide in spike SP6.
 
 ## Provider quirks
-- **Google Drive:** Google's [Drive scope guide](https://developers.google.com/workspace/drive/api/guides/api-specific-auth) (read 2026-10-08) lists `drive.file` under "Non-sensitive scopes", "recommended for most use cases". Full `drive` is listed as restricted and needs restricted-scope OAuth app verification. Whether the public client still needs brand verification is open (V-STORE-2). Official builds ship the project's public OAuth client id (PKCE, no secret). Power users can supply their own.
+- **Google Drive:** Google's [Drive scope guide](https://developers.google.com/workspace/drive/api/guides/api-specific-auth) (read 2026-10-08) lists `drive.file` under "Non-sensitive scopes", "recommended for most use cases". Full `drive` is listed as restricted and needs restricted-scope OAuth app verification. Whether the public client still needs brand verification is open (V-STORE-2). Official builds ship the project's public OAuth client id (PKCE, no secret). Power users can supply their own. Caveat: OpenDAL's `gdrive` builder requires `client_secret` whenever `refresh_token` is set, and the tested code exchange sent the Desktop client's secret; a Desktop-client exchange without the secret is untested (V-STORE-2). Drive also keeps duplicate names in one folder (OpenDAL resolves the newest), `delete` moves files to the trash, `list` entries carry no mtime, and OpenDAL puts the refresh token and client secret in the token URL, which network errors print (V-STORE-7). Details: [Google Drive (live)](#google-drive-live).
 - **Eventual consistency** (Drive, Dropbox, OneDrive listings): a new version may appear late. This is safe thanks to append-only writes, but lease liveness must tolerate it (V-SYNC-2).
 - **Rate limits:** batch listings per stream prefix and cache known versions in the state DB.
 - **WebDAV servers** differ in conditional-request support. The capability is probed at setup and stored. OpenDAL's `webdav` service doesn't expose `if_not_exists` or `if_match` at all, and Nextcloud's own `If-None-Match: *` is not race-safe ([tested](#tested-capabilities-sp6)).
 
 ## Tested capabilities (SP6)
-Measured 2026-10-08 on Fedora 44 x86_64 with OpenDAL **0.59.4** (latest on crates.io, tag [`v0.59.4`](https://github.com/apache/opendal/tree/v0.59.4)) and a throwaway test binary (not in the repo). Servers ran locally in rootless podman, bound to 127.0.0.1. Each service got two independent `Operator`s (two "devices").
+Measured 2026-10-08 on Fedora 44 x86_64 with OpenDAL **0.59.4** (latest on crates.io, tag [`v0.59.4`](https://github.com/apache/opendal/tree/v0.59.4)) and a throwaway test binary (not in the repo). Servers ran locally in rootless podman, bound to 127.0.0.1, except the Google Drive row, which is a live cloud test ([Google Drive (live)](#google-drive-live)). Each service got two independent `Operator`s (two "devices").
 
 | Service | Server | `if_not_exists` | Race: one winner of 2 | `if_match` | mtime (stat + list) | Overwrite moves mtime | ETag | List after write | copy / rename |
 |---|---|---|---|---|---|---|---|---|---|
@@ -56,6 +56,7 @@ Measured 2026-10-08 on Fedora 44 x86_64 with OpenDAL **0.59.4** (latest on crate
 | `sftp` | OpenSSH 8.4p1 (`atmoz/sftp`) | yes (`create_new`) | **100/100** | no | yes, 1 s | yes | no | 20/20 at once, 5/5 rounds | fails / yes |
 | `fs` | tmpfs temp dir, default | yes (`O_EXCL`) | **100/100** | no | yes, ns | yes | no | 20/20 at once, 5/5 rounds | yes / yes |
 | `fs` | with `atomic_write_dir` | declared | **0/100 (both won every round)** | no | yes, ns | yes | no | 20/20 at once, 5/5 rounds | yes / yes |
+| `gdrive` | Google Drive API v3, **live cloud** | **not exposed** (`Unsupported`) | n/a | not exposed | stat: yes, ms; list: **none** | yes | none | 10/10 at once, 5/5 rounds | yes / yes |
 
 How it was measured:
 - **Race:** 100 rounds per service. Each round, both clients `write_with(key).if_not_exists(true)` to the same new key at once. "Winner" means `Ok`, loser means `ConditionNotMatch`. Each single winner's content was read back and matched.
@@ -68,13 +69,27 @@ How it was measured:
 - **Images** (pulled 2026-10-08): `docker.io/chrislusf/seaweedfs@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d`, `docker.io/rustfs/rustfs@sha256:1803faef57627e2d9c2e7d89d655d712ddded5389040054987163043fecb6a3c`, `docker.io/library/nextcloud@sha256:f4e0ee28ac9e54cad6e04e148489d79a609acba86dfbff69c8f666d50f96e414`, `docker.io/atmoz/sftp@sha256:0960390462a4441dbb63698d7c185b76a41ffcee7b78ff4adf275f3e66f9c475`.
 - **MinIO couldn't be tested:** on 2026-10-08 `docker.io/minio/minio` (latest and a pinned `RELEASE.` tag) returned "access denied", `quay.io/minio/minio` returned "unauthorized", and `dl.min.io` returned HTTP 410. SeaweedFS and RustFS stood in as S3 servers.
 
+### Google Drive (live)
+Run 2026-10-08 on Fedora 44 x86_64 with OpenDAL 0.59.4 `gdrive` (Drive API v3) on the maintainer's personal Google account. Scope `drive.file` only. OAuth client type "Desktop app", consent screen in Testing status. Two independent `Operator`s. Rounds were reduced for Drive quotas: race 20 rounds, list-after-write 5 rounds of 10 files. Test root `/leemusync-sp6-test/<run id>/`.
+
+- **List after write:** all 10 files were visible on the first list in 5/5 rounds. That one list call took 0.5–2.6 s over the internet. `list` entries return no `last_modified`; `stat` returns it with millisecond precision.
+- **Emulated `create_only`** (`exists` then `write`): both clients got `Ok` in 20/20 rounds. Inspected on Drive afterwards, 17 of the 20 names held two files with the same name in the same folder; the other 3 ended as one file (the second write overwrote).
+- **Duplicate names:** Drive allows several files with the same name in one folder. OpenDAL resolves a path by querying `name = '<n>' and '<parent>' in parents and trashed = false` with `orderBy=modifiedTime desc,createdTime desc&pageSize=1` ([`core.rs`](https://github.com/apache/opendal/blob/v0.59.4/core/services/gdrive/src/core.rs), fn `query`), so with duplicates it silently picks the newest. Probe: clients A and B wrote the same new name `dup/k` at once. Both got `Ok` and Drive held 2 files named `k`. A third, fresh client's `list` showed 1 entry for `dup/k` and `read` returned "A". Deleting `dup/k` by name trashed one copy, and `stat dup/k` still succeeded afterwards (the other copy surfaced). Once a client has cached a file's id, its later writes overwrite in place (no new duplicate).
+- **Delete is trash:** `delete` sends a PATCH with `{"trashed": true}` ([`deleter.rs`](https://github.com/apache/opendal/blob/v0.59.4/core/services/gdrive/src/deleter.rs) → `gdrive_trash` in [`core.rs`](https://github.com/apache/opendal/blob/v0.59.4/core/services/gdrive/src/core.rs)), not a permanent delete. `delete_with("/").recursive(true)` on the run root trashed only the run folder itself; its 91 files and 8 folders were trashed through the parent. The lister filters `trashed = false`, so trashed items vanish from listings. The empty top folder `leemusync-sp6-test` stays in the user's Drive. Trash retention and quota impact were not tested (V-STORE-9).
+- **Rename onto an existing target** first trashes the target, then patches the source's metadata ([`backend.rs`](https://github.com/apache/opendal/blob/v0.59.4/core/services/gdrive/src/backend.rs) `rename` → `trash_path_if_exists`): two steps, not atomic.
+- **Secrets in the token URL:** to refresh the access token, OpenDAL POSTs to `https://oauth2.googleapis.com/token?refresh_token=…&client_id=…&client_secret=…&grant_type=refresh_token` with an empty body, values not percent-encoded ([`core.rs`](https://github.com/apache/opendal/blob/v0.59.4/core/services/gdrive/src/core.rs)). When a request fails to send, the reqwest transport adds the full URL as error context `url`, and OpenDAL's `Error` Display prints it. An offline probe with fake credentials and an unreachable proxy (`HTTPS_PROXY=http://127.0.0.1:9`) printed:
+  ```
+  Unexpected (temporary) at stat, context: { url: https://oauth2.googleapis.com/token?refresh_token=FAKE-REFRESH-TOKEN&client_id=FAKE-CLIENT-ID&client_secret=FAKE-CLIENT-SECRET&grant_type=refresh_token, called: reqwest::send, service: gdrive, path: a } => send http request, source: error sending request
+  ```
+  So any network failure during a refresh puts the refresh token and client secret into error text, which would reach logs (V-STORE-7, V-SEC-4). The builder also requires `client_secret` whenever `refresh_token` is set ([`backend.rs`](https://github.com/apache/opendal/blob/v0.59.4/core/services/gdrive/src/backend.rs)).
+- **OAuth (desktop):** loopback redirect to `http://127.0.0.1:<port>`, PKCE S256 and `state`, Desktop-app client. Testing status shows Google's unverified-app warning, and Testing-mode refresh tokens expire after 7 days ([Google OAuth 2.0](https://developers.google.com/identity/protocols/oauth2#expiration)). The code exchange sent the Desktop client's secret in the form body.
+
 ### Documented, not tested
-What OpenDAL 0.59.4 declares in each service's `capability` block (source at the tag). The provider must also honour the header; that is untested.
+What OpenDAL 0.59.4 declares in each service's `capability` block (source at the tag). `gdrive` is now tested ([Google Drive (live)](#google-drive-live)). The provider must also honour the header; that is untested.
 
 | Service | `write_with_if_not_exists` | `write_with_if_match` | Source |
 |---|---|---|---|
 | `s3` (AWS, R2, B2, Wasabi, MEGA S4) | yes | yes | [`services/s3/src/backend.rs`](https://github.com/apache/opendal/blob/v0.59.4/core/services/s3/src/backend.rs). One flag set for every S3-compatible endpoint. The [compatible services notes](https://github.com/apache/opendal/blob/v0.59.4/core/services/s3/src/compatible_services.md) mention no R2 or B2 exception for conditional writes |
-| `gdrive` | no | no | [`services/gdrive/src/backend.rs`](https://github.com/apache/opendal/blob/v0.59.4/core/services/gdrive/src/backend.rs) |
 | `onedrive` | no | yes | [`services/onedrive/src/backend.rs`](https://github.com/apache/opendal/blob/v0.59.4/core/services/onedrive/src/backend.rs) |
 | `dropbox` | no | no | [`services/dropbox/src/backend.rs`](https://github.com/apache/opendal/blob/v0.59.4/core/services/dropbox/src/backend.rs) |
 
@@ -100,12 +115,15 @@ Every adapter must pass the shared suite in `crates/store/tests/conformance.rs`:
 
 ## Verify
 Local services are answered in [Tested capabilities](#tested-capabilities-sp6). The rest is pending accounts (deferred by the maintainer).
-- **V-STORE-1** Live conditional writes, server mtime, list-after-write delay and rate limits on AWS S3, Cloudflare R2, Backblaze B2, Google Drive, OneDrive and Dropbox. Pending accounts (SP6).
-- **V-STORE-2** Google Drive `drive.file` OAuth flow on desktop and mobile, and whether the public client needs brand verification. Google Drive is the first live cloud test: the maintainer's personal account, `drive.file` scope, OAuth client in testing mode (SP6). The other cloud services stay pending accounts.
+- **V-STORE-1** Live conditional writes, server mtime, list-after-write delay and rate limits on AWS S3, Cloudflare R2, Backblaze B2, OneDrive and Dropbox. Pending accounts (SP6). Google Drive done live 2026-10-08 ([Google Drive (live)](#google-drive-live)).
+- **V-STORE-2** Google Drive `drive.file` OAuth: desktop flow done 2026-10-08 ([Google Drive (live)](#google-drive-live)). Open: the mobile flow, whether Google accepts a Desktop-client code exchange without the secret (and how that fits OpenDAL requiring `client_secret` with `refresh_token`), and whether the public client needs brand verification (SP6).
 - **V-STORE-3** MEGA: live S4 test, security review of `mega`/`megalib`, MEGAcmd WebDAV. Pending accounts (SP6).
 - **V-STORE-4** A pure-Rust SFTP adapter for Windows, Android and iOS (deferred by [D25](../decisions.md#d25-sftp-only-on-linux-and-macos-for-now-2026-10-08)).
 - **V-STORE-5** `fs`: how `crates/store` gets both crash-safe writes and an atomic `create_only` (e.g. its own temp file + `link`/`renameat2(RENAME_NOREPLACE)`), and whether it works on SMB and synced folders (Phase 1).
 - **V-STORE-6** CI S3 server for the conformance suite, since MinIO images weren't pullable on 2026-10-08 (SeaweedFS and RustFS worked). Decide in Phase 1.
+- **V-STORE-7** OpenDAL `gdrive` sends the refresh token and client secret in the token URL query, and network errors print that URL ([Google Drive (live)](#google-drive-live)). Options, not decided: `crates/store` refreshes tokens itself with a form body and gives OpenDAL only an `access_token` (rebuilding the operator on expiry), or fix it upstream in OpenDAL. In every case the log redaction layer must scrub OAuth query parameters (V-SEC-4). Decide in Phase 1.
+- **V-STORE-8** Drive duplicate names: two devices creating a shared name such as `repo.json` at once leave two files, and readers see the newest. Decide how `crates/store` handles this and whether to detect duplicates by listing raw file ids (Phase 1).
+- **V-STORE-9** Drive trash: pruned data goes to the user's Drive trash. Retention and quota impact are untested. Decide whether pruning should permanently delete (Phase 6).
 
 ## Open questions
 - **Follow-up (D25):** the Linux `.deb` and `.rpm` should *recommend* `openssh-client` / `openssh-clients` so SFTP works out of the box. Packaging isn't changed yet.

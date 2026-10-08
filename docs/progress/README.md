@@ -13,6 +13,6 @@
 ## Status board
 | Plan | Phase | Status | Updated |
 |---|---|---|---|
-| [phase-0-foundations](plans/phase-0-foundations.md) | 0 | In progress (Tasks 1–4 done; Task 5 Steps 1–9 done, Step 10 tag test next; SP7 Linux done, SP6 in progress) | 2026-10-08 |
+| [phase-0-foundations](plans/phase-0-foundations.md) | 0 | In progress (Tasks 1–4 done; Task 5 Steps 1–9 done, Step 10 tag test next; SP7 Linux done; SP6 in progress, Google Drive live done) | 2026-10-08 |
 
 Status values: Not started · In progress · Blocked (reason) · Done (awaiting cleanup).

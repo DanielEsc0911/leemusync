@@ -104,7 +104,7 @@ Snapshots queue in local history and upload when the device is back online. Pare
 
 ## Verify
 - **V-SYNC-1** Server-side modified time for lease liveness. Local services are answered: `s3` (SeaweedFS, RustFS), `webdav` (Nextcloud), `sftp` and `fs` return it from `stat` and `list`, and a renewal (overwrite) advances it, at 1 s granularity on the network services ([storage-backends §Tested capabilities](storage-backends.md#tested-capabilities-sp6)). Clock skew on a real remote server and the cloud providers are pending accounts (SP6).
-- **V-SYNC-2** Listing delay and consistency on Google Drive, Dropbox and OneDrive (SP6).
+- **V-SYNC-2** Listing delay and consistency on Google Drive, Dropbox and OneDrive (SP6). Google Drive data point 2026-10-08: listings were consistent on the first list in 5/5 rounds of 10 files (small sample). Drive `list` entries carry no mtime, so lease liveness on Drive can't come from listing mtimes; it needs a `stat` per lease or the lease's own `renewed_at` ([storage-backends §Google Drive (live)](storage-backends.md#google-drive-live)).
 
 ## Open questions
 - Watch mode on desktop: should LeemuSync take the lease for the *last played* game as soon as the emulator starts? Decide with Phase 2 usage data.
