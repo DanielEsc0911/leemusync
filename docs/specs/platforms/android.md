@@ -32,14 +32,14 @@ SAF is slow for large trees, so only the specific save subtrees are scanned.
 Live Updates (Android 16+; Now Bar on One UI 8; Super Island on HyperOS 3 global) · ongoing progress notification (older versions) · Quick Settings tile · app shortcuts · later a widget. Details in [status-and-notifications §Android](../ui/status-and-notifications.md#android).
 
 ## Emulators to inventory (SP3)
-RetroArch, Dolphin, DuckStation, PPSSPP, Azahar, melonDS, NetherSX2/ARMSX2, Eden/Citron, Cemu (Android port), Vita3K, Lemuroid. For each: save path, whether it's user-movable, launch intent and extras, and its tier.
+RetroArch, Dolphin, DuckStation, PPSSPP, Azahar, melonDS, DraStic, NetherSX2/ARMSX2, Eden/Citron, Cemu (Android port), Vita3K, Lemuroid. For each: save path, whether it's user-movable, launch intent and extras, and its tier.
 
 ## Distribution
 Now: GitHub Releases APKs (one per ABI) signed with the maintainer's own release key ([D23](../../decisions.md#d23-distribution-before-store-accounts-2026-10-07)). Later: Google Play (AAB, once a Play account exists), F-Droid (reproducible build from source: Flutter + Rust NDK, Verify). Test devices: [testing §Device lab](../testing.md#device-lab).
 
 ## Verify
 - **V-AND-1** All-files-access eligibility on Play for a save-sync app (SP3).
-- **V-AND-2** Emulator inventory above (SP3).
+- **V-AND-2** Emulator inventory above (SP3). The SP3 pass on the Galaxy A25 (including DraStic and melonDS) is pending, deferred by the maintainer on 2026-10-08.
 - **V-AND-3** Launch intents with a game path for each emulator (SP3).
 - **V-AND-4** Live Update promotion rules and OEM rendering (SP4).
 - **V-AND-5** F-Droid build of a Flutter + Rust app (Phase 4).
