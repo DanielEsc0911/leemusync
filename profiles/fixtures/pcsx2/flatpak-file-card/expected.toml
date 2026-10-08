@@ -1,0 +1,9 @@
+# Fake tree mirroring PCSX2 v2.8.2 Flatpak defaults (file cards). Dummy files only. Not tested yet (no loader).
+# Each .ps2 file is a container (Basic): one stream per card, not per game.
+[[stream]]
+container = "Mcd001"
+path = "config/PCSX2/memcards/Mcd001.ps2"
+
+[[stream]]
+container = "Mcd002"
+path = "config/PCSX2/memcards/Mcd002.ps2"

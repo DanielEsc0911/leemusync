@@ -1,0 +1,9 @@
+# Fake tree mirroring RetroArch 1.22.2 Flatpak defaults (sort_savefiles_enable = true). Dummy files only. Not tested yet (no loader).
+# Save states (states/) are opt-in (D15) and not streams here.
+[[stream]]
+game = "Super Game (USA)"
+path = "config/retroarch/saves/Snes9x/Super Game (USA).srm"
+
+[[stream]]
+game = "Pocket Game (Europe)"
+path = "config/retroarch/saves/mGBA/Pocket Game (Europe).srm"
