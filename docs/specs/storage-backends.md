@@ -25,7 +25,7 @@ Let users keep their repo on storage they already own. The store layer moves opa
 |---|---|---|
 | AWS S3, MinIO, Backblaze B2, Cloudflare R2, Wasabi, MEGA S4 | OpenDAL `s3` | "Amazon" means S3. Amazon Drive shut down in 2023 |
 | Nextcloud, ownCloud, Synology, `rclone serve webdav` | OpenDAL `webdav` | The most common self-hosted path |
-| Any SSH server (a Pi, a NAS) | OpenDAL `sftp` | Key-based auth recommended. Unix desktop only today: see [SFTP on mobile and Windows](#sftp-on-mobile-and-windows) |
+| Any SSH server (a Pi, a NAS) | OpenDAL `sftp` | Key-based auth recommended. Linux and macOS only ([D25](../decisions.md#d25-sftp-only-on-linux-and-macos-for-now-2026-10-08)); needs the system OpenSSH client. See [SFTP on mobile and Windows](#sftp-on-mobile-and-windows) |
 | Local folder, USB, mounted NAS/SMB | OpenDAL `fs` | Also serves iCloud Drive/OneDrive folders synced by the OS |
 | Google Drive | OpenDAL `gdrive` | Phase 6. Scope `drive.file` (only files LeemuSync created) |
 | OneDrive, Dropbox | OpenDAL `onedrive`, `dropbox` | Phase 6 |
@@ -84,7 +84,8 @@ AWS documents `If-None-Match: *` and `If-Match` on `PutObject`. When several con
 OpenDAL's `sftp` service (0.59.4) depends on the [`openssh`](https://docs.rs/openssh/0.11.6/openssh/) crate 0.11.6 and `openssh-sftp-client`. `openssh` wraps the system `ssh` binary ("all commands are executed through the `ssh` command") and has `compile_error!("This crate can only be used on unix")` for non-Unix targets ([src/lib.rs](https://github.com/openssh-rust/openssh/blob/v0.11.6/src/lib.rs)). Consequences:
 - **Windows:** the `sftp` service doesn't compile.
 - **Android and iOS:** there's no `ssh` binary to launch, and iOS apps can't spawn processes. So it can't work there as-is.
-- **Alternatives** (not adopted, decision later): pure-Rust SSH with [`russh`](https://crates.io/crates/russh) 0.64.1 + [`russh-sftp`](https://crates.io/crates/russh-sftp) 3.0.1, or libssh2 bindings via [`ssh2`](https://crates.io/crates/ssh2) 0.9.6 (versions from crates.io, 2026-10-08). Either would need a custom store adapter.
+- **Decision:** SFTP is offered on Linux and macOS only ([D25](../decisions.md#d25-sftp-only-on-linux-and-macos-for-now-2026-10-08)).
+- **Alternatives** (deferred by D25): pure-Rust SSH with [`russh`](https://crates.io/crates/russh) 0.64.1 + [`russh-sftp`](https://crates.io/crates/russh-sftp) 3.0.1, or libssh2 bindings via [`ssh2`](https://crates.io/crates/ssh2) 0.9.6 (versions from crates.io, 2026-10-08). Either would need a custom store adapter.
 
 ### `fs` and atomic writes
 OpenDAL's `fs` gets an atomic `if_not_exists` only without `atomic_write_dir`: it opens the target with `create_new` (`O_EXCL`) and writes in place, so a crash can leave a partial file. With `atomic_write_dir`, it writes a temp file and renames it, but `if_not_exists` becomes a check-then-rename and both racers won every round ([`services/fs/src/writer.rs`](https://github.com/apache/opendal/blob/v0.59.4/core/services/fs/src/writer.rs)). Neither mode gives atomic content and atomic create together (V-STORE-5).
@@ -100,11 +101,13 @@ Every adapter must pass the shared suite in `crates/store/tests/conformance.rs`:
 ## Verify
 Local services are answered in [Tested capabilities](#tested-capabilities-sp6). The rest is pending accounts (deferred by the maintainer).
 - **V-STORE-1** Live conditional writes, server mtime, list-after-write delay and rate limits on AWS S3, Cloudflare R2, Backblaze B2, Google Drive, OneDrive and Dropbox. Pending accounts (SP6).
-- **V-STORE-2** Google Drive `drive.file` OAuth flow on desktop and mobile, and whether the public client needs brand verification. Pending accounts (SP6).
+- **V-STORE-2** Google Drive `drive.file` OAuth flow on desktop and mobile, and whether the public client needs brand verification. Google Drive is the first live cloud test: the maintainer's personal account, `drive.file` scope, OAuth client in testing mode (SP6). The other cloud services stay pending accounts.
 - **V-STORE-3** MEGA: live S4 test, security review of `mega`/`megalib`, MEGAcmd WebDAV. Pending accounts (SP6).
-- **V-STORE-4** SFTP on Windows, Android and iOS needs an adapter that doesn't use the system `ssh` binary ([finding](#sftp-on-mobile-and-windows)). Prototype and decide (SP6 follow-up).
+- **V-STORE-4** A pure-Rust SFTP adapter for Windows, Android and iOS (deferred by [D25](../decisions.md#d25-sftp-only-on-linux-and-macos-for-now-2026-10-08)).
 - **V-STORE-5** `fs`: how `crates/store` gets both crash-safe writes and an atomic `create_only` (e.g. its own temp file + `link`/`renameat2(RENAME_NOREPLACE)`), and whether it works on SMB and synced folders (Phase 1).
 - **V-STORE-6** CI S3 server for the conformance suite, since MinIO images weren't pullable on 2026-10-08 (SeaweedFS and RustFS worked). Decide in Phase 1.
 
 ## Open questions
+- **Follow-up (D25):** the Linux `.deb` and `.rpm` should *recommend* `openssh-client` / `openssh-clients` so SFTP works out of the box. Packaging isn't changed yet.
+- How a backend that's unavailable on the current platform (SFTP on Windows, Android, iOS) appears in the UI wizard and when a synced config names it.
 - WebDAV has no race-safe atomic create through OpenDAL or Nextcloud. Only the [lease](sync-model.md#leases) and `repo.json` overwrite, and the lease doesn't depend on atomic create, but anything that later wants a real lock on WebDAV can't rely on it.
