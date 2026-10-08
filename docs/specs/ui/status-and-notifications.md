@@ -31,7 +31,7 @@ Priority when several apply: `error` > `attention` > `syncing` > `offline` > `pa
 - Icon states: synced · syncing (low-rate frame animation, ≤ 4 fps, to save CPU) · paused · offline · attention · error. Monochrome template image on macOS, light/dark variants on Windows, symbolic icons on Linux.
 - Tooltip = status text.
 - Menu: status line · Sync now · Pause (1 h / until resume) · Recent games ▸ Play · Open LeemuSync · Quit (warns if a transfer is active).
-- Linux GNOME shows tray icons only with the AppIndicator extension (Ubuntu ships it; Fedora Workstation doesn't). Without it: notifications + app only, and `doctor` explains. KDE and XFCE show them natively.
+- Linux GNOME shows tray icons only with the AppIndicator extension (Ubuntu ships it; Fedora Workstation doesn't). Without it: notifications + app only, and `doctor` explains. KDE and XFCE show them natively (XFCE measured in SP2: [desktop §Linux results](../platforms/desktop.md#linux-results-sp2-xfce)).
 
 ## Android
 - **Ongoing progress notification** during transfers and play sessions (`NotificationCompat`, progress, Pause/Open actions).
@@ -53,4 +53,4 @@ Devices learn about foreign leases when they check: desktop daemons continuously
 - **V-STAT-1** Live Update eligibility for sync/session notifications and the exact promotion requirements (SP4).
 - **V-STAT-2** Now Bar (One UI 8) and Super Island (HyperOS 3 global) render our Live Update (SP4).
 - **V-STAT-3** Live Activity update limits and duration for long play sessions, and updates from background tasks (SP5).
-- **V-STAT-4** Tray icon + actionable notifications from the daemon on Windows, macOS, KDE and GNOME (SP2).
+- **V-STAT-4** Tray icon + actionable notifications from the daemon on Windows, macOS, KDE and GNOME (SP2). XFCE is done, action click included ([desktop §Linux results](../platforms/desktop.md#linux-results-sp2-xfce)). The others were deferred by the maintainer on 2026-10-08.

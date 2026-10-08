@@ -68,6 +68,7 @@ Same-user only: socket permissions plus a peer credential check ([architecture Â
 
 ## Credentials
 - Stored in the OS keystore: macOS/iOS Keychain, Windows Credential Manager, Linux Secret Service, Android Keystore-backed encrypted storage.
+- **Linux evidence (SP2, Fedora 44 XFCE):** `org.freedesktop.secrets` was served by KWallet's `ksecretd` (`kf6-kwallet` 6.30.0), default collection `kdewallet`, unlocked at login (`--pam-login`). `keyring` 3.6.3 (`sync-secret-service`) wrote, read and deleted an item from the session and from a systemd user service without a prompt. With no Secret Service on the bus the call fails with `PlatformFailure(Dbus(... org.freedesktop.secrets was not provided by any .service files (ServiceUnknown)))`. Where `gnome-keyring` is D-Bus-activatable but has no unlocked login keyring (private bus, no PAM), activation succeeds and the write fails with `NoStorageAccess(NoResult)`.
 - Headless without a keystore: a file with permissions `0600`, enabled only by explicit opt-in (`--allow-file-secrets`), with a warning.
 - OAuth: authorization code + PKCE. Loopback redirect on desktop, system browser sessions on mobile. Refresh tokens live in the keystore.
 - Secrets never appear in logs, crash output, config files or IPC events. A redaction layer runs in the logger.
@@ -90,4 +91,7 @@ No telemetry, analytics or crash upload. Logs stay local. Users can export them 
 ## Verify
 - **V-SEC-1** Argon2id parameters stay fast enough on low-end Android and Pi Zero 2 (target under 2 s). Benchmark in Phase 1.
 - **V-SEC-2** `rustls` platform verifier works on every target, Android and iOS included (SP1).
-- **V-SEC-3** Keystore access from the daemon on each desktop OS, including headless Linux without a Secret Service (SP2).
+- **V-SEC-3** Keystore access from the daemon on Windows and macOS (SP2). Linux with a Secret Service is done ([Credentials](#credentials)). Windows and macOS deferred by the maintainer on 2026-10-08.
+
+## Open questions
+- **Headless Linux secret store** (evidence from SP2; not decided). (1) Kernel keyutils via `keyring`'s `linux-native` backend: worked with no D-Bus service, but the keys are lost on reboot ([keyring docs](https://docs.rs/keyring/3.6.3/keyring/keyutils/index.html)), so a human must re-enter secrets after each boot. (2) The `0600` opt-in file above, optionally encrypted with a passphrase, which has the same re-entry problem. (3) `systemd-creds --user encrypt/decrypt` (systemd â‰¥ 256; worked here without root), which binds the secret to the host key or TPM and the user and survives reboots ([systemd-creds](https://www.freedesktop.org/software/systemd/man/latest/systemd-creds.html)). Recommendation: (3) where available, falling back to (2). Needs a decision entry.

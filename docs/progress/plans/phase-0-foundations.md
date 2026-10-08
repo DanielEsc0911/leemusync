@@ -1270,6 +1270,7 @@ Each spike runs on a `spike/<id>-<slug>` branch, timeboxed (default 2 days). The
 ### SP2: Desktop daemon presence
 - **Answers:** V-DESK-1/2/3, V-REL-1/2, V-SEC-3, V-STAT-4.
 - [ ] Prototype daemon: tray icon with state swap + menu; actionable notification; on Windows, macOS, Linux XFCE (Fedora), CachyOS's desktop, and GNOME in a VM (with and without the AppIndicator extension).
+  - Linux XFCE done 2026-10-08 (tray, notifications, systemd user unit + linger, logind inhibition, Secret Service; results in desktop, reliability, security); manual action-click and suspend/resume tests passed; Linux inhibits idle only (parity), delay lock on sleep for checkpointing; Windows, macOS, CachyOS and GNOME deferred.
 - [ ] Service registration: systemd user unit (+ linger), `SMAppService` LaunchAgent from a signed bundle, Windows logon task with restart. Confirm the tray works when started by each.
 - [ ] Sleep inhibition during a fake transfer, then release. Resume event delivery.
 - [ ] Keystore read/write from the daemon on each OS, including headless Linux.
