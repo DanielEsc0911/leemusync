@@ -1303,9 +1303,10 @@ Each spike runs on a `spike/<id>-<slug>` branch, timeboxed (default 2 days). The
 ### SP6: Storage backends
 - **Answers:** V-STORE-1/2/3/4, V-SYNC-1/2.
 - [ ] Capability matrix with OpenDAL for s3 (AWS, MinIO, R2, B2), webdav (Nextcloud), sftp, fs, gdrive, onedrive, dropbox: `if_not_exists`, server mtime, list-after-write delay, rate limits.
+  - Local part done 2026-10-08 (OpenDAL 0.59.4; s3 on SeaweedFS and RustFS since MinIO images weren't pullable, webdav on Nextcloud, sftp, fs; see [storage-backends §Tested capabilities](../../specs/storage-backends.md#tested-capabilities-sp6)); cloud services pending accounts. Google Drive live test next (maintainer's personal account).
 - [ ] Google Drive with `drive.file`: OAuth flow on desktop and mobile; scope classification and verification needs.
 - [ ] MEGA: test S4 via s3; review the existing Rust MEGA crates (maintenance, security); MEGAcmd WebDAV.
-- [ ] SFTP on Android and iOS builds.
+- [x] SFTP on Android and iOS builds: not offered there, nor on Windows ([D25](../../decisions.md#d25-sftp-only-on-linux-and-macos-for-now-2026-10-08)); pure-Rust adapter deferred (V-STORE-4).
 - [ ] **Record:** storage-backends, sync-model (lease liveness), decision for MEGA.
 
 ### SP7: Desktop emulator layouts (initial five)

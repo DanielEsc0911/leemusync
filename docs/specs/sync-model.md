@@ -103,7 +103,7 @@ A separate stream kind (`state`), opt-in per emulator or game. The manifest reco
 Snapshots queue in local history and upload when the device is back online. Parents are kept as they were, so divergence is still detected.
 
 ## Verify
-- **V-SYNC-1** Server-side modified time is available and usable for lease liveness on each backend (spike SP6).
+- **V-SYNC-1** Server-side modified time for lease liveness. Local services are answered: `s3` (SeaweedFS, RustFS), `webdav` (Nextcloud), `sftp` and `fs` return it from `stat` and `list`, and a renewal (overwrite) advances it, at 1 s granularity on the network services ([storage-backends §Tested capabilities](storage-backends.md#tested-capabilities-sp6)). Clock skew on a real remote server and the cloud providers are pending accounts (SP6).
 - **V-SYNC-2** Listing delay and consistency on Google Drive, Dropbox and OneDrive (SP6).
 
 ## Open questions

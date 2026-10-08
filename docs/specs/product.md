@@ -30,7 +30,7 @@ Windows (x64, arm64), macOS (Apple Silicon and Intel), Linux (x86_64, arm64), Ra
 Any emulator that stores saves as files, which covers every major console (Nintendo NES → Switch, PlayStation 1–3, PSP, Vita, Sega, Xbox, arcade…). Coverage grows by adding profiles ([emulator-profiles](emulator-profiles.md)).
 
 ## Scope
-- **v1 (Phases 0–5):** saves for the initial emulator set on desktop, Android and iOS. Backends: S3, WebDAV, SFTP, local folder. Launcher and watch modes. English and Spanish.
+- **v1 (Phases 0–5):** saves for the initial emulator set on desktop, Android and iOS. Backends: S3, WebDAV, SFTP (Linux and macOS only, [D25](../decisions.md#d25-sftp-only-on-linux-and-macos-for-now-2026-10-08)), local folder. Launcher and watch modes. English and Spanish.
 - **Later (Phase 6+):** Google Drive, OneDrive, Dropbox, MEGA; more emulators; save states (opt-in); Linux handheld firmwares; optional push.
 
 ## Non-goals
