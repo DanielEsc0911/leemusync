@@ -1,0 +1,357 @@
+# Builds every release artifact. Spec: docs/specs/release.md.
+# Tag v*: version check, every artifact, SHA256SUMS, attestations, draft GitHub Release.
+# Manual run: same, but uploads one workflow artifact instead of a release.
+# PR touching this file or packaging/**: dry run with read-only permissions, workflow
+# artifacts only, no attestation, and APKs always debug-signed (never the release key).
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+  pull_request:
+    paths: ['.github/workflows/release.yml', 'packaging/**']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  NFPM_VERSION: 2.47.0
+  APPIMAGETOOL_VERSION: 1.9.1
+  INNOSETUP_VERSION: 6.4.3
+  WIX_VERSION: 5.0.2
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check the tag matches Cargo.toml and pubspec.yaml
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          rustup toolchain install
+          cargo xtask version-check "$GITHUB_REF_NAME"
+      - id: v
+        name: Compute the version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="0.0.0-dev.${GITHUB_RUN_NUMBER}"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  linux:
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            arch: x86_64
+          - runner: ubuntu-22.04-arm
+            arch: aarch64
+    runs-on: ${{ matrix.runner }}
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev file desktop-file-utils
+      - name: Flutter (x86_64)
+        if: matrix.arch == 'x86_64'
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version-file: app/pubspec.yaml
+      - name: Flutter (arm64, from source at the pinned version; V-PKG-4)
+        if: matrix.arch == 'aarch64'
+        run: |
+          flutter_version="$(sed -n 's/^  flutter: *//p' app/pubspec.yaml)"
+          git clone --depth 1 --branch "$flutter_version" https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+      - name: Install nfpm and appimagetool (pinned, checksum-verified)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          case "${{ matrix.arch }}" in
+            x86_64) nfpm_arch=x86_64 ;;
+            aarch64) nfpm_arch=arm64 ;;
+          esac
+          tools="$RUNNER_TEMP/tools"; mkdir -p "$tools/bin"; cd "$tools"
+          nfpm_tgz="nfpm_${NFPM_VERSION}_Linux_${nfpm_arch}.tar.gz"
+          curl -fsSLO "https://github.com/goreleaser/nfpm/releases/download/v${NFPM_VERSION}/${nfpm_tgz}"
+          curl -fsSLO "https://github.com/goreleaser/nfpm/releases/download/v${NFPM_VERSION}/checksums.txt"
+          grep " ${nfpm_tgz}\$" checksums.txt | sha256sum -c
+          tar -xzf "$nfpm_tgz" nfpm && install -m755 nfpm bin/nfpm
+          ait="appimagetool-${{ matrix.arch }}.AppImage"
+          curl -fsSLO "https://github.com/AppImage/appimagetool/releases/download/${APPIMAGETOOL_VERSION}/${ait}"
+          digest="$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/AppImage/appimagetool/releases/tags/${APPIMAGETOOL_VERSION}" \
+            | jq -r --arg n "$ait" '.assets[] | select(.name == $n) | .digest')"
+          echo "${digest#sha256:}  ${ait}" | sha256sum -c
+          # Runners have no FUSE: run appimagetool from its extracted image.
+          chmod +x "$ait" && "./$ait" --appimage-extract >/dev/null
+          printf '#!/bin/sh\nexec "%s/squashfs-root/AppRun" "$@"\n' "$tools" > bin/appimagetool
+          chmod +x bin/appimagetool
+          echo "$tools/bin" >> "$GITHUB_PATH"
+      - name: Build CLI and daemon
+        run: |
+          rustup toolchain install
+          cargo build --release --locked -p leemusync-cli -p leemusync-daemon
+      - name: Build the Flutter app
+        working-directory: app
+        run: flutter build linux --release
+      - name: Package .deb, .rpm, .AppImage, .tar.gz
+        run: packaging/linux/package.sh "$VERSION" "${{ matrix.arch }}"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: linux-${{ matrix.arch }}
+          path: dist/out/*
+          if-no-files-found: error
+
+  headless:
+    needs: version
+    runs-on: ubuntu-22.04
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+      CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER: arm-linux-gnueabihf-gcc
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install cross linkers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu gcc-arm-linux-gnueabihf
+      - name: Build and pack CLI + daemon
+        run: |
+          rustup toolchain install
+          mkdir -p dist/out
+          for pair in x86_64:x86_64-unknown-linux-gnu aarch64:aarch64-unknown-linux-gnu armv7:armv7-unknown-linux-gnueabihf; do
+            arch="${pair%%:*}"; target="${pair#*:}"
+            rustup target add "$target"
+            cargo build --release --locked --target "$target" -p leemusync-cli -p leemusync-daemon
+            rm -rf dist/headless && mkdir -p dist/headless/leemusync/bin
+            cp "target/$target/release/leemusync" "target/$target/release/leemusyncd" dist/headless/leemusync/bin/
+            tar -C dist/headless -czf "dist/out/leemusync-${VERSION}-linux-${arch}-headless.tar.gz" leemusync
+          done
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: headless
+          path: dist/out/*
+          if-no-files-found: error
+
+  windows:
+    needs: version
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version-file: app/pubspec.yaml
+      - name: Install Inno Setup and WiX if missing (V-PKG-2)
+        run: |
+          iscc_dir="/c/Program Files (x86)/Inno Setup 6"
+          if [ ! -x "$iscc_dir/ISCC.exe" ] && ! command -v iscc >/dev/null; then
+            choco install innosetup --version "$INNOSETUP_VERSION" -y --no-progress
+          fi
+          echo "$iscc_dir" >> "$GITHUB_PATH"
+          if ! command -v wix >/dev/null; then
+            dotnet tool install --global wix --version "$WIX_VERSION"
+          fi
+          echo "$USERPROFILE/.dotnet/tools" >> "$GITHUB_PATH"
+      - name: Build CLI and daemon
+        run: |
+          rustup toolchain install
+          cargo build --release --locked -p leemusync-cli -p leemusync-daemon
+      - name: Build the Flutter app
+        working-directory: app
+        run: flutter build windows --release
+      - name: Package .exe and .msi (en, es)
+        run: |
+          numeric="${VERSION%%-*}"
+          gui_dir="$(cygpath -w "$PWD/app/build/windows/x64/runner/Release")"
+          bin_dir="$(cygpath -w "$PWD/target/release")"
+          out_dir="$(cygpath -w "$PWD/dist/out")"
+          mkdir -p dist/out
+          LEEMUSYNC_VERSION="$VERSION" LEEMUSYNC_VERSION_NUMERIC="$numeric" \
+            LEEMUSYNC_GUI_DIR="$gui_dir" LEEMUSYNC_BIN_DIR="$bin_dir" \
+            iscc "//O$out_dir" packaging/windows/leemusync.iss
+          for pair in en:en-US:en-us es:es-ES:es-es; do
+            lang="${pair%%:*}"; rest="${pair#*:}"; culture="${rest%%:*}"; wxl="${rest#*:}"
+            wix build packaging/windows/leemusync.wxs -arch x64 \
+              -culture "$culture" -loc "packaging/windows/${wxl}.wxl" \
+              -d "Version=$numeric" -d "GuiDir=$gui_dir" -d "BinDir=$bin_dir" \
+              -o "dist/out/leemusync-${VERSION}-windows-x64-${lang}.msi"
+          done
+          rm -f dist/out/*.wixpdb
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows
+          path: dist/out/*
+          if-no-files-found: error
+
+  macos:
+    needs: version
+    runs-on: macos-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version-file: app/pubspec.yaml
+      - name: Build universal CLI and daemon
+        run: |
+          rustup toolchain install
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+          for target in aarch64-apple-darwin x86_64-apple-darwin; do
+            cargo build --release --locked --target "$target" -p leemusync-cli -p leemusync-daemon
+          done
+          mkdir -p dist/helpers
+          for bin in leemusync leemusyncd; do
+            lipo -create -output "dist/helpers/$bin" \
+              "target/aarch64-apple-darwin/release/$bin" "target/x86_64-apple-darwin/release/$bin"
+          done
+      - name: Build the Flutter app
+        working-directory: app
+        run: flutter build macos --release
+      - name: Package .dmg
+        run: |
+          mkdir -p dist/out
+          packaging/macos/make-dmg.sh app/build/macos/Build/Products/Release/LeemuSync.app dist/helpers \
+            "dist/out/leemusync-${VERSION}-macos-universal.dmg"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: macos
+          path: dist/out/*
+          if-no-files-found: error
+
+  android:
+    needs: version
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version-file: app/pubspec.yaml
+      - name: Decode the release keystore
+        id: keystore
+        env:
+          # PR builds never see the release key (docs/specs/release.md, Signing).
+          ANDROID_KEYSTORE_BASE64: ${{ github.event_name != 'pull_request' && secrets.ANDROID_KEYSTORE_BASE64 || '' }}
+        run: |
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+            path="$RUNNER_TEMP/leemusync-release.jks"
+            printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$path"
+            echo "ANDROID_KEYSTORE_PATH=$path" >> "$GITHUB_ENV"
+            echo "suffix=" >> "$GITHUB_OUTPUT"
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "::error::Tag builds need the ANDROID_KEYSTORE_* secrets (docs/specs/release.md, Signing)"
+            exit 1
+          else
+            echo "suffix=-debug" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build split APKs
+        working-directory: app
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.ANDROID_KEYSTORE_PASSWORD || '' }}
+          ANDROID_KEY_ALIAS: ${{ github.event_name != 'pull_request' && secrets.ANDROID_KEY_ALIAS || '' }}
+          ANDROID_KEY_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.ANDROID_KEY_PASSWORD || '' }}
+        run: flutter build apk --release --split-per-abi
+      - name: Rename APKs
+        env:
+          SUFFIX: ${{ steps.keystore.outputs.suffix }}
+        run: |
+          mkdir -p dist/out
+          for abi in arm64-v8a armeabi-v7a x86_64; do
+            cp "app/build/app/outputs/flutter-apk/app-${abi}-release.apk" \
+              "dist/out/leemusync-${VERSION}-android-${abi}${SUFFIX}.apk"
+          done
+      - name: Remove the keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/leemusync-release.jks"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android
+          path: dist/out/*
+          if-no-files-found: error
+
+  publish:
+    if: github.event_name != 'pull_request'
+    needs: [version, linux, headless, windows, macos, android]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: dist
+          merge-multiple: true
+      - name: SHA256SUMS
+        working-directory: dist
+        run: |
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+      - name: Build-provenance attestation
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/*
+      - name: Draft GitHub Release (tag runs)
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release create "$GITHUB_REF_NAME" --draft --verify-tag --title "LeemuSync $VERSION" dist/*
+      - name: Upload combined artifact (manual runs)
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: leemusync-${{ env.VERSION }}
+          path: dist/*
+          if-no-files-found: error
+
+  pr-bundle:
+    # Dry run for PRs: read-only token (workflow default), no attestation, no release.
+    if: github.event_name == 'pull_request'
+    needs: [version, linux, headless, windows, macos, android]
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: dist
+          merge-multiple: true
+      - name: SHA256SUMS
+        working-directory: dist
+        run: |
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: leemusync-${{ env.VERSION }}
+          path: dist/*
+          if-no-files-found: error

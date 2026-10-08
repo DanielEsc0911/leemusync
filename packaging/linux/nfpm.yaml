@@ -1,0 +1,29 @@
+name: leemusync
+arch: ${NFPM_ARCH}
+platform: linux
+version: ${LEEMUSYNC_VERSION}
+version_schema: semver
+maintainer: Daniel <daescalona@proton.me>
+description: Keep your emulator saves in sync on every device, using storage you own.
+homepage: https://github.com/DanielEsc0911/leemusync
+license: MPL-2.0
+contents:
+  - src: dist/stage/gui/
+    dst: /opt/leemusync/
+    type: tree
+  - src: /opt/leemusync/leemusync-gui
+    dst: /usr/bin/leemusync-gui
+    type: symlink
+  - src: dist/stage/bin/leemusync
+    dst: /usr/bin/leemusync
+  - src: dist/stage/bin/leemusyncd
+    dst: /usr/bin/leemusyncd
+  - src: packaging/linux/io.github.danielesc0911.leemusync.desktop
+    dst: /usr/share/applications/io.github.danielesc0911.leemusync.desktop
+  - src: packaging/icons/leemusync.png
+    dst: /usr/share/icons/hicolor/256x256/apps/io.github.danielesc0911.leemusync.png
+overrides:
+  deb:
+    depends: [libgtk-3-0]
+  rpm:
+    depends: [gtk3]

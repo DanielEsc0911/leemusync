@@ -16,6 +16,7 @@
 - Code snippets here are correct but not always in rustfmt layout. Run `just fmt` before `just check` (found in Task 1).
 - Clippy's `assert_is_empty` lint (denied via `clippy::all`) rejects `assert!(x.is_empty())`. Use `assert_eq!(x, Vec::<String>::new())` (found in Task 2).
 - Clippy's `case_sensitive_file_extension_comparisons` (pedantic) rejects `name.ends_with(".ext")`. Compare `path.extension()` instead (found in Task 4).
+- WiX: a Component with more than one file can't use an auto-generated GUID unless its keypath file is versioned. The Rust binaries have no version resource, so give each one its own Component (found in Task 5 Step 9).
 - Commits: Conventional Commits. Author = maintainer. Trailer `Co-Authored-By: <agent> <no-reply address>` ([git-workflow](../../specs/git-workflow.md)).
 
 ## Open decisions (maintainer)
@@ -1019,7 +1020,7 @@ Spec: [release](../../specs/release.md) (Artifacts, Install layout, Signing). De
 - WiX `UpgradeCode`: `95ABB515-7BAD-4E28-AC9F-BF5865B70A15`
 - App/bundle id and Windows AppUserModelID: `io.github.danielesc0911.leemusync`
 
-- [ ] **Step 1: Shared `cargo metadata` loader (refactor; tests must stay green).** Move the command call out of `layers.rs` into `xtask/src/metadata.rs`:
+- [x] **Step 1: Shared `cargo metadata` loader (refactor; tests must stay green).** Move the command call out of `layers.rs` into `xtask/src/metadata.rs`:
 
 ```rust
 //! Shared `cargo metadata` loader for xtask checks.
@@ -1044,7 +1045,7 @@ pub(crate) fn load(root: &Path) -> Result<Value, Vec<String>> {
 ```
 In `layers.rs`, `check` starts with `let metadata = crate::metadata::load(root)?;`. Remove the inline call and the now-unused `Command` and `Value` imports (clippy fails on unused imports). Add `mod metadata;` to `main.rs`. Run `cargo test -p xtask` and `cargo xtask layers` → both still pass.
 
-- [ ] **Step 2: `version-check`, test first.** `xtask/src/version.rs` with the tests below and a stub `fn compare(..) -> Result<(), Vec<String>> { Ok(()) }` → `cargo test -p xtask` FAILS in `rejects_mismatch` and `rejects_tag_without_v`. Then the full file:
+- [x] **Step 2: `version-check`, test first.** `xtask/src/version.rs` with the tests below and a stub `fn compare(..) -> Result<(), Vec<String>> { Ok(()) }` → `cargo test -p xtask` FAILS in `rejects_mismatch` and `rejects_tag_without_v`. Then the full file:
 
 ```rust
 //! `version-check <tag>`: a release tag `vX.Y.Z[-pre]` must equal the workspace
@@ -1113,14 +1114,14 @@ mod tests {
 ```
 In `main.rs`: `mod version;`, the arm `"version-check" => version::check(&root, &std::env::args().nth(2).unwrap_or_default()),`, and `version-check <tag>` in the unknown-task message. Run: `cargo test -p xtask` → PASS. `cargo xtask version-check v0.0.0` → ok only if `pubspec.yaml` says `version: 0.0.0+1`; set it so.
 
-- [ ] **Step 3: GUI executable names and placeholder icon** (release §Install layout)
+- [x] **Step 3: GUI executable names and placeholder icon** (release §Install layout)
   - `app/windows/CMakeLists.txt`: `set(BINARY_NAME "leemusync")` → `set(BINARY_NAME "LeemuSync")`. In `app/windows/runner/Runner.rc`, set `FileDescription` and `ProductName` to `LeemuSync`.
   - `app/linux/CMakeLists.txt`: `set(BINARY_NAME "leemusync")` → `set(BINARY_NAME "leemusync-gui")`. Keep `APPLICATION_ID` = `io.github.danielesc0911.leemusync`.
   - `app/macos/Runner/Configs/AppInfo.xcconfig`: `PRODUCT_NAME = LeemuSync`.
   - `cp app/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_256.png packaging/icons/leemusync.png` (Flutter's default icon; placeholder until the Phase 3 brand).
   - Run `cd app && flutter build linux --release` → `build/linux/x64/release/bundle/leemusync-gui` exists, and `flutter test` still passes.
 
-- [ ] **Step 4: Linux packaging.** `packaging/linux/io.github.danielesc0911.leemusync.desktop`:
+- [x] **Step 4: Linux packaging.** `packaging/linux/io.github.danielesc0911.leemusync.desktop`:
 ```ini
 [Desktop Entry]
 Type=Application
@@ -1177,12 +1178,12 @@ tar -C dist/tar -czf "dist/out/leemusync-${LEEMUSYNC_VERSION}-linux-${APPIMAGE_A
 ```
 Check: `dpkg-deb -c` and `rpm -qlp` list exactly the install layout; nfpm turns `-alpha.1` into a version that sorts before the final release (deb `~`). Record the result.
 
-- [ ] **Step 5: Windows packaging.** Both installers install the layout from release §Install layout and remove it cleanly on uninstall.
+- [x] **Step 5: Windows packaging.** Both installers install the layout from release §Install layout and remove it cleanly on uninstall.
   - `packaging/windows/leemusync.iss` (Inno Setup 6.3+): `AppId={{350A21EC-E42B-4C95-8E97-B1433D66294D}`, `AppName=LeemuSync`, `AppVersion` from env `LEEMUSYNC_VERSION`, `VersionInfoVersion` = numeric `X.Y.Z.0`, `DefaultDirName={autopf}\LeemuSync`, `ArchitecturesAllowed=x64compatible`, `ArchitecturesInstallIn64BitMode=x64compatible`, `LicenseFile=..\..\LICENSE`, `ChangesEnvironment=yes`, `WizardStyle=modern`, `OutputBaseFilename=leemusync-<version>-windows-x64-setup`. `[Languages]`: `en` = `compiler:Default.isl`, `es` = `compiler:Languages\Spanish.isl` (P6). `[Files]`: GUI bundle → `{app}`, CLI + daemon → `{app}\bin`. `[Icons]`: Start Menu shortcut to `{app}\LeemuSync.exe` with `AppUserModelID: "io.github.danielesc0911.leemusync"`. Add `{app}\bin` to the machine `PATH` on install and remove it on uninstall, without duplicates.
-  - `packaging/windows/leemusync.wxs` (WiX v5+, V-PKG-1): `Package` with `UpgradeCode="95ABB515-7BAD-4E28-AC9F-BF5865B70A15"`, `Version` = **numeric** `X.Y.Z` (MSI rejects `-alpha`; the pre-release only appears in the file name), `MajorUpgrade`, `MediaTemplate EmbedCab="yes"`. GUI files under `ProgramFiles64Folder\LeemuSync` (harvested from the Flutter output folder), `bin\` with CLI + daemon, a Start Menu shortcut with `ShortcutProperty Key="System.AppUserModel.ID" Value="io.github.danielesc0911.leemusync"`, and an `Environment` element appending `[INSTALLFOLDER]bin` to the system `PATH`. User-visible strings in `en-us.wxl` / `es-es.wxl`. Build one MSI per culture: `wix build -culture en-US …` and `-culture es-ES …` → `…-windows-x64-en.msi`, `…-windows-x64-es.msi`.
+  - `packaging/windows/leemusync.wxs` (WiX v5+, V-PKG-1): `Package` with `UpgradeCode="95ABB515-7BAD-4E28-AC9F-BF5865B70A15"`, `Version` = **numeric** `X.Y.Z` (MSI rejects `-alpha`; the pre-release only appears in the file name), `MajorUpgrade`, `MediaTemplate EmbedCab="yes"`. GUI files under `ProgramFiles64Folder\LeemuSync` (harvested from the Flutter output folder), `bin\` with CLI + daemon (one Component per file), a Start Menu shortcut with `ShortcutProperty Key="System.AppUserModel.ID" Value="io.github.danielesc0911.leemusync"`, and an `Environment` element appending `[INSTALLFOLDER]bin` to the system `PATH`. User-visible strings in `en-us.wxl` / `es-es.wxl`. Build one MSI per culture: `wix build -culture en-US …` and `-culture es-ES …` → `…-windows-x64-en.msi`, `…-windows-x64-es.msi`.
   - Test both on the Windows machine: install → `LeemuSync` in the Start Menu, `leemusync` works in a new terminal → uninstall → nothing left behind.
 
-- [ ] **Step 6: macOS DMG.** `packaging/macos/make-dmg.sh`:
+- [x] **Step 6: macOS DMG.** `packaging/macos/make-dmg.sh`:
 ```bash
 #!/usr/bin/env bash
 # Usage: make-dmg.sh <path/to/LeemuSync.app> <dir with leemusync + leemusyncd> <output.dmg>
@@ -1198,7 +1199,7 @@ hdiutil create -volname LeemuSync -srcfolder "$stage" -ov -format UDZO "$out"
 ```
 The CLI and daemon are universal binaries: build `aarch64-apple-darwin` and `x86_64-apple-darwin`, then `lipo -create -output <out> <arm64> <x86_64>`. Test on the MacBook: open the DMG → drag to Applications → Open Anyway → the app starts; `LeemuSync.app/Contents/Helpers/leemusync` prints its version.
 
-- [ ] **Step 7: Android release signing.** In `app/android/app/build.gradle.kts`, sign `release` with the maintainer key when CI provides it; otherwise fall back to the debug key:
+- [x] **Step 7: Android release signing.** In `app/android/app/build.gradle.kts`, sign `release` with the maintainer key when CI provides it; otherwise fall back to the debug key:
 ```kotlin
 val releaseKeystore = System.getenv("ANDROID_KEYSTORE_PATH")
 
@@ -1223,7 +1224,7 @@ android {
 Merge this into the generated `android { … }` block; don't create a second one. Add `*.jks` and `*.keystore` to `.gitignore`.
 **Maintainer, once:** `keytool -genkeypair -v -keystore leemusync-release.jks -keyalg RSA -keysize 4096 -validity 10000 -alias leemusync`. Store `base64` of the file and the passwords as repository secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. Keep two offline backups: losing the key means installed apps can never update.
 
-- [ ] **Step 8: `.github/workflows/release.yml`.** Triggers: `push: tags: ['v*']` and `workflow_dispatch`. Top-level `permissions: contents: read`. Every action pinned by SHA (Task 3 Step 3). Version = tag without `v`, or for manual runs `0.0.0-dev.<run_number>` for file names only.
+- [x] **Step 8: `.github/workflows/release.yml`.** Triggers: `push: tags: ['v*']`, `workflow_dispatch`, and `pull_request` with `paths: ['.github/workflows/release.yml', 'packaging/**']`. GitHub only lets you start a `workflow_dispatch` workflow once it's on the default branch, so PRs that touch packaging are the dry run. Top-level `permissions: contents: read`. Every action pinned by SHA (Task 3 Step 3). Version = tag without `v`, or for manual and PR runs `0.0.0-dev.<run_number>` for file names only.
 
 | Job | Runner(s) | Does |
 |---|---|---|
@@ -1233,13 +1234,13 @@ Merge this into the generated `android { … }` block; don't create a second one
 | `windows` | windows-latest | Rust release build; `flutter build windows --release`; Inno Setup → `.exe`; WiX → two `.msi` (V-PKG-2: install with `choco`/`dotnet tool` if absent) |
 | `macos` | macos-latest | Rust for both macOS targets + `lipo`; `flutter build macos --release`; `make-dmg.sh` |
 | `android` | ubuntu-latest | `actions/setup-java` (Temurin 17); decode `ANDROID_KEYSTORE_BASE64` to a temp file and export `ANDROID_KEYSTORE_PATH` when present; **tag runs fail if the secrets are missing**; `flutter build apk --release --split-per-abi`; rename to `leemusync-<v>-android-<abi>.apk` (`-debug` suffix when unsigned) |
-| `publish` | ubuntu-latest, needs all | Download artifacts; `sha256sum * > SHA256SUMS`; `actions/attest-build-provenance` over every file (job permissions: `id-token: write`, `attestations: write`, `contents: write`); tag → `gh release create "$GITHUB_REF_NAME" --draft --verify-tag --title "LeemuSync $VERSION" dist/*`; manual → upload one combined workflow artifact |
+| `publish` | ubuntu-latest, needs all | Download artifacts; `sha256sum * > SHA256SUMS`; `actions/attest-build-provenance` over every file (job permissions: `id-token: write`, `attestations: write`, `contents: write`); tag → `gh release create "$GITHUB_REF_NAME" --draft --verify-tag --title "LeemuSync $VERSION" dist/*`; manual or PR → upload one combined workflow artifact. Attest only on tag and manual runs (PRs from forks get no OIDC token) |
 
-- [ ] **Step 9: Dry run.** Push the branch and run the workflow manually (`gh workflow run release.yml --ref <branch>`). Download the artifacts and test each on the [Device lab](../../specs/testing.md#device-lab): `.exe` + `.msi` on Windows; `.rpm`, `.AppImage`, `.tar.gz` on Fedora; `.AppImage` + `.tar.gz` on CachyOS; `.deb` in an Ubuntu container (`dpkg -i` + `leemusync`); `.apk` on the Galaxy A25; `.dmg` on the MacBook. Write the results and the answers to V-PKG-1…5 into release.md.
+- [ ] **Step 9: Dry run.** Push the branch and open a PR. The `pull_request` trigger builds every artifact (download them from the run's Artifacts section). Download the artifacts and test each on the [Device lab](../../specs/testing.md#device-lab): `.exe` + `.msi` on Windows; `.rpm`, `.AppImage`, `.tar.gz` on Fedora; `.AppImage` + `.tar.gz` on CachyOS; `.deb` in an Ubuntu container (`dpkg -i` + `leemusync`); `.apk` on the Galaxy A25; `.dmg` on the MacBook. Write the results and the answers to V-PKG-1…5 into release.md.
 
 - [ ] **Step 10: Tag test (maintainer approval required).** Set the version to `0.0.1-alpha.1` in `Cargo.toml` and `app/pubspec.yaml` (`0.0.1-alpha.1+1`). Tag `v0.0.1-alpha.1` and push the tag. Confirm the draft release lists every format + `SHA256SUMS`, and that `gh attestation verify <file> --repo DanielEsc0911/leemusync` passes. Leave it as a draft (don't publish) or delete the draft and tag, as the maintainer decides.
 
-- [ ] **Step 11: Commit.** `just check` → green, then:
+- [x] **Step 11: Commit.** `just check` → green, then:
 ```bash
 git add xtask/ packaging/ .github/workflows/release.yml app/ .gitignore docs/specs/release.md
 git commit -m "ci(release): build apk, msi, exe, dmg, deb, rpm, AppImage and tar.gz" \

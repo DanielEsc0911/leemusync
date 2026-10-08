@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=LeemuSync
+Comment=Keep your emulator saves in sync on every device
+Comment[es]=Mantén tus partidas guardadas sincronizadas en todos tus dispositivos
+Exec=leemusync-gui
+Icon=io.github.danielesc0911.leemusync
+Terminal=false
+Categories=Game;Utility;
