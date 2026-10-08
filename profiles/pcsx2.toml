@@ -1,0 +1,37 @@
+# DRAFT from spike SP7 (not loaded until Phase 1). Verified: PCSX2 v2.8.2, Linux (Flatpak net.pcsx2.PCSX2 + source tag v2.8.2), 2026-10-08.
+# No loader exists yet: this file and profiles/fixtures/pcsx2/ are not tested. Evidence: docs/specs/emulator-profiles.md#linux-paths-sp7
+# windows/macos: pending SP7 device pass
+# Default: Mcd001.ps2 file card = container (Basic). A folder card is a directory with the same name
+# holding one folder per save plus _pcsx2_superblock / _pcsx2_index (Standard).
+schema = 1
+id = "pcsx2"
+name = "PCSX2"
+systems = ["ps2"]
+layout = "container"
+requires_closed = true
+
+[platforms.linux]
+# portable.ini / portable.txt next to the exe -> exe dir (portable.txt may hold a custom path).
+# Else $XDG_CONFIG_HOME/PCSX2 if set (Flatpak), else ~/.config/PCSX2.
+roots = ["{exe_dir}", "{flatpak:net.pcsx2.PCSX2}/config/PCSX2", "{xdg_config}/PCSX2"]
+process = ["pcsx2-qt"]
+
+[[config_keys]]
+file = "inis/PCSX2.ini"
+format = "ini"
+key = "Folders/MemoryCards"        # relative to the data root; default "memcards"
+var = "memcards"
+
+[saves]
+root = "{memcards}"
+pattern = "{game}.ps2"
+include = ["*.ps2"]
+
+[game_key]
+from = "game"
+
+[[recommend]]
+setting = "MemoryCards/Slot1_Filename"
+value = "a folder memory card"
+unlocks = "standard"
+how = "Settings > Memory Cards > Create > Folder, then insert it in Slot 1"

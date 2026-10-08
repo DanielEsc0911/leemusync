@@ -1,0 +1,30 @@
+# DRAFT from spike SP7 (not loaded until Phase 1). Verified: RetroArch 1.22.2, Linux (Flatpak org.libretro.RetroArch + source tag v1.22.2), 2026-10-08.
+# No loader exists yet: this file and profiles/fixtures/retroarch/ are not tested. Evidence: docs/specs/emulator-profiles.md#linux-paths-sp7
+# windows/macos: pending SP7 device pass. Linux portable/AppImage: Verify SP7.
+schema = 1
+id = "retroarch"
+name = "RetroArch"
+systems = ["multi"]
+layout = "per_game_file"
+requires_closed = true
+
+[platforms.linux]
+roots = ["{flatpak:org.libretro.RetroArch}/config/retroarch", "{xdg_config}/retroarch"]
+process = ["retroarch"]
+
+# Value may start with "~" and may be "default"; savefiles_in_content_dir = "true" puts saves next to the ROM.
+[[config_keys]]
+file = "retroarch.cfg"
+format = "ini"
+key = "savefile_directory"
+var = "saves"
+
+[saves]
+root = "{saves}"                   # default: "{base}/saves"
+# sort_savefiles_by_content_enable adds <content dir name>/ first; sort_savefiles_enable (default true)
+# adds <core library_name>/. Schema gap (SP7): needs a {core} capture, so the core folder is matched as a glob.
+pattern = "*/{game}.srm"
+include = ["*.srm", "*.rtc"]
+
+[game_key]
+from = "game"

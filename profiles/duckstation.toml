@@ -1,0 +1,36 @@
+# DRAFT from spike SP7 (not loaded until Phase 1). Verified: DuckStation 0.1-9482-g0a53bc47c, Linux (Flatpak org.duckstation.DuckStation + source commit 0a53bc47c), 2026-10-08.
+# No loader exists yet: this file and profiles/fixtures/duckstation/ are not tested. Evidence: docs/specs/emulator-profiles.md#linux-paths-sp7
+# windows/macos: pending SP7 device pass
+schema = 1
+id = "duckstation"
+name = "DuckStation"
+systems = ["ps1"]
+layout = "per_game_file"
+requires_closed = true
+
+[platforms.linux]
+# portable.txt or settings.ini next to the exe/AppImage -> that folder is the data root.
+# Else $XDG_CONFIG_HOME/duckstation when XDG_CONFIG_HOME is set (always in Flatpak), else ~/.local/share/duckstation.
+roots = ["{exe_dir}", "{flatpak:org.duckstation.DuckStation}/config/duckstation", "{xdg_config}/duckstation", "{xdg_data}/duckstation"]
+process = ["duckstation-qt"]
+
+[[config_keys]]
+file = "settings.ini"
+format = "ini"
+key = "MemoryCards/Directory"      # relative to the data root; default "memcards"
+var = "memcards"
+
+[saves]
+root = "{memcards}"
+# Default Card1Type = PerGameTitle -> "<game title>_1.mcd"; PerGame -> "<serial>_1.mcd"; Shared -> shared_card_1.mcd.
+pattern = "{game}_1.mcd"
+include = ["*.mcd"]
+
+[game_key]
+from = "game"
+
+[[recommend]]
+setting = "MemoryCards/Card1Type"
+value = "PerGameTitle"
+unlocks = "standard"
+how = "Settings > Memory Cards > Card 1: Separate Card Per Game (Title). This is the default; Shared is a container (Basic)."
