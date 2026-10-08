@@ -26,6 +26,12 @@
 | OD2 | App/bundle id | Resolved: `io.github.danielesc0911.leemusync` ([D22](../../decisions.md#d22-app-and-bundle-id-iogithubdanielesc0911leemusync-2026-10-07)) |
 | OD3 | Store accounts and test devices | No Apple Developer or Play account yet ([D23](../../decisions.md#d23-distribution-before-store-accounts-2026-10-07)). Devices: [testing §Device lab](../../specs/testing.md#device-lab) |
 
+## Deferred device checks (maintainer, 2026-10-08)
+Known gaps, not dropped. Task 6 must answer or re-scope each one.
+- Windows `.exe` and `.msi`, CachyOS `.AppImage` and `.tar.gz`: V-PKG-6 ([release](../../specs/release.md#verify)).
+- SP7 emulator pass on Windows, macOS and CachyOS: V-PROF-1, V-ACC-1.
+- Android: SP3 pass on the Galaxy A25, including DraStic and melonDS (V-AND-2).
+
 ---
 
 ### Task 1: Toolchains and Rust workspace skeleton
@@ -1236,7 +1242,7 @@ Merge this into the generated `android { … }` block; don't create a second one
 | `android` | ubuntu-latest | `actions/setup-java` (Temurin 17); decode `ANDROID_KEYSTORE_BASE64` to a temp file and export `ANDROID_KEYSTORE_PATH` when present; **tag runs fail if the secrets are missing**; `flutter build apk --release --split-per-abi`; rename to `leemusync-<v>-android-<abi>.apk` (`-debug` suffix when unsigned) |
 | `publish` | ubuntu-latest, needs all | Download artifacts; `sha256sum * > SHA256SUMS`; `actions/attest-build-provenance` over every file (job permissions: `id-token: write`, `attestations: write`, `contents: write`); tag → `gh release create "$GITHUB_REF_NAME" --draft --verify-tag --title "LeemuSync $VERSION" dist/*`; manual or PR → upload one combined workflow artifact. Attest only on tag and manual runs (PRs from forks get no OIDC token) |
 
-- [ ] **Step 9: Dry run.** Push the branch and open a PR. The `pull_request` trigger builds every artifact (download them from the run's Artifacts section). Download the artifacts and test each on the [Device lab](../../specs/testing.md#device-lab): `.exe` + `.msi` on Windows; `.rpm`, `.AppImage`, `.tar.gz` on Fedora; `.AppImage` + `.tar.gz` on CachyOS; `.deb` in an Ubuntu container (`dpkg -i` + `leemusync`); `.apk` on the Galaxy A25; `.dmg` on the MacBook. Write the results and the answers to V-PKG-1…5 into release.md.
+- [x] **Step 9: Dry run.** Push the branch and open a PR. The `pull_request` trigger builds every artifact (download them from the run's Artifacts section). Download the artifacts and test each on the [Device lab](../../specs/testing.md#device-lab): `.exe` + `.msi` on Windows; `.rpm`, `.AppImage`, `.tar.gz` on Fedora; `.AppImage` + `.tar.gz` on CachyOS; `.deb` in an Ubuntu container (`dpkg -i` + `leemusync`); `.apk` on the Galaxy A25; `.dmg` on the MacBook. Write the results and the answers to V-PKG-1…5 into release.md. Done 2026-10-08 (run 37789852214): see [release §Dry run results](../../specs/release.md#dry-run-results-2026-10-08). Windows installers and CachyOS deferred → V-PKG-6.
 
 - [ ] **Step 10: Tag test (maintainer approval required).** Set the version to `0.0.1-alpha.1` in `Cargo.toml` and `app/pubspec.yaml` (`0.0.1-alpha.1+1`). Tag `v0.0.1-alpha.1` and push the tag. Confirm the draft release lists every format + `SHA256SUMS`, and that `gh attestation verify <file> --repo DanielEsc0911/leemusync` passes. Leave it as a draft (don't publish) or delete the draft and tag, as the maintainer decides.
 

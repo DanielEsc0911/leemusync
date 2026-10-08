@@ -26,7 +26,7 @@ Every desktop package contains the Flutter app plus the `leemusync` CLI and `lee
 
 | Format | Platform | Runner | Tool |
 |---|---|---|---|
-| `.msi` (one per language: `en`, `es`) | Windows x64 | `windows-latest` | WiX Toolset |
+| `.msi` (one per language: `en`, `es`) | Windows x64 | `windows-latest` | WiX Toolset 5.0.2 (dotnet global tool) |
 | `.exe` installer (English/Spanish selectable) | Windows x64 | `windows-latest` | Inno Setup |
 | `.dmg` | macOS universal (Apple Silicon + Intel) | `macos-latest` | `hdiutil` (built into macOS) |
 | `.deb`, `.rpm` | Linux x86_64, arm64 | `ubuntu-22.04`, `ubuntu-22.04-arm` | nfpm |
@@ -38,8 +38,30 @@ Every desktop package contains the Flutter app plus the `leemusync` CLI and `lee
 - Manual and PR runs use the version `0.0.0-dev.<run number>` in file names. Pre-release versions sort before the final release: nfpm writes `0.0.1-alpha.1` as `0.0.1~alpha.1` in both `.deb` and `.rpm` (checked locally with nfpm 2.47.0: `rpm.vercmp("0.0.1~alpha.1", "0.0.1")` = -1).
 - The `.msi` `Version` is the numeric `X.Y.Z` (MSI rejects pre-release suffixes). The pre-release only appears in the file name.
 - Linux builds run on the oldest supported Ubuntu runner (22.04), so the glibc baseline works on Fedora, Arch/CachyOS, Debian and Ubuntu.
+- WiX builds both cultures (`en-US`, `es-ES`) from the same source with `-loc` `.wxl` files, and `<Files Include="…\**">` harvests the Flutter Release folder. Each Rust binary needs its own Component (WiX error WIX0367: a multi-file Component with an unversioned keypath can't get an auto-generated GUID).
+- The Windows job's "Install Inno Setup and WiX if missing" step works on `windows-latest` (10 s); `ISCC` runs from `C:\Program Files (x86)\Inno Setup 6`. Whether the runner image already shipped either tool wasn't recorded; the install-if-missing step makes it irrelevant.
+- On `ubuntu-22.04-arm` the workflow skips `subosito/flutter-action` and clones Flutter from source at the version pinned in `app/pubspec.yaml`; `flutter build linux --release` works there (70 s). Whether flutter-action itself supports linux-arm64 wasn't tested (not needed).
+- appimagetool 1.9.1 runs extracted (no FUSE on runners) and builds the aarch64 `.AppImage` on `ubuntu-22.04-arm`.
 - Windows arm64 artifacts are added once SP1 confirms Flutter support (V-DESK-4).
 - No iOS artifact until an Apple Developer membership exists ([D23](../decisions.md#d23-distribution-before-store-accounts-2026-10-07)).
+
+## Dry run results (2026-10-08)
+Workflow `release`, [run 37789852214](https://github.com/DanielEsc0911/leemusync/actions/runs/37789852214) (PR #4, commit `feeb76f`, version `0.0.0-dev.2`): all 7 build jobs and `pr-bundle` succeeded; `publish` was skipped, as designed for PRs. The earlier run 37684498198 failed on WIX0367, fixed in `feeb76f`.
+
+Manual install pass on the [Device lab](testing.md#device-lab):
+
+| Format | Device | Result | By |
+|---|---|---|---|
+| `.rpm` | Fedora 44 x86_64 (XFCE/X11) | Installs; app opens showing "All saves synced"; `leemusync --version` → `leemusync 0.0.0` | maintainer + agent |
+| `.AppImage`, `.tar.gz` | Fedora 44 x86_64 | Window maps (X11 `WM_CLASS` `io.github.danielesc0911.leemusync`); `bin/leemusync` and `bin/leemusyncd --version` → 0.0.0 | agent |
+| `.deb` | Debian machine (external) | Installs and opens | maintainer |
+| `.apk` (arm64-v8a, debug-signed) | Galaxy A25 | Installs and opens in English and Spanish ("Todas las partidas están sincronizadas") | maintainer |
+| `.dmg` (universal) | MacBook Air M4, macOS 26 | Opens and runs | maintainer |
+
+Findings:
+- The window title and Android label said "leemusync". Fixed in PR #5 (`80dcb25`).
+- On XFCE without a running `xdg-desktop-portal`, the GTK runner logs harmless `CRITICAL … Failed to read XDG desktop portal settings` lines. The app still runs.
+- Not yet tested (deferred by the maintainer on 2026-10-08): V-PKG-6.
 
 ## Install layout
 GUI and CLI never share a folder, because Windows and macOS file systems are case-insensitive (`LeemuSync` ≙ `leemusync`).
@@ -83,8 +105,6 @@ GUI executable names: `LeemuSync.exe` (Windows), `LeemuSync.app` (macOS), `leemu
 6. Clean up the published plans ([progress](../progress/README.md)).
 
 ## Verify
-- **V-PKG-1** WiX version, culture builds (`en-US`, `es-ES`) and folder harvesting for the Flutter Windows build output (Phase 0 Task 5).
-- **V-PKG-2** WiX and Inno Setup availability on GitHub Windows runners, or the install method (Task 5).
-- **V-PKG-3** appimagetool on arm64 runners (Task 5). Pinned 1.9.1; the workflow runs it extracted (no FUSE on runners). Works on x86_64 Fedora 44; arm64 unproven.
-- **V-PKG-4** Flutter SDK and Linux build on `ubuntu-22.04-arm` (Task 5).
+- **V-PKG-3** The aarch64 `.AppImage` (built on `ubuntu-22.04-arm`, see [Artifacts](#artifacts)) runs on arm64 Linux hardware. No arm64 Linux device in the [Device lab](testing.md#device-lab) yet (Phase 0 Task 6 or later).
 - **V-PKG-5** Whether an all-in-one packager now covers all eight formats, which would let us revisit D24 (Task 5).
+- **V-PKG-6** Windows `.exe` and both `.msi`: install, Start Menu entry, `leemusync` on `PATH` in a new terminal, uninstall leaves nothing, Spanish installer UI. CachyOS: `.AppImage` and `.tar.gz` open and run. Deferred by the maintainer on 2026-10-08 (Phase 0 Task 6).
