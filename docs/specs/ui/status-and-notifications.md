@@ -53,4 +53,4 @@ Devices learn about foreign leases when they check: desktop daemons continuously
 - **V-STAT-1** Live Update eligibility for sync/session notifications and the exact promotion requirements (SP4).
 - **V-STAT-2** Now Bar (One UI 8) and Super Island (HyperOS 3 global) render our Live Update (SP4).
 - **V-STAT-3** Live Activity update limits and duration for long play sessions, and updates from background tasks (SP5).
-- **V-STAT-4** Tray icon + actionable notifications from the daemon on Windows, macOS, KDE and GNOME (SP2). XFCE is done except the action click ([desktop §Linux results](../platforms/desktop.md#linux-results-sp2-xfce), V-DESK-5). The others were deferred by the maintainer on 2026-10-08.
+- **V-STAT-4** Tray icon + actionable notifications from the daemon on Windows, macOS, KDE and GNOME (SP2). XFCE is done, action click included ([desktop §Linux results](../platforms/desktop.md#linux-results-sp2-xfce)). The others were deferred by the maintainer on 2026-10-08.
