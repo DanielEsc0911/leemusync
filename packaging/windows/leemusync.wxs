@@ -26,10 +26,13 @@
       <!-- GUI: everything in the Flutter Release folder. -->
       <Files Directory="INSTALLFOLDER" Include="$(var.GuiDir)\**" />
 
-      <!-- CLI + daemon, added to the system PATH. -->
+      <!-- CLI + daemon, added to the system PATH. One file per component: the Rust
+           binaries are unversioned, so WiX can only auto-generate GUIDs for single-file components. -->
+      <Component Directory="BINFOLDER">
+        <File Source="$(var.BinDir)\leemusyncd.exe" />
+      </Component>
       <Component Directory="BINFOLDER">
         <File Source="$(var.BinDir)\leemusync.exe" />
-        <File Source="$(var.BinDir)\leemusyncd.exe" />
         <Environment Id="PathBin" Name="PATH" Value="[BINFOLDER]" Action="set" Part="last" Permanent="no" System="yes" />
       </Component>
 
