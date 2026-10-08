@@ -11,11 +11,22 @@ Map people (players) to emulator user folders on every device, so each player's 
 - **Account mapping:** (device, emulator, player) → emulator account id. Stored in [repo config](sync-model.md#repo-config).
 
 ## Multi-user emulators (Full tier)
-| Emulator | Account id | Location (Verify) |
+| Emulator | Account id | Location (Cemu verified on Linux in SP7; others Verify) |
 |---|---|---|
 | Cemu (Wii U) | persistent id `8xxxxxxx` (first account: `80000001`) | accounts `mlc01/usr/save/system/act/<id>/`; saves `mlc01/usr/save/00050000/<titleid>/user/<id>/` |
 | RPCS3 (PS3) | user `0000000N` | `dev_hdd0/home/<user>/savedata/<serial>/` |
 | Yuzu-family forks (Switch: Eden, Citron…) | 128-bit profile UUID | `nand/user/save/0000000000000000/<uuid>/<titleid>/` |
+
+### Cemu accounts (SP7)
+Verified on Cemu 2.6 (Linux Flatpak) against the [v2.6 source][cemu-acc], 2026-10-08:
+- One folder per account: `mlc01/usr/save/system/act/<persistent id, 8 hex digits>/account.dat`. Next to them, `act/persisid.dat` stores the id counter.
+- `account.dat` is a line-based text file. The first line is `AccountInstance_20120705`, then `Key=value` lines (`PersistentId`, `Uuid`, `MiiData`, `MiiName`, `AccountId`, `Country`, …).
+- **Display name:** key `MiiName`. The value is exactly 44 hex characters: 11 UTF-16 code units, each written as 4 hex digits (most significant first), padded with `0000`. Decode until the first `0000`. Cemu rejects any other length. The maintainer's real file matches this format (value not recorded).
+- **BotW and `user/common`:** BotW (US, `00050000/101c9400`) creates `user/common/`, but on the tested install it is empty. All game data (`0/`–`5/` slots, `option.sav`, `album/`, `pict_book/`, `tracker/`) is under `user/80000001/`. So BotW is fully per-player. The profile still lists `user/common` under `saves.shared` for games that use it.
+- **BotW title ids** ([WiiUBrew title database][wiiubrew]): JP `00050000-101C9300` (`WUP-P-ALZJ`), US `00050000-101C9400` (`WUP-P-ALZE`), EU `00050000-101C9500` (`WUP-P-ALZP`). Updates use high part `0005000E`, DLC `0005000C`. Cemu writes folder names in lowercase.
+
+[cemu-acc]: https://github.com/cemu-project/Cemu/blob/v2.6/src/Cafe/Account/Account.cpp
+[wiiubrew]: https://wiiubrew.org/wiki/Title_database
 
 ### The same-ID trap
 Every Cemu install creates its first account as `80000001`. Two machines with differently *named* accounts usually still share that id, so syncing raw folders would mix two players' saves. LeemuSync never syncs by account id. Each device maps a player to its own local id:
@@ -55,5 +66,5 @@ Swapping works the same way, but at container granularity: the whole memory card
 | New device, existing players | Join flow asks for this device's mappings ([navigation](ui/navigation.md)) |
 
 ## Verify
-- **V-ACC-1** Cemu account folder layout, how to read the display name from `account.dat`, and whether BotW uses `user/common` (spike SP7).
+- **V-ACC-1** Same Cemu layout and `account.dat` format on Windows and macOS, and whether BotW writes anything to `user/common` on a long-played Windows install (spike SP7, Windows pass).
 - **V-ACC-2** RPCS3 and Yuzu-family layouts (Phase 6 profile work).

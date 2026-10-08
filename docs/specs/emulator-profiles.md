@@ -52,7 +52,7 @@ The engine derives the tier. Profiles don't declare it ([D9](../decisions.md#d9-
 ### Templates
 Allowed variables: `{home}` `{xdg_data}` `{xdg_config}` `{appdata}` `{localappdata}` `{documents}` `{mac_app_support}` `{flatpak:<app-id>}` `{android_storage}` `{exe_dir}`, plus `config_keys` variables and pattern captures. Anything else is a validation error.
 
-### Example (illustrative; paths are Verify SP7)
+### Example (Cemu; Linux part verified in SP7, Windows is still Verify SP7)
 ```toml
 schema = 1
 id = "cemu"
@@ -62,8 +62,8 @@ layout = "per_game_user_dir"
 requires_closed = true
 
 [platforms.linux]
-roots = ["{xdg_data}/Cemu", "{flatpak:info.cemu.Cemu}/data/Cemu"]
-process = ["Cemu"]
+roots = ["{exe_dir}/portable", "{flatpak:info.cemu.Cemu}/data/Cemu", "{xdg_data}/Cemu"]
+process = ["Cemu_relwithdebinfo", "Cemu"]
 
 [platforms.windows]
 roots = ["{exe_dir}", "{appdata}/Cemu"]
@@ -83,6 +83,8 @@ shared = ["00050000/{title_id}/user/common"]
 [accounts]
 root = "{mlc}/usr/save/system/act"
 id_regex = "^8[0-9a-f]{7}$"
+name_file = "account.dat"
+name_key = "MiiName"
 
 [game_key]
 from = "title_id"
@@ -106,15 +108,41 @@ Rejected at load time, with a clear error. Enforced in `core` and fuzzed:
 Per device: base path, extra roots, include/exclude tweaks, disable a profile. **Local custom profiles** (same schema) live in `<config dir>/profiles/` and are trusted because the user created them. Both are editable in UI → Settings → Emulators → Advanced, in the CLI, and in the config file ([config-and-cli](config-and-cli.md)).
 
 ## Initial set (Phase 1)
-| Emulator | Layout → tier | Platforms (Verify SP3/SP5/SP7) |
-|---|---|---|
-| Cemu | `per_game_user_dir` → Full | Windows, Linux, macOS (Android port: verify) |
-| RetroArch | `per_game_file` → Standard (honours "sort saves by core") | All, including Android and iOS |
-| Dolphin | Wii: `per_game_dir` → Standard. GC: `container` (`.raw`) → Basic, or GCI folders → Standard | Windows, Linux, macOS, Android |
-| DuckStation | Shared card → Basic. Per-game cards → Standard (recommended setting) | Windows, Linux, macOS, Android |
-| PCSX2 | `.ps2` file → Basic. Folder memory cards → Standard (recommended setting) | Windows, Linux, macOS |
+| Emulator | Layout → tier | Linux default (SP7) | Other platforms (Verify SP3/SP5/SP7) |
+|---|---|---|---|
+| Cemu | `per_game_user_dir` → Full | Full: `user/<account>/` per title, plus `user/common` | Windows, macOS (Android port: verify) |
+| RetroArch | `per_game_file` → Standard (honours "sort saves by core") | Standard: `saves/<core>/<rom>.srm` | All, including Android and iOS |
+| Dolphin | Wii: `per_game_dir` → Standard. GC: `container` (`.raw`) → Basic, or GCI folders → Standard | GC: GCI folder is the default → Standard | Windows, macOS, Android |
+| DuckStation | Shared card → Basic. Per-game cards → Standard (recommended setting) | Per-game card (by title) is the default → Standard | Windows, macOS, Android |
+| PCSX2 | `.ps2` file → Basic. Folder memory cards → Standard (recommended setting) | `Mcd001.ps2` file → Basic | Windows, macOS |
 
-These five cover every layout and both ways of handling players.
+These five cover every layout and both ways of handling players. Draft profiles and fixture trees: `profiles/<id>.toml`, `profiles/fixtures/<id>/` (not loaded or tested until Phase 1).
+
+### Linux paths (SP7)
+Verified 2026-10-08 on Fedora 44 x86_64. Flatpak trees were read from real installs (names only). Native and portable rules come from the upstream source at the tested version. Process names are what `ps -o comm` shows; Linux truncates `comm` to 15 characters, so discovery must match the full executable name (`/proc/<pid>/exe` or `cmdline`), not `comm`.
+
+| Emulator (version) | Base roots, in the emulator's own order | Config file → save-path key | Process | Default save layout |
+|---|---|---|---|---|
+| Cemu 2.6 (Flatpak `info.cemu.Cemu`) | Portable: folder `portable/` next to the executable (or next to the AppImage, via `$APPIMAGE`). Else data `$XDG_DATA_HOME/Cemu` (`~/.local/share/Cemu`), config `$XDG_CONFIG_HOME/Cemu`. Flatpak: `~/.var/app/info.cemu.Cemu/data/Cemu` + `…/config/Cemu` ([CemuApp.cpp][cemu-app]) | `settings.xml` → `content/mlc_path` (empty = `<data>/mlc01`, [ActiveSettings.cpp][cemu-mlc]) | `Cemu_relwithdebinfo` (Flatpak binary started by `Cemu-wrapper`; `comm` shows `Cemu_relwithdeb`) | `mlc01/usr/save/00050000/<title_id>/user/<account>/` + `user/common/`, accounts in `mlc01/usr/save/system/act/<id>/account.dat` ([players-and-accounts](players-and-accounts.md#cemu-accounts-sp7)) |
+| RetroArch 1.22.2 (Flatpak `org.libretro.RetroArch`) | `$XDG_CONFIG_HOME/retroarch`, else `~/.config/retroarch` ([platform_unix.c][ra-unix]). Flatpak: `~/.var/app/org.libretro.RetroArch/config/retroarch`. Portable/AppImage: Verify SP7 | `retroarch.cfg` → `savefile_directory` (Flatpak writes it with a leading `~`), `savefiles_in_content_dir`, `sort_savefiles_enable` (default `true`), `sort_savefiles_by_content_enable` (default `false`) ([configuration.c][ra-cfg]) | `retroarch` | `saves/[<content dir>/][<core library name>/]<rom name>.srm` ([runloop.c][ra-run]) |
+| Dolphin 2606a (Flatpak `org.DolphinEmu.dolphin-emu`) | `portable.txt` next to the exe → `<exe dir>/user`; else `$DOLPHIN_EMU_USERPATH`; else `~/.dolphin-emu` if it exists (never in Flatpak); else data `$XDG_DATA_HOME/dolphin-emu`, config `$XDG_CONFIG_HOME/dolphin-emu` ([UICommon.cpp][dol-ui]). Flatpak: `~/.var/app/org.DolphinEmu.dolphin-emu/data/dolphin-emu` + `…/config/dolphin-emu` | `Dolphin.ini` `[Core]` → `SlotA`/`SlotB` (device type, default `8` = GCI folder), `GCIFolderAPath`/`GCIFolderBPath`, `MemcardAPath`/`MemcardBPath` (`.raw`) ([MainSettings.cpp][dol-main]) | `dolphin-emu` (Flatpak binary started by `dolphin-emu-wrapper`) | GC: `GC/<USA\|EUR\|JAP>/Card A/<maker>-<game id>-<name>.gci`. Wii: `Wii/title/<high>/<low>/data/` ([NandPaths.cpp][dol-nand]) |
+| DuckStation 0.1-9482-g0a53bc47c (Flatpak `org.duckstation.DuckStation`) | `portable.txt` or `settings.ini` next to the exe/AppImage → that folder; else `$XDG_CONFIG_HOME/duckstation` when the variable is set (always in Flatpak); else `~/.local/share/duckstation` ([host.cpp][ds-host]). Flatpak: `~/.var/app/org.duckstation.DuckStation/config/duckstation` | `settings.ini` `[MemoryCards]` → `Directory` (default `memcards`), `Card1Type` (default `PerGameTitle`), `Card2Type` (default `None`), `Card1Path`, `UsePlaylistTitle` ([settings.cpp][ds-set]) | `duckstation-qt` | `memcards/<title>_1.mcd` (`PerGame`: `<serial>_1.mcd`; `Shared`: `shared_card_1.mcd`) |
+| PCSX2 v2.8.2 (Flatpak `net.pcsx2.PCSX2`) | `portable.ini` or `portable.txt` next to the exe (the `.txt` may hold a custom path) or `-portable`; else `$XDG_CONFIG_HOME/PCSX2`; else `~/.config/PCSX2` ([Pcsx2Config.cpp][p2-cfg]). Flatpak: `~/.var/app/net.pcsx2.PCSX2/config/PCSX2` | `inis/PCSX2.ini` → `[Folders] MemoryCards` (default `memcards`), `[MemoryCards] Slot1_Filename` (default `Mcd001.ps2`), `Slot1_Enable`, `Multitap*_Slot*_*` | `pcsx2-qt` | `memcards/Mcd001.ps2` file card (container). A folder card is a directory with the same name holding `_pcsx2_superblock`, `_pcsx2_index` and one folder per save ([MemoryCardFolder.cpp][p2-folder]) |
+
+Evidence commands: `flatpak list --app --columns=application,version`; `find ~/.var/app/<id> -maxdepth N` (names only); `grep` of the generated config files for key names; RetroArch, DuckStation and PCSX2 were launched once for 15 s to create their default trees, with `ps -eo comm,args` sampled while running. Cemu and Dolphin process names come from the Flatpak's `command` metadata and wrapper script (not launched, to protect the maintainer's data).
+
+[cemu-app]: https://github.com/cemu-project/Cemu/blob/v2.6/src/gui/wxgui/CemuApp.cpp
+[cemu-mlc]: https://github.com/cemu-project/Cemu/blob/v2.6/src/config/ActiveSettings.cpp
+[ra-unix]: https://github.com/libretro/RetroArch/blob/v1.22.2/frontend/drivers/platform_unix.c
+[ra-cfg]: https://github.com/libretro/RetroArch/blob/v1.22.2/configuration.c
+[ra-run]: https://github.com/libretro/RetroArch/blob/v1.22.2/runloop.c
+[dol-ui]: https://github.com/dolphin-emu/dolphin/blob/2606a/Source/Core/UICommon/UICommon.cpp
+[dol-main]: https://github.com/dolphin-emu/dolphin/blob/2606a/Source/Core/Core/Config/MainSettings.cpp
+[dol-nand]: https://github.com/dolphin-emu/dolphin/blob/2606a/Source/Core/Common/NandPaths.cpp
+[ds-host]: https://github.com/stenzek/duckstation/blob/0a53bc47c3fa2b073c1cd856583118c25cd01739/src/core/host.cpp
+[ds-set]: https://github.com/stenzek/duckstation/blob/0a53bc47c3fa2b073c1cd856583118c25cd01739/src/core/settings.cpp
+[p2-cfg]: https://github.com/PCSX2/pcsx2/blob/v2.8.2/pcsx2/Pcsx2Config.cpp
+[p2-folder]: https://github.com/PCSX2/pcsx2/blob/v2.8.2/pcsx2/SIO/Memcard/MemoryCardFolder.cpp
 
 ## Known special cases
 - **Ryujinx and forks (Switch):** save folders have opaque names, and only an internal index maps them to title IDs → Basic until an index reader exists (its own decision entry per [D7](../decisions.md#d7-no-game-save-format-parsing-in-core-2026-10-07)).
@@ -128,6 +156,13 @@ These five cover every layout and both ways of handling players.
 - Workflow: the `leemusync-emulator-profile` skill.
 
 ## Verify
-- **V-PROF-1** Desktop paths, config keys and process names for the initial set (spike SP7).
+- **V-PROF-1** Windows and macOS paths, config keys and process names for the initial set; Linux portable/AppImage process names and RetroArch's Linux portable mode; PCSX2 folder-card save-folder naming on a real card (spike SP7). Linux Flatpak and native rules: [Linux paths (SP7)](#linux-paths-sp7).
 - **V-PROF-2** Android save locations and accessibility for each emulator (SP3).
 - **V-PROF-3** Which iOS emulators expose saves in the Files app (SP5).
+
+## Open questions
+Schema gaps found by SP7 (the drafts in `profiles/` work around them with comments; resolve in Phase 1 before adopting):
+- **Config outside the base.** Cemu, Dolphin and their Flatpaks keep the config file in a different root (`config/`) from saves (`data/`). `config_keys.file` needs its own root or template.
+- **Extra captures.** RetroArch's core folder and Dolphin's region folder have no capture (`{core}`, `{region}`); the drafts match them with a glob.
+- **Two layouts in one emulator.** Dolphin has Wii NAND (`per_game_dir`) and GameCube cards (`per_game_file` or `container`). One profile declares one `layout`.
+- **Config value forms.** RetroArch paths may start with `~` or be `default`; DuckStation and PCSX2 folders are relative to the data root.
