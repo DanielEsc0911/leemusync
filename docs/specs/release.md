@@ -52,6 +52,8 @@ GUI and CLI never share a folder, because Windows and macOS file systems are cas
 | `.AppImage` | AppRun → `leemusync-gui` (bundle at the image root) | `usr/bin/` inside the image |
 | `.tar.gz` | `leemusync/leemusync-gui` | `leemusync/bin/` |
 
+Display name: "LeemuSync" on every platform (window title, launcher label, Start Menu, bundle display name).
+
 GUI executable names: `LeemuSync.exe` (Windows), `LeemuSync.app` (macOS), `leemusync-gui` (Linux). App and bundle id: `io.github.danielesc0911.leemusync` ([D22](../decisions.md#d22-app-and-bundle-id-iogithubdanielesc0911leemusync-2026-10-07)).
 
 ## Signing
