@@ -1,0 +1,40 @@
+# DRAFT from spike SP7 (not loaded until Phase 1). Verified: Dolphin 2606a, Linux (Flatpak org.DolphinEmu.dolphin-emu + source tag 2606a), 2026-10-08.
+# No loader exists yet: this file and profiles/fixtures/dolphin/ are not tested. Evidence: docs/specs/emulator-profiles.md#linux-paths-sp7
+# windows/macos: pending SP7 device pass
+# Schema gap (SP7): Dolphin has two layouts (Wii NAND per_game_dir + GameCube GCI per_game_file
+# or .raw container). One profile can declare only one; this draft covers GameCube GCI folders,
+# the default (Core/SlotA = 8, MemoryCardFolder). Wii: Wii/title/00010000/<title_id low>/data.
+schema = 1
+id = "dolphin"
+name = "Dolphin"
+systems = ["gc", "wii"]
+layout = "per_game_file"
+requires_closed = true
+
+[platforms.linux]
+# Order follows UICommon::SetUserDirectory: portable.txt next to the exe -> "<exe_dir>/user";
+# legacy ~/.dolphin-emu if it exists (not in Flatpak); else XDG data dir.
+roots = ["{exe_dir}/user", "{home}/.dolphin-emu", "{flatpak:org.DolphinEmu.dolphin-emu}/data/dolphin-emu", "{xdg_data}/dolphin-emu"]
+process = ["dolphin-emu"]
+
+# Dolphin.ini lives in the config dir ({xdg_config}/dolphin-emu, Flatpak: config/dolphin-emu). Empty = default.
+[[config_keys]]
+file = "Dolphin.ini"
+format = "ini"
+key = "Core/GCIFolderAPath"
+var = "gci_a"
+
+[saves]
+root = "GC"
+# GC/<USA|EUR|JAP>/Card A/<maker>-<game id>-<file name>.gci
+pattern = "*/Card A/{game}.gci"   # region folder (USA/EUR/JAP) as a glob: no {region} capture in v1
+include = ["*.gci"]
+
+[game_key]
+from = "game"
+
+[[recommend]]
+setting = "Core/SlotA"
+value = "8"
+unlocks = "standard"
+how = "Config > GameCube > Slot A: GCI Folder (default since Dolphin 5.0-era builds; .raw cards are a container)"

@@ -1,0 +1,38 @@
+# DRAFT from spike SP7 (not loaded until Phase 1). Verified: Cemu 2.6, Linux (Flatpak info.cemu.Cemu + source tag v2.6), 2026-10-08.
+# No loader exists yet: this file and profiles/fixtures/cemu/ are not tested. Evidence: docs/specs/emulator-profiles.md#linux-paths-sp7
+# windows/macos: pending SP7 device pass
+schema = 1
+id = "cemu"
+name = "Cemu"
+systems = ["wiiu"]
+layout = "per_game_user_dir"
+requires_closed = true
+
+[platforms.linux]
+# Portable: a folder named "portable" next to the executable (or next to the AppImage) holds data and config.
+roots = ["{exe_dir}/portable", "{flatpak:info.cemu.Cemu}/data/Cemu", "{xdg_data}/Cemu"]
+# Flatpak runs Cemu_relwithdebinfo via Cemu-wrapper; comm is truncated to 15 chars ("Cemu_relwithdeb").
+process = ["Cemu_relwithdebinfo", "Cemu"]
+
+# Schema gap (SP7): settings.xml lives in the config dir ({xdg_config}/Cemu or
+# {flatpak:info.cemu.Cemu}/config/Cemu), not under the data root. Empty value = default mlc01.
+[[config_keys]]
+file = "settings.xml"
+format = "xml"
+key = "content/mlc_path"
+var = "mlc"
+
+[saves]
+root = "{mlc}/usr/save"            # default: "{base}/mlc01/usr/save"
+pattern = "00050000/{title_id}/user/{account}"
+shared = ["00050000/{title_id}/user/common"]
+
+[accounts]
+root = "{mlc}/usr/save/system/act"
+id_regex = "^8[0-9a-f]{7}$"
+name_file = "account.dat"          # line-based key=value
+name_key = "MiiName"               # 44 hex chars = 11 UTF-16 code units, 4 hex digits each, NUL padded
+
+[game_key]
+from = "title_id"
+normalize = ["lowercase"]

@@ -1,0 +1,9 @@
+# Fake tree mirroring Dolphin 2606a Flatpak defaults (GCI folder in Slot A). Dummy files only. Not tested yet (no loader).
+# GC/SRAM.raw is console settings, not a save: must not become a stream.
+[[stream]]
+game = "01-GZ2E-gczelda2"
+path = "data/dolphin-emu/GC/USA/Card A/01-GZ2E-gczelda2.gci"
+
+[[stream]]
+game = "8P-GSAE-sonicadv"
+path = "data/dolphin-emu/GC/USA/Card A/8P-GSAE-sonicadv.gci"

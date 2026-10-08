@@ -1,0 +1,23 @@
+# Fake tree mirroring Cemu 2.6 Flatpak (~/.var/app/info.cemu.Cemu). Dummy files only. Not tested yet (no loader).
+# Names in account.dat are hex UTF-16 for "PlayerA" / "PlayerB".
+[[stream]]
+title_id = "101c9400"
+account = "80000001"
+path = "data/Cemu/mlc01/usr/save/00050000/101c9400/user/80000001"
+
+[[stream]]
+title_id = "101c9400"
+account = "80000002"
+path = "data/Cemu/mlc01/usr/save/00050000/101c9400/user/80000002"
+
+[[shared]]
+title_id = "101c9400"
+path = "data/Cemu/mlc01/usr/save/00050000/101c9400/user/common"
+
+[[account]]
+id = "80000001"
+name = "PlayerA"
+
+[[account]]
+id = "80000002"
+name = "PlayerB"
