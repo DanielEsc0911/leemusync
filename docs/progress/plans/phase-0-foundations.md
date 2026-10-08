@@ -1311,7 +1311,7 @@ Each spike runs on a `spike/<id>-<slug>` branch, timeboxed (default 2 days). The
 ### SP7: Desktop emulator layouts (initial five)
 - **Answers:** V-PROF-1, V-ACC-1.
 - [ ] On Linux and Windows (+ macOS where available): install Cemu, RetroArch, Dolphin, DuckStation, PCSX2. Record base paths (native, Flatpak, portable), config keys for custom paths, process names, save layouts, and per-game/folder card settings.
-  - Linux done 2026-10-08 (Flatpak Cemu 2.6, RetroArch 1.22.2, Dolphin 2606a, DuckStation 0.1-9482, PCSX2 v2.8.2 + upstream source for native/portable rules; V-ACC-1 format, BotW ids and `user/common` answered; drafts in `profiles/`); Windows and macOS pending.
+  - Linux done 2026-10-08 (Flatpak Cemu 2.6, RetroArch 1.22.2, Dolphin 2606a, DuckStation 0.1-9482, PCSX2 v2.8.2 + upstream source for native/portable rules; V-ACC-1 format, BotW ids and `user/common` answered; drafts in `profiles/`). Windows, macOS and CachyOS passes deferred by the maintainer (2026-10-08); see V-PROF-1, V-ACC-1.
 - [ ] Cemu: account folder layout, how to read the display name from `account.dat`, whether BotW uses `user/common`, and BotW title IDs per region (expected: US `101c9400`, EU `101c9500`, JP `101c9300`, high part `00050000`).
 - [ ] Turn each into a draft profile + fixture tree (adopted in Phase 1).
 - [ ] **Record:** emulator-profiles, players-and-accounts.

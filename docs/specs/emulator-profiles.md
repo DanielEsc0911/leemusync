@@ -156,7 +156,7 @@ Evidence commands: `flatpak list --app --columns=application,version`; `find ~/.
 - Workflow: the `leemusync-emulator-profile` skill.
 
 ## Verify
-- **V-PROF-1** Windows and macOS paths, config keys and process names for the initial set; Linux portable/AppImage process names and RetroArch's Linux portable mode; PCSX2 folder-card save-folder naming on a real card (spike SP7). Linux Flatpak and native rules: [Linux paths (SP7)](#linux-paths-sp7).
+- **V-PROF-1** Windows and macOS paths, config keys and process names for the initial set; Linux portable/AppImage process names and RetroArch's Linux portable mode; PCSX2 folder-card save-folder naming on a real card (spike SP7). Linux Flatpak and native rules: [Linux paths (SP7)](#linux-paths-sp7). The Windows, macOS and CachyOS passes are deferred by the maintainer (2026-10-08).
 - **V-PROF-2** Android save locations and accessibility for each emulator (SP3).
 - **V-PROF-3** Which iOS emulators expose saves in the Files app (SP5).
 
