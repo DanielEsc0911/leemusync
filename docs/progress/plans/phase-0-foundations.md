@@ -32,6 +32,7 @@ Known gaps, not dropped. Task 6 must answer or re-scope each one.
 - Windows `.exe` and `.msi`, CachyOS `.AppImage` and `.tar.gz`: V-PKG-6 ([release](../../specs/release.md#verify)).
 - SP7 emulator pass on Windows, macOS and CachyOS: V-PROF-1, V-ACC-1. The CachyOS Cemu part is pulled forward into the SP1 CachyOS run (see Order under Spikes).
 - Android: SP3 pass on the Galaxy A25, including DraStic and melonDS (V-AND-2).
+- Galaxy A25 and MacBook/iPhone unavailable for now (maintainer, 2026-10-18): SP1 on a real Android device, macOS and iOS waits for them.
 
 ---
 
@@ -1273,6 +1274,59 @@ Each spike runs on a `spike/<id>-<slug>` branch, timeboxed (default 2 days). The
 - [ ] Measure per target: cold start, app size, idle RSS, frame times for a 120 Hz animation test screen (profile mode).
   - Fedora PC done 2026-10-17 at 60 Hz (no 120 Hz display there).
 - [ ] **Record:** architecture (bridge details), decisions D2/D4 (confirm or supersede), desktop V-DESK-4, security V-SEC-2, design-system budgets (adjust with data).
+
+#### SP1 runbook: CachyOS desktop
+Runs on the CachyOS desktop, by the maintainer or an agent there. Results go into the specs (W1), are committed to `spike/sp1-bridge` and pushed, then work continues on the Fedora PC after a `git pull`. Read-only rule for real emulator data: names and formats only. Never copy saves, and never record `account.dat` values.
+
+1. **Record the machine.** Paste the output into the results.
+   ```sh
+   cat /etc/os-release | grep PRETTY; uname -r
+   echo "$XDG_CURRENT_DESKTOP $XDG_SESSION_TYPE"
+   lspci | grep -iE 'vga|3d'; xrandr --current 2>/dev/null | grep '\*' || true
+   ```
+2. **Install the toolchains** (user-level Flutter, Rust through rustup).
+   ```sh
+   sudo pacman -S --needed git base-devel clang cmake ninja pkgconf gtk3 rustup just cargo-deny
+   mkdir -p ~/development && cd ~/development
+   curl -O https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.47.6-stable.tar.xz
+   echo "f1631b9c2c8b3529323db412b0d1beacf4a748f8783b0d7cf599a8fd5f461675  flutter_linux_3.47.6-stable.tar.xz" | sha256sum -c
+   tar xf flutter_linux_3.47.6-stable.tar.xz
+   export PATH="$HOME/development/flutter/bin:$HOME/.cargo/bin:$PATH"   # also add to the shell profile
+   flutter --disable-analytics && flutter doctor
+   ```
+   The `sha256sum -c` line must print `OK`. The hash is from Flutter's `releases_linux.json`.
+3. **Get the branch and check it.** Rustup installs Rust 1.99.0 and the bridge targets on first use.
+   ```sh
+   git clone https://github.com/DanielEsc0911/leemusync.git && cd leemusync   # or: git pull
+   git switch spike/sp1-bridge
+   just check
+   cargo test -p leemusync-bridge -- --ignored
+   ```
+   Expected: `just check` green; 3 bridge tests pass (shared counter, valid certificate, bad certificates rejected).
+4. **Probe** (a window opens for about 10 s and closes by itself). Run from `app/`:
+   ```sh
+   flutter build linux --profile -t tool/sp1_probe.dart
+   build/linux/x64/profile/bundle/leemusync-gui 2>/dev/null | grep '^SP1'
+   for i in 1 2 3; do flutter run --profile -d linux -t tool/sp1_probe.dart --trace-startup >/dev/null 2>&1; cat build/start_up_info.json; echo; done
+   ```
+   Keep the `SP1 {...}` line and the three `timeToFirstFrameRasterizedMicros` values. If the monitor runs above 60 Hz, `refresh_hz` shows it and the frame numbers are the 120 Hz data SP1 wants.
+5. **Release size and idle memory.** Run from `app/`:
+   ```sh
+   flutter build linux --release
+   du -sh build/linux/x64/release/bundle; du -h build/linux/x64/release/bundle/lib/*
+   build/linux/x64/release/bundle/leemusync-gui >/dev/null 2>&1 & p=$!; sleep 6; grep VmRSS /proc/$p/status; kill $p
+   ```
+6. **Cemu check (V-ACC-1, needed for M1).** Find the install type and data root, then compare with [players-and-accounts §Cemu accounts](../../specs/players-and-accounts.md#cemu-accounts-sp7):
+   ```sh
+   flatpak list --app --columns=application,version 2>/dev/null | grep -i cemu; command -v Cemu cemu; ls ~/.local/share/Cemu ~/.var/app/info.cemu.Cemu/data/Cemu 2>/dev/null
+   R=<the Cemu data root found above>/mlc01/usr/save
+   ls "$R/system/act"; head -1 "$R"/system/act/8*/account.dat
+   grep -o '^[A-Za-z]*=' "$R"/system/act/8*/account.dat | sort -u | tr '\n' ' '; echo
+   awk -F= '/^MiiName=/{print length($2)}' "$R"/system/act/8*/account.dat
+   ls "$R/00050000/101c9400/user" "$R/00050000/101c9400/user/common"; ls "$R/00050000/101c9400/user"/8*/
+   ```
+   Expected, as on Fedora: account folders named `8xxxxxxx`, first line `AccountInstance_20120705`, the same key names, `MiiName` length 44, BotW under `user/<id>/` with slots `0/`–`5/` and `option.sav`, and `user/common/` present but empty. Record the Cemu version and any difference. If BotW has another region, use its title id (EU `101c9500`, JP `101c9300`).
+7. **Record and push.** Results go to: [architecture §Bridge](../../specs/architecture.md#bridge) (a CachyOS row or paragraph), V-SEC-2 in [security](../../specs/security.md#verify), V-ACC-1 in [players-and-accounts](../../specs/players-and-accounts.md#verify) (CachyOS part answered), the desktop environment in [testing §Device lab](../../specs/testing.md#device-lab), and the SP1 sub-bullets above. Then `cargo xtask docs-check`, commit `docs(spike): record SP1 and the Cemu check on CachyOS`, and push.
 
 ### SP2: Desktop daemon presence
 - **Answers:** V-DESK-1/2/3, V-REL-1/2, V-SEC-3, V-STAT-4.
