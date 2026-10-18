@@ -12,7 +12,8 @@ requires_closed = true
 # Portable: a folder named "portable" next to the executable (or next to the AppImage) holds data and config.
 roots = ["{exe_dir}/portable", "{flatpak:info.cemu.Cemu}/data/Cemu", "{xdg_data}/Cemu"]
 # Flatpak runs Cemu_relwithdebinfo via Cemu-wrapper; comm is truncated to 15 chars ("Cemu_relwithdeb").
-process = ["Cemu_relwithdebinfo", "Cemu"]
+# Arch package cemu-bin installs the binary as lowercase /usr/bin/cemu (CachyOS, 2026-10-18).
+process = ["Cemu_relwithdebinfo", "Cemu", "cemu"]
 
 # Schema gap (SP7): settings.xml lives in the config dir ({xdg_config}/Cemu or
 # {flatpak:info.cemu.Cemu}/config/Cemu), not under the data root. Empty value = default mlc01.

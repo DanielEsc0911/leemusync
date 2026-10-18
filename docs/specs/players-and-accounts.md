@@ -23,6 +23,7 @@ Verified on Cemu 2.6 (Linux Flatpak) against the [v2.6 source][cemu-acc], 2026-1
 - `account.dat` is a line-based text file. The first line is `AccountInstance_20120705`, then `Key=value` lines (`PersistentId`, `Uuid`, `MiiData`, `MiiName`, `AccountId`, `Country`, …).
 - **Display name:** key `MiiName`. The value is exactly 44 hex characters: 11 UTF-16 code units, each written as 4 hex digits (most significant first), padded with `0000`. Decode until the first `0000`. Cemu rejects any other length. The maintainer's real file matches this format (value not recorded).
 - **BotW and `user/common`:** BotW (US, `00050000/101c9400`) creates `user/common/`. On the maintainer's long-played install (Fedora 44, Cemu 2.6 Flatpak) it exists but is empty. All game data (`0/`–`5/` slots, `option.sav`, `album/`, `pict_book/`, `tracker/`) is under `user/80000001/`. So BotW is fully per-player. The profile still lists `user/common` under `saves.shared` for games that use it.
+- **Second Linux install (CachyOS, 2026-10-18):** native package `cemu-bin` 2.6 (`/usr/bin/cemu`), data root `~/.local/share/Cemu`, config `~/.config/Cemu/settings.xml` with an empty `mlc_path`. Two accounts, `80000001` and `80000002`. Both `account.dat` files have the same first line, the same key set and a 44-character `MiiName`. BotW US has full game data under each `user/<id>/`, and `user/common/` is empty. Everything matches the Fedora install (names and formats only, no values recorded).
 - **BotW title ids** ([WiiUBrew title database][wiiubrew]): JP `00050000-101C9300` (`WUP-P-ALZJ`), US `00050000-101C9400` (`WUP-P-ALZE`), EU `00050000-101C9500` (`WUP-P-ALZP`). Updates use high part `0005000E`, DLC `0005000C`. Cemu writes folder names in lowercase.
 
 [cemu-acc]: https://github.com/cemu-project/Cemu/blob/v2.6/src/Cafe/Account/Account.cpp
@@ -66,5 +67,5 @@ Swapping works the same way, but at container granularity: the whole memory card
 | New device, existing players | Join flow asks for this device's mappings ([navigation](ui/navigation.md)) |
 
 ## Verify
-- **V-ACC-1** Same Cemu layout and `account.dat` format on Windows and macOS, and on a second long-played Linux install (CachyOS). Deferred by the maintainer on 2026-10-08 (spike SP7 device pass).
+- **V-ACC-1** Same Cemu layout and `account.dat` format on Windows and macOS. Deferred by the maintainer on 2026-10-08 (spike SP7 device pass). The second Linux install (CachyOS) is done ([above](#cemu-accounts-sp7)).
 - **V-ACC-2** RPCS3 and Yuzu-family layouts (Phase 6 profile work).
