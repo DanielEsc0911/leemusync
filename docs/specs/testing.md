@@ -22,13 +22,13 @@ Prove the rules automatically: no lost saves, identical UI, smooth frames, same 
 | Manual release pass | Checklist in [release](release.md) | Real devices from the [Device lab](#device-lab) |
 
 ## Device lab
-What the project can test on today (2026-10-07). Update this table when devices change.
+What the project can test on today (2026-10-17). Update this table when devices change.
 
 | Device | Availability | Covers |
 |---|---|---|
 | Fedora 44 PC, XFCE on X11 (the maintainer's main machine) | Always | Linux x86_64, XFCE tray (StatusNotifier), X11 |
-| PC dual-boot: Windows | Always | Windows x64: tray, toasts, MSI/EXE installers |
-| PC dual-boot: CachyOS (Arch-based; record the desktop environment) | Always | Linux x86_64 on Arch, AppImage/tar.gz, a second desktop environment |
+| Desktop PC (a second machine), dual-boot: CachyOS (Arch-based; record the desktop environment) | Always | Linux x86_64 on Arch, AppImage/tar.gz, a second desktop environment. With the Fedora PC, the M1 BotW pair ([roadmap](../progress/roadmap.md#phase-1-sync-engine--cli-desktop)) |
+| Desktop PC, dual-boot: Windows | Always | Windows x64: tray, toasts, MSI/EXE installers |
 | Samsung Galaxy A25 | Always | Android, One UI (record the version; Now Bar availability is Verify SP4) |
 | MacBook Air M4 | Occasional | macOS Apple Silicon, `.dmg`, building and running iOS from Xcode |
 | iPhone 15 Pro | Occasional | iOS 17+, Dynamic Island, Live Activities (free Apple ID provisioning) |

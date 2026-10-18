@@ -29,7 +29,7 @@
 ## Deferred device checks (maintainer, 2026-10-08)
 Known gaps, not dropped. Task 6 must answer or re-scope each one.
 - Windows `.exe` and `.msi`, CachyOS `.AppImage` and `.tar.gz`: V-PKG-6 ([release](../../specs/release.md#verify)).
-- SP7 emulator pass on Windows, macOS and CachyOS: V-PROF-1, V-ACC-1.
+- SP7 emulator pass on Windows, macOS and CachyOS: V-PROF-1, V-ACC-1. The CachyOS Cemu part is pulled forward into the SP1 CachyOS run (see Order under Spikes).
 - Android: SP3 pass on the Galaxy A25, including DraStic and melonDS (V-AND-2).
 
 ---
@@ -1258,11 +1258,13 @@ git commit -m "ci(release): build apk, msi, exe, dmg, deb, rpm, AppImage and tar
 ## Spikes
 Each spike runs on a `spike/<id>-<slug>` branch, timeboxed (default 2 days). The code is throwaway unless a later task adopts it. **Done** means every listed Verify item is answered with evidence (versions, devices, logs, screenshots, links). The results are written into the named specs and decisions (W1, W3) and committed to `main` as `docs(spike): …`.
 
+**Order (maintainer, 2026-10-17):** SP1 runs next, before SP3, so the bridge exists early. SP1 goes Linux first: the Fedora PC, then the CachyOS desktop. Those two machines are where the first end-to-end test happens (M1, BotW on Cemu; see [roadmap](../roadmap.md#phase-1-sync-engine--cli-desktop)). The other SP1 targets follow in any order. While on the CachyOS desktop, also run the CachyOS Cemu check (V-ACC-1), because M1 depends on it. SP3 comes after SP1.
+
 ### SP1: Flutter + Rust bridge on every target
 - **Answers:** D4 (FRB + UniFFI in one cdylib, one engine instance), V-DESK-4, V-SEC-2.
 - [ ] Create `crates/bridge` (cdylib + staticlib) with flutter_rust_bridge exposing `fn core_version() -> String` and UniFFI exposing `fn engine_ping() -> String`. Both read and increment one global counter, which proves there's a single instance.
 - [ ] Call FRB from Dart and UniFFI from Kotlin (Android) and Swift (iOS) in the same app. Confirm the counter is shared.
-- [ ] Build and run on Windows x64, macOS (MacBook Air M4), Linux x86_64 (Fedora XFCE, CachyOS), Android arm64 (Galaxy A25), iOS (iPhone 15 Pro, free Apple ID provisioning). Build and test without a device on Windows arm64 and Linux arm64 (GitHub ARM runners). See [testing §Device lab](../../specs/testing.md#device-lab).
+- [ ] Build and run on Linux x86_64 first (Fedora PC, then CachyOS desktop), then Windows x64, macOS (MacBook Air M4), Android arm64 (Galaxy A25), iOS (iPhone 15 Pro, free Apple ID provisioning). Build and test without a device on Windows arm64 and Linux arm64 (GitHub ARM runners). See [testing §Device lab](../../specs/testing.md#device-lab).
 - [ ] Make one HTTPS request with `rustls` + platform verifier on each target.
 - [ ] Measure per target: cold start, app size, idle RSS, frame times for a 120 Hz animation test screen (profile mode).
 - [ ] **Record:** architecture (bridge details), decisions D2/D4 (confirm or supersede), desktop V-DESK-4, security V-SEC-2, design-system budgets (adjust with data).
