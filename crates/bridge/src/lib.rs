@@ -1,0 +1,24 @@
+//! UI bindings in one library: `flutter_rust_bridge` for Dart, `UniFFI` for
+//! Kotlin and Swift, so a mobile app process holds exactly one engine.
+//! Spec: docs/specs/architecture.md (Components, Process model).
+
+pub mod api;
+// Generated FFI glue is the only `unsafe` in the workspace. The generator's
+// style isn't ours, so lints are off for its output.
+#[allow(unsafe_code, clippy::all, clippy::pedantic, clippy::unwrap_used)]
+mod frb_generated;
+#[allow(unsafe_code)]
+mod native;
+
+use std::sync::atomic::{AtomicU64, Ordering};
+
+uniffi::setup_scaffolding!("leemusync");
+
+/// Calls through either binding. SP1 uses it to prove both bindings reach
+/// the same instance.
+static CALLS: AtomicU64 = AtomicU64::new(0);
+
+/// Counts one call and returns the new total.
+fn count_call() -> u64 {
+    CALLS.fetch_add(1, Ordering::SeqCst) + 1
+}

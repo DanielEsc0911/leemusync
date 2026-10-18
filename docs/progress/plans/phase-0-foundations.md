@@ -13,6 +13,7 @@
 - Package names `leemusync-<dir>`. Every crate: `publish = false`, `license = "MPL-2.0"`, `edition = "2024"`, `[lints] workspace = true`.
 - Workspace lints: `unsafe_code = "forbid"`; clippy `all` = deny, `pedantic` = warn; `unwrap_used`, `dbg_macro`, `todo` = deny (unwrap/expect allowed in tests via `clippy.toml`). CI runs clippy with `-D warnings`.
 - `xtask` dependencies: `serde_json` only.
+- `crates/bridge/rust-toolchain.toml` repeats the root toolchain channel for the Flutter build hook. Bump both together (found in SP1).
 - Code snippets here are correct but not always in rustfmt layout. Run `just fmt` before `just check` (found in Task 1).
 - Clippy's `assert_is_empty` lint (denied via `clippy::all`) rejects `assert!(x.is_empty())`. Use `assert_eq!(x, Vec::<String>::new())` (found in Task 2).
 - Clippy's `case_sensitive_file_extension_comparisons` (pedantic) rejects `name.ends_with(".ext")`. Compare `path.extension()` instead (found in Task 4).
@@ -1262,11 +1263,15 @@ Each spike runs on a `spike/<id>-<slug>` branch, timeboxed (default 2 days). The
 
 ### SP1: Flutter + Rust bridge on every target
 - **Answers:** D4 (FRB + UniFFI in one cdylib, one engine instance), V-DESK-4, V-SEC-2.
-- [ ] Create `crates/bridge` (cdylib + staticlib) with flutter_rust_bridge exposing `fn core_version() -> String` and UniFFI exposing `fn engine_ping() -> String`. Both read and increment one global counter, which proves there's a single instance.
+- [x] Create `crates/bridge` (cdylib + staticlib) with flutter_rust_bridge exposing `fn core_version() -> String` and UniFFI exposing `fn engine_ping() -> String`. Both read and increment one global counter, which proves there's a single instance.
 - [ ] Call FRB from Dart and UniFFI from Kotlin (Android) and Swift (iOS) in the same app. Confirm the counter is shared.
+  - Dart side done 2026-10-17 on Linux; Kotlin and Swift bindings generate. The in-app check waits for the Android and iOS runs.
 - [ ] Build and run on Linux x86_64 first (Fedora PC, then CachyOS desktop), then Windows x64, macOS (MacBook Air M4), Android arm64 (Galaxy A25), iOS (iPhone 15 Pro, free Apple ID provisioning). Build and test without a device on Windows arm64 and Linux arm64 (GitHub ARM runners). See [testing §Device lab](../../specs/testing.md#device-lab).
+  - Fedora PC done 2026-10-17 ([architecture §Bridge](../../specs/architecture.md#bridge)). Next: CachyOS desktop. A manual `release` workflow run on the spike branch would also show whether the bridge builds into every release artifact.
 - [ ] Make one HTTPS request with `rustls` + platform verifier on each target.
+  - Fedora PC done 2026-10-17, negative tests included (V-SEC-2).
 - [ ] Measure per target: cold start, app size, idle RSS, frame times for a 120 Hz animation test screen (profile mode).
+  - Fedora PC done 2026-10-17 at 60 Hz (no 120 Hz display there).
 - [ ] **Record:** architecture (bridge details), decisions D2/D4 (confirm or supersede), desktop V-DESK-4, security V-SEC-2, design-system budgets (adjust with data).
 
 ### SP2: Desktop daemon presence
