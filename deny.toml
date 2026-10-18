@@ -12,6 +12,9 @@ allow = [
   "MIT", "Apache-2.0", "Apache-2.0 WITH LLVM-exception", "BSD-2-Clause", "BSD-3-Clause",
   "ISC", "MPL-2.0", "Unicode-3.0", "Zlib", "CC0-1.0",
 ]
+# Mozilla's root certificates as data. rustls-platform-verifier uses it only
+# on wasm32, which LeemuSync doesn't ship, but the graph covers every target.
+exceptions = [{ crate = "webpki-root-certs", allow = ["CDLA-Permissive-2.0"] }]
 
 [bans]
 multiple-versions = "warn"

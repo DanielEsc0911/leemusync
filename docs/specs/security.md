@@ -90,7 +90,7 @@ No telemetry, analytics or crash upload. Logs stay local. Users can export them 
 
 ## Verify
 - **V-SEC-1** Argon2id parameters stay fast enough on low-end Android and Pi Zero 2 (target under 2 s). Benchmark in Phase 1.
-- **V-SEC-2** `rustls` platform verifier works on every target, Android and iOS included (SP1).
+- **V-SEC-2** `rustls` platform verifier works on every target, Android and iOS included (SP1). Linux is done (2026-10-17, Fedora 44, `rustls-platform-verifier` 0.7.1, `ring` provider): a valid certificate (`www.rust-lang.org`) is accepted, and expired, self-signed and wrong-host certificates (`*.badssl.com`) are rejected with a certificate error. Test: `cargo test -p leemusync-bridge -- --ignored`. Android done on the API 34 emulator (2026-10-18, release build, same four bad-certificate cases rejected; [architecture §Bridge](architecture.md#bridge)). CachyOS, Windows, macOS, iOS and a real Android device are still to run.
 - **V-SEC-3** Keystore access from the daemon on Windows and macOS (SP2). Linux with a Secret Service is done ([Credentials](#credentials)). Windows and macOS deferred by the maintainer on 2026-10-08.
 - **V-SEC-4** OpenDAL's `gdrive` puts the OAuth refresh token and client secret in the token URL, and they appear in error text when a refresh fails to send ([storage-backends §Google Drive (live)](storage-backends.md#google-drive-live), V-STORE-7). The log redaction layer must cover it (Phase 1).
 

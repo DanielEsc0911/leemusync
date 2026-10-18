@@ -13,6 +13,7 @@
 - Package names `leemusync-<dir>`. Every crate: `publish = false`, `license = "MPL-2.0"`, `edition = "2024"`, `[lints] workspace = true`.
 - Workspace lints: `unsafe_code = "forbid"`; clippy `all` = deny, `pedantic` = warn; `unwrap_used`, `dbg_macro`, `todo` = deny (unwrap/expect allowed in tests via `clippy.toml`). CI runs clippy with `-D warnings`.
 - `xtask` dependencies: `serde_json` only.
+- `crates/bridge/rust-toolchain.toml` repeats the root toolchain channel for the Flutter build hook. Bump both together (found in SP1).
 - Code snippets here are correct but not always in rustfmt layout. Run `just fmt` before `just check` (found in Task 1).
 - Clippy's `assert_is_empty` lint (denied via `clippy::all`) rejects `assert!(x.is_empty())`. Use `assert_eq!(x, Vec::<String>::new())` (found in Task 2).
 - Clippy's `case_sensitive_file_extension_comparisons` (pedantic) rejects `name.ends_with(".ext")`. Compare `path.extension()` instead (found in Task 4).
@@ -29,8 +30,9 @@
 ## Deferred device checks (maintainer, 2026-10-08)
 Known gaps, not dropped. Task 6 must answer or re-scope each one.
 - Windows `.exe` and `.msi`, CachyOS `.AppImage` and `.tar.gz`: V-PKG-6 ([release](../../specs/release.md#verify)).
-- SP7 emulator pass on Windows, macOS and CachyOS: V-PROF-1, V-ACC-1.
+- SP7 emulator pass on Windows, macOS and CachyOS: V-PROF-1, V-ACC-1. The CachyOS Cemu part is pulled forward into the SP1 CachyOS run (see Order under Spikes).
 - Android: SP3 pass on the Galaxy A25, including DraStic and melonDS (V-AND-2).
+- Galaxy A25 and MacBook/iPhone unavailable for now (maintainer, 2026-10-18): SP1 on a real Android device, macOS and iOS waits for them.
 
 ---
 
@@ -1244,7 +1246,7 @@ Merge this into the generated `android { … }` block; don't create a second one
 
 - [x] **Step 9: Dry run.** Push the branch and open a PR. The `pull_request` trigger builds every artifact (download them from the run's Artifacts section). Download the artifacts and test each on the [Device lab](../../specs/testing.md#device-lab): `.exe` + `.msi` on Windows; `.rpm`, `.AppImage`, `.tar.gz` on Fedora; `.AppImage` + `.tar.gz` on CachyOS; `.deb` in an Ubuntu container (`dpkg -i` + `leemusync`); `.apk` on the Galaxy A25; `.dmg` on the MacBook. Write the results and the answers to V-PKG-1…5 into release.md. Done 2026-10-08 (run 37789852214): see [release §Dry run results](../../specs/release.md#dry-run-results-2026-10-08). Windows installers and CachyOS deferred → V-PKG-6.
 
-- [ ] **Step 10: Tag test (maintainer approval required).** Set the version to `0.0.1-alpha.1` in `Cargo.toml` and `app/pubspec.yaml` (`0.0.1-alpha.1+1`). Tag `v0.0.1-alpha.1` and push the tag. Confirm the draft release lists every format + `SHA256SUMS`, and that `gh attestation verify <file> --repo DanielEsc0911/leemusync` passes. Leave it as a draft (don't publish) or delete the draft and tag, as the maintainer decides.
+- [x] **Step 10: Tag test (maintainer approval required).** Set the version to `0.0.1-alpha.1` in `Cargo.toml` and `app/pubspec.yaml` (`0.0.1-alpha.1+1`). Tag `v0.0.1-alpha.1` and push the tag. Confirm the draft release lists every format + `SHA256SUMS`, and that `gh attestation verify <file> --repo DanielEsc0911/leemusync` passes. Leave it as a draft (don't publish) or delete the draft and tag, as the maintainer decides. Done 2026-10-08 (run 37832589541): see [release §Tag test results](../../specs/release.md#tag-test-results-2026-10-08). Draft kept unpublished.
 
 - [x] **Step 11: Commit.** `just check` → green, then:
 ```bash
@@ -1258,14 +1260,73 @@ git commit -m "ci(release): build apk, msi, exe, dmg, deb, rpm, AppImage and tar
 ## Spikes
 Each spike runs on a `spike/<id>-<slug>` branch, timeboxed (default 2 days). The code is throwaway unless a later task adopts it. **Done** means every listed Verify item is answered with evidence (versions, devices, logs, screenshots, links). The results are written into the named specs and decisions (W1, W3) and committed to `main` as `docs(spike): …`.
 
+**Order (maintainer, 2026-10-17):** SP1 runs next, before SP3, so the bridge exists early. SP1 goes Linux first: the Fedora PC, then the CachyOS desktop. Those two machines are where the first end-to-end test happens (M1, BotW on Cemu; see [roadmap](../roadmap.md#phase-1-sync-engine--cli-desktop)). The other SP1 targets follow in any order. While on the CachyOS desktop, also run the CachyOS Cemu check (V-ACC-1), because M1 depends on it. SP3 comes after SP1.
+
 ### SP1: Flutter + Rust bridge on every target
 - **Answers:** D4 (FRB + UniFFI in one cdylib, one engine instance), V-DESK-4, V-SEC-2.
-- [ ] Create `crates/bridge` (cdylib + staticlib) with flutter_rust_bridge exposing `fn core_version() -> String` and UniFFI exposing `fn engine_ping() -> String`. Both read and increment one global counter, which proves there's a single instance.
+- [x] Create `crates/bridge` (cdylib + staticlib) with flutter_rust_bridge exposing `fn core_version() -> String` and UniFFI exposing `fn engine_ping() -> String`. Both read and increment one global counter, which proves there's a single instance.
 - [ ] Call FRB from Dart and UniFFI from Kotlin (Android) and Swift (iOS) in the same app. Confirm the counter is shared.
-- [ ] Build and run on Windows x64, macOS (MacBook Air M4), Linux x86_64 (Fedora XFCE, CachyOS), Android arm64 (Galaxy A25), iOS (iPhone 15 Pro, free Apple ID provisioning). Build and test without a device on Windows arm64 and Linux arm64 (GitHub ARM runners). See [testing §Device lab](../../specs/testing.md#device-lab).
+  - Dart side done 2026-10-17 on Linux. Android done 2026-10-18 on the emulator: Dart and Kotlin share one instance. iOS (Swift) still to run.
+- [ ] Build and run on Linux x86_64 first (Fedora PC, then CachyOS desktop), then Windows x64, macOS (MacBook Air M4), Android arm64 (Galaxy A25), iOS (iPhone 15 Pro, free Apple ID provisioning). Build and test without a device on Windows arm64 and Linux arm64 (GitHub ARM runners). See [testing §Device lab](../../specs/testing.md#device-lab).
+  - Fedora PC done 2026-10-17 ([architecture §Bridge](../../specs/architecture.md#bridge)). Android emulator (API 34) done 2026-10-18, including release APKs for all three ABIs. Next: CachyOS desktop, then the Galaxy A25. A manual `release` workflow run on the spike branch would also show whether the bridge builds into every release artifact.
 - [ ] Make one HTTPS request with `rustls` + platform verifier on each target.
+  - Fedora PC done 2026-10-17, Android emulator 2026-10-18, negative tests included (V-SEC-2).
 - [ ] Measure per target: cold start, app size, idle RSS, frame times for a 120 Hz animation test screen (profile mode).
+  - Fedora PC done 2026-10-17 at 60 Hz (no 120 Hz display there).
 - [ ] **Record:** architecture (bridge details), decisions D2/D4 (confirm or supersede), desktop V-DESK-4, security V-SEC-2, design-system budgets (adjust with data).
+
+#### SP1 runbook: CachyOS desktop
+Runs on the CachyOS desktop, by the maintainer or an agent there. Results go into the specs (W1), are committed to `spike/sp1-bridge` and pushed, then work continues on the Fedora PC after a `git pull`. Read-only rule for real emulator data: names and formats only. Never copy saves, and never record `account.dat` values.
+
+1. **Record the machine.** Paste the output into the results.
+   ```sh
+   cat /etc/os-release | grep PRETTY; uname -r
+   echo "$XDG_CURRENT_DESKTOP $XDG_SESSION_TYPE"
+   lspci | grep -iE 'vga|3d'; xrandr --current 2>/dev/null | grep '\*' || true
+   ```
+2. **Install the toolchains** (user-level Flutter, Rust through rustup).
+   ```sh
+   sudo pacman -S --needed git base-devel clang cmake ninja pkgconf gtk3 rustup just cargo-deny
+   mkdir -p ~/development && cd ~/development
+   curl -O https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.47.6-stable.tar.xz
+   echo "f1631b9c2c8b3529323db412b0d1beacf4a748f8783b0d7cf599a8fd5f461675  flutter_linux_3.47.6-stable.tar.xz" | sha256sum -c
+   tar xf flutter_linux_3.47.6-stable.tar.xz
+   export PATH="$HOME/development/flutter/bin:$HOME/.cargo/bin:$PATH"   # also add to the shell profile
+   flutter --disable-analytics && flutter doctor
+   ```
+   The `sha256sum -c` line must print `OK`. The hash is from Flutter's `releases_linux.json`.
+3. **Get the branch and check it.** Rustup installs Rust 1.99.0 and the bridge targets on first use.
+   ```sh
+   git clone https://github.com/DanielEsc0911/leemusync.git && cd leemusync   # or: git pull
+   git switch spike/sp1-bridge
+   just check
+   cargo test -p leemusync-bridge -- --ignored
+   ```
+   Expected: `just check` green; 3 bridge tests pass (shared counter, valid certificate, bad certificates rejected).
+4. **Probe** (a window opens for about 10 s and closes by itself). Run from `app/`:
+   ```sh
+   flutter build linux --profile -t tool/sp1_probe.dart
+   build/linux/x64/profile/bundle/leemusync-gui 2>/dev/null | grep '^SP1'
+   for i in 1 2 3; do flutter run --profile -d linux -t tool/sp1_probe.dart --trace-startup >/dev/null 2>&1; cat build/start_up_info.json; echo; done
+   ```
+   Keep the `SP1 {...}` line and the three `timeToFirstFrameRasterizedMicros` values. If the monitor runs above 60 Hz, `refresh_hz` shows it and the frame numbers are the 120 Hz data SP1 wants.
+5. **Release size and idle memory.** Run from `app/`:
+   ```sh
+   flutter build linux --release
+   du -sh build/linux/x64/release/bundle; du -h build/linux/x64/release/bundle/lib/*
+   build/linux/x64/release/bundle/leemusync-gui >/dev/null 2>&1 & p=$!; sleep 6; grep VmRSS /proc/$p/status; kill $p
+   ```
+6. **Cemu check (V-ACC-1, needed for M1).** Find the install type and data root, then compare with [players-and-accounts §Cemu accounts](../../specs/players-and-accounts.md#cemu-accounts-sp7):
+   ```sh
+   flatpak list --app --columns=application,version 2>/dev/null | grep -i cemu; command -v Cemu cemu; ls ~/.local/share/Cemu ~/.var/app/info.cemu.Cemu/data/Cemu 2>/dev/null
+   R=<the Cemu data root found above>/mlc01/usr/save
+   ls "$R/system/act"; head -1 "$R"/system/act/8*/account.dat
+   grep -o '^[A-Za-z]*=' "$R"/system/act/8*/account.dat | sort -u | tr '\n' ' '; echo
+   awk -F= '/^MiiName=/{print length($2)}' "$R"/system/act/8*/account.dat
+   ls "$R/00050000/101c9400/user" "$R/00050000/101c9400/user/common"; ls "$R/00050000/101c9400/user"/8*/
+   ```
+   Expected, as on Fedora: account folders named `8xxxxxxx`, first line `AccountInstance_20120705`, the same key names, `MiiName` length 44, BotW under `user/<id>/` with slots `0/`–`5/` and `option.sav`, and `user/common/` present but empty. Record the Cemu version and any difference. If BotW has another region, use its title id (EU `101c9500`, JP `101c9300`).
+7. **Record and push.** Results go to: [architecture §Bridge](../../specs/architecture.md#bridge) (a CachyOS row or paragraph), V-SEC-2 in [security](../../specs/security.md#verify), V-ACC-1 in [players-and-accounts](../../specs/players-and-accounts.md#verify) (CachyOS part answered), the desktop environment in [testing §Device lab](../../specs/testing.md#device-lab), and the SP1 sub-bullets above. Then `cargo xtask docs-check`, commit `docs(spike): record SP1 and the Cemu check on CachyOS`, and push.
 
 ### SP2: Desktop daemon presence
 - **Answers:** V-DESK-1/2/3, V-REL-1/2, V-SEC-3, V-STAT-4.

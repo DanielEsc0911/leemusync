@@ -12,7 +12,7 @@ Each phase ends with a demo of its exit criteria on real devices. Scenario IDs (
 ## Phase 1: Sync engine + CLI (desktop)
 - **Goal:** the whole sync model working headless.
 - **Deliverables:** `core` (model, heads, reconciliation, path validation, profile schema), `crypto`, `store` (fs, S3, WebDAV, SFTP + conformance), `engine` (scan, snapshot, transfer, restore, leases, journal, local history, retention), the five initial profiles, `cli` with `--json`, the simulation test harness.
-- **Exit (milestone M1, "BotW handoff"):** two players play BotW on Cemu on two PCs at the same time (SC1); one player hands off between PCs (SC2); a forced double-open becomes a conflict that's resolved with nothing lost (SC3); `kill -9` and network cuts at every journal step leave no corruption (SC5). Daemon budgets measured.
+- **Exit (milestone M1, "BotW handoff"):** the project's first end-to-end test. It runs on the maintainer's two Linux machines, the Fedora PC and the CachyOS desktop, both with Cemu ([testing §Device lab](../specs/testing.md#device-lab)). Two players play BotW on Cemu on those two PCs at the same time (SC1); one player hands off between PCs (SC2); a forced double-open becomes a conflict that's resolved with nothing lost (SC3); `kill -9` and network cuts at every journal step leave no corruption (SC5). Daemon budgets measured.
 
 ## Phase 2: Desktop daemon
 - **Goal:** always-on desktop sync with native presence.
