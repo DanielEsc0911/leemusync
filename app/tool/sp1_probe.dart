@@ -9,10 +9,14 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 import 'package:leemusync/bridge/api/probe.dart';
 import 'package:leemusync/bridge/frb_generated.dart';
 
-const _host = 'www.rust-lang.org';
+const _host = String.fromEnvironment(
+  'SP1_HOST',
+  defaultValue: 'www.rust-lang.org',
+);
 const _seconds = 10;
 
 Future<void> main() async {
@@ -39,13 +43,19 @@ class _ProbeState extends State<_Probe> with SingleTickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _result['first'] = coreVersion();
-    _result['second'] = coreVersion();
     SchedulerBinding.instance.addTimingsCallback(_frames.addAll);
     _run();
   }
 
   Future<void> _run() async {
+    // Dart, then Kotlin/Swift through UniFFI, then Dart again: one shared
+    // counter means one library instance in the process.
+    _result['first'] = coreVersion();
+    if (Platform.isAndroid || Platform.isIOS) {
+      _result['native'] = await const MethodChannel('leemusync/sp1')
+          .invokeMethod<String>('enginePing');
+    }
+    _result['second'] = coreVersion();
     try {
       _result['https'] = await httpsStatus(host: _host);
     } on Object catch (e) {
@@ -57,7 +67,7 @@ class _ProbeState extends State<_Probe> with SingleTickerProviderStateMixin {
     _result['refresh_hz'] =
         PlatformDispatcher.instance.views.first.display.refreshRate;
     _result['rss_mib'] = ProcessInfo.currentRss / (1 << 20);
-    stdout.writeln('SP1 ${jsonEncode(_result)}');
+    debugPrint('SP1 ${jsonEncode(_result)}');
     exit(0);
   }
 
@@ -98,7 +108,9 @@ class _ProbeState extends State<_Probe> with SingleTickerProviderStateMixin {
               child: const FlutterLogo(size: 96),
             ),
             const SizedBox(height: 24),
-            Text('${_result['first']} · ${_result['second']}'),
+            Text(
+              '${_result['first']} · ${_result['native']} · ${_result['second']}',
+            ),
             Text('${_result['https'] ?? _result['https_error'] ?? '…'}'),
           ],
         ),

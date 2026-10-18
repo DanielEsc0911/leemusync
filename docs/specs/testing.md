@@ -33,7 +33,7 @@ What the project can test on today (2026-10-17). Update this table when devices 
 | MacBook Air M4 | Occasional | macOS Apple Silicon, `.dmg`, building and running iOS from Xcode |
 | iPhone 15 Pro | Occasional | iOS 17+, Dynamic Island, Live Activities (free Apple ID provisioning) |
 | Redmi Note 15 Pro (a friend's) | Occasional | Xiaomi HyperOS (record version and region; Super Island is Verify SP4) |
-| Android emulator, API 36 Pixel image | Local/CI | Stock Android 16 Live Updates |
+| Android emulator, API 36 Pixel image | Local/CI | Stock Android 16 Live Updates. The Fedora PC has only a Pixel 8 AVD on API 34 so far. There, emulator 36.5.10's headless binary (`-no-window`) segfaults at boot, so run it with a window |
 | GitHub ARM runners (`ubuntu-22.04-arm`, `windows-11-arm`) | CI | arm64 builds and tests. There's no Raspberry Pi yet, so test on a real Pi before any headless release |
 | GNOME (VM or live USB) | On demand | GNOME tray behaviour (no AppIndicator by default) |
 

@@ -2,6 +2,9 @@
 //! Kotlin and Swift, so a mobile app process holds exactly one engine.
 //! Spec: docs/specs/architecture.md (Components, Process model).
 
+#[cfg(target_os = "android")]
+#[allow(unsafe_code)]
+mod android;
 pub mod api;
 // Generated FFI glue is the only `unsafe` in the workspace. The generator's
 // style isn't ours, so lints are off for its output.

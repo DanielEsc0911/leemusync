@@ -732,6 +732,7 @@ name = "leemusync-bridge"
 version = "0.0.1-alpha.1"
 dependencies = [
  "flutter_rust_bridge",
+ "jni",
  "rustls",
  "rustls-platform-verifier",
  "uniffi",

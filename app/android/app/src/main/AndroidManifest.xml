@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Outbound connections to the user's storage (docs/specs/security.md, Network). -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="LeemuSync"
         android:name="${applicationName}"

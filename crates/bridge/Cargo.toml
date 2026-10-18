@@ -25,6 +25,10 @@ uniffi = "0.32.2"
 rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
 rustls-platform-verifier = "0.7.1"
 
+# Same version rustls-platform-verifier uses; needed to hand it the JVM.
+[target.'cfg(target_os = "android")'.dependencies]
+jni = { version = "0.22", default-features = false }
+
 # The workspace forbids `unsafe_code`. Generated FFI glue needs it, so this
 # crate is the one exception (docs/specs/architecture.md, Layers). Everything
 # else matches `[workspace.lints]`.

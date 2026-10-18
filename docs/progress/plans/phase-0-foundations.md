@@ -1265,11 +1265,11 @@ Each spike runs on a `spike/<id>-<slug>` branch, timeboxed (default 2 days). The
 - **Answers:** D4 (FRB + UniFFI in one cdylib, one engine instance), V-DESK-4, V-SEC-2.
 - [x] Create `crates/bridge` (cdylib + staticlib) with flutter_rust_bridge exposing `fn core_version() -> String` and UniFFI exposing `fn engine_ping() -> String`. Both read and increment one global counter, which proves there's a single instance.
 - [ ] Call FRB from Dart and UniFFI from Kotlin (Android) and Swift (iOS) in the same app. Confirm the counter is shared.
-  - Dart side done 2026-10-17 on Linux; Kotlin and Swift bindings generate. The in-app check waits for the Android and iOS runs.
+  - Dart side done 2026-10-17 on Linux. Android done 2026-10-18 on the emulator: Dart and Kotlin share one instance. iOS (Swift) still to run.
 - [ ] Build and run on Linux x86_64 first (Fedora PC, then CachyOS desktop), then Windows x64, macOS (MacBook Air M4), Android arm64 (Galaxy A25), iOS (iPhone 15 Pro, free Apple ID provisioning). Build and test without a device on Windows arm64 and Linux arm64 (GitHub ARM runners). See [testing §Device lab](../../specs/testing.md#device-lab).
-  - Fedora PC done 2026-10-17 ([architecture §Bridge](../../specs/architecture.md#bridge)). Next: CachyOS desktop. A manual `release` workflow run on the spike branch would also show whether the bridge builds into every release artifact.
+  - Fedora PC done 2026-10-17 ([architecture §Bridge](../../specs/architecture.md#bridge)). Android emulator (API 34) done 2026-10-18, including release APKs for all three ABIs. Next: CachyOS desktop, then the Galaxy A25. A manual `release` workflow run on the spike branch would also show whether the bridge builds into every release artifact.
 - [ ] Make one HTTPS request with `rustls` + platform verifier on each target.
-  - Fedora PC done 2026-10-17, negative tests included (V-SEC-2).
+  - Fedora PC done 2026-10-17, Android emulator 2026-10-18, negative tests included (V-SEC-2).
 - [ ] Measure per target: cold start, app size, idle RSS, frame times for a 120 Hz animation test screen (profile mode).
   - Fedora PC done 2026-10-17 at 60 Hz (no 120 Hz display there).
 - [ ] **Record:** architecture (bridge details), decisions D2/D4 (confirm or supersede), desktop V-DESK-4, security V-SEC-2, design-system budgets (adjust with data).

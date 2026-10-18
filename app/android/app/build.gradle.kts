@@ -47,6 +47,7 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName(if (releaseKeystore != null) "release" else "debug")
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 }
@@ -59,4 +60,21 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+// The Kotlin half of rustls-platform-verifier is published only to this Maven
+// repo on GitHub. Restricted to its group, pinned to the version that
+// rustls-platform-verifier-android in Cargo.lock expects
+// (docs/specs/architecture.md, Bridge).
+repositories {
+    maven {
+        url = uri("https://github.com/rustls/rustls-platform-verifier/raw/maven-archive/android-release-support/maven/")
+        content { includeGroup("org.rustls") }
+    }
+}
+
+dependencies {
+    implementation("org.rustls:rustls-platform-verifier:0.2.0")
+    // UniFFI's Kotlin bindings call the library through JNA.
+    implementation("net.java.dev.jna:jna:5.19.1@aar")
 }
