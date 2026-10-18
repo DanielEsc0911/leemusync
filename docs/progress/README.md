@@ -13,6 +13,6 @@
 ## Status board
 | Plan | Phase | Status | Updated |
 |---|---|---|---|
-| [phase-0-foundations](plans/phase-0-foundations.md) | 0 | In progress (Tasks 1–5 done; SP7 Linux done; SP6 in progress, Google Drive live done; SP1 in progress, Fedora, Android emulator and CachyOS done; then SP3) | 2026-10-18 |
+| [phase-0-foundations](plans/phase-0-foundations.md) | 0 | In progress (Tasks 1–5 done; SP7 Linux done; SP6 in progress, Google Drive live done; SP1 in progress, Fedora, Android emulator and CachyOS done; SP3 skipped until an Android device is available; next M1 sync Fedora ↔ CachyOS) | 2026-10-18 |
 
 Status values: Not started · In progress · Blocked (reason) · Done (awaiting cleanup).

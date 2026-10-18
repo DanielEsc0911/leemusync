@@ -31,7 +31,7 @@
 Known gaps, not dropped. Task 6 must answer or re-scope each one.
 - Windows `.exe` and `.msi`, CachyOS `.AppImage` and `.tar.gz`: V-PKG-6 ([release](../../specs/release.md#verify)).
 - SP7 emulator pass on Windows, macOS and CachyOS: V-PROF-1, V-ACC-1. The CachyOS Cemu part was done in the SP1 CachyOS run (2026-10-18).
-- Android: SP3 pass on the Galaxy A25, including DraStic and melonDS (V-AND-2).
+- Android: SP3 pass on the Galaxy A25, including DraStic and melonDS (V-AND-2). Skipped for now (maintainer, 2026-10-18): no Android device with real data. Work moves on to M1 sync between the Fedora PC and the CachyOS laptop.
 - Galaxy A25 and MacBook/iPhone unavailable for now (maintainer, 2026-10-18): SP1 on a real Android device, macOS and iOS waits for them.
 
 ---
@@ -1260,23 +1260,23 @@ git commit -m "ci(release): build apk, msi, exe, dmg, deb, rpm, AppImage and tar
 ## Spikes
 Each spike runs on a `spike/<id>-<slug>` branch, timeboxed (default 2 days). The code is throwaway unless a later task adopts it. **Done** means every listed Verify item is answered with evidence (versions, devices, logs, screenshots, links). The results are written into the named specs and decisions (W1, W3) and committed to `main` as `docs(spike): …`.
 
-**Order (maintainer, 2026-10-17):** SP1 runs next, before SP3, so the bridge exists early. SP1 goes Linux first: the Fedora PC, then the CachyOS desktop. Those two machines are where the first end-to-end test happens (M1, BotW on Cemu; see [roadmap](../roadmap.md#phase-1-sync-engine--cli-desktop)). The other SP1 targets follow in any order. While on the CachyOS desktop, also run the CachyOS Cemu check (V-ACC-1), because M1 depends on it. SP3 comes after SP1.
+**Order (maintainer, 2026-10-17):** SP1 runs next, before SP3, so the bridge exists early. SP1 goes Linux first: the Fedora PC, then the CachyOS laptop. Those two machines are where the first end-to-end test happens (M1, BotW on Cemu; see [roadmap](../roadmap.md#phase-1-sync-engine--cli-desktop)). The other SP1 targets follow in any order. While on the CachyOS laptop, also run the CachyOS Cemu check (V-ACC-1), because M1 depends on it. SP3 comes after SP1. Update (maintainer, 2026-10-18): SP3 is skipped until an Android device is available, and work moves on to M1.
 
 ### SP1: Flutter + Rust bridge on every target
 - **Answers:** D4 (FRB + UniFFI in one cdylib, one engine instance), V-DESK-4, V-SEC-2.
 - [x] Create `crates/bridge` (cdylib + staticlib) with flutter_rust_bridge exposing `fn core_version() -> String` and UniFFI exposing `fn engine_ping() -> String`. Both read and increment one global counter, which proves there's a single instance.
 - [ ] Call FRB from Dart and UniFFI from Kotlin (Android) and Swift (iOS) in the same app. Confirm the counter is shared.
   - Dart side done 2026-10-17 on Linux. Android done 2026-10-18 on the emulator: Dart and Kotlin share one instance. iOS (Swift) still to run.
-- [ ] Build and run on Linux x86_64 first (Fedora PC, then CachyOS desktop), then Windows x64, macOS (MacBook Air M4), Android arm64 (Galaxy A25), iOS (iPhone 15 Pro, free Apple ID provisioning). Build and test without a device on Windows arm64 and Linux arm64 (GitHub ARM runners). See [testing §Device lab](../../specs/testing.md#device-lab).
-  - Fedora PC done 2026-10-17 ([architecture §Bridge](../../specs/architecture.md#bridge)). Android emulator (API 34) done 2026-10-18, including release APKs for all three ABIs. CachyOS desktop done 2026-10-18 (KDE Plasma 6.8, Wayland). Next: the Galaxy A25. A manual `release` workflow run on the spike branch would also show whether the bridge builds into every release artifact.
+- [ ] Build and run on Linux x86_64 first (Fedora PC, then CachyOS laptop), then Windows x64, macOS (MacBook Air M4), Android arm64 (Galaxy A25), iOS (iPhone 15 Pro, free Apple ID provisioning). Build and test without a device on Windows arm64 and Linux arm64 (GitHub ARM runners). See [testing §Device lab](../../specs/testing.md#device-lab).
+  - Fedora PC done 2026-10-17 ([architecture §Bridge](../../specs/architecture.md#bridge)). Android emulator (API 34) done 2026-10-18, including release APKs for all three ABIs. CachyOS laptop done 2026-10-18 (KDE Plasma 6.8, Wayland). Next: the Galaxy A25. A manual `release` workflow run on the spike branch would also show whether the bridge builds into every release artifact.
 - [ ] Make one HTTPS request with `rustls` + platform verifier on each target.
   - Fedora PC done 2026-10-17, Android emulator 2026-10-18, CachyOS 2026-10-18, negative tests included (V-SEC-2).
 - [ ] Measure per target: cold start, app size, idle RSS, frame times for a 120 Hz animation test screen (profile mode).
   - Fedora PC done 2026-10-17 at 60 Hz (no 120 Hz display there). CachyOS done 2026-10-18 on a 144 Hz display: about 61 fps, so the Linux app is held to 60 fps (V-DESK-5).
 - [ ] **Record:** architecture (bridge details), decisions D2/D4 (confirm or supersede), desktop V-DESK-4, security V-SEC-2, design-system budgets (adjust with data).
 
-#### SP1 runbook: CachyOS desktop
-Runs on the CachyOS desktop, by the maintainer or an agent there. Results go into the specs (W1), are committed to `spike/sp1-bridge` and pushed, then work continues on the Fedora PC after a `git pull`. Read-only rule for real emulator data: names and formats only. Never copy saves, and never record `account.dat` values.
+#### SP1 runbook: CachyOS laptop
+Runs on the CachyOS laptop, by the maintainer or an agent there. Results go into the specs (W1), are committed to `spike/sp1-bridge` and pushed, then work continues on the Fedora PC after a `git pull`. Read-only rule for real emulator data: names and formats only. Never copy saves, and never record `account.dat` values.
 
 1. **Record the machine.** Paste the output into the results.
    ```sh
