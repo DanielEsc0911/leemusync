@@ -46,6 +46,8 @@ desktop = "80000002"
 ### Discovery
 A scan lists the accounts it finds (id, plus the display name if the profile says how to read it). LeemuSync proposes mappings by matching names and the player confirms. Unmatched accounts → ask. Two players can't map to the same id on one device.
 
+**Orphaned saves.** A scan also lists save folders whose account no longer exists (for Cemu, `user/<id>/` with no `system/act/<id>/`). Deleting an account in Cemu leaves them behind ([above](#cemu-accounts-sp7)). The scan never ignores or deletes them. It offers to recover one: the player picks who it belongs to, and LeemuSync syncs it into that player's stream. The folder is only read; LeemuSync writes it to a live account only through a normal restore. Seen on the maintainer's CachyOS laptop (2026-10-18).
+
 ### Shared folders
 Some games write to a folder shared by all accounts (Wii U `user/common`). Per-player separation is impossible for those files. That part of the game drops to Basic (one lease for all players), and the UI says so. Profiles list such paths under `saves.shared`.
 
@@ -63,7 +65,7 @@ Swapping works the same way, but at container granularity: the whole memory card
 |---|---|
 | Player removed | Mappings removed; streams and history kept |
 | Device renamed | Mappings follow the device id |
-| Account deleted in the emulator | Mapping flagged on next scan; asks the player |
+| Account deleted in the emulator | Mapping flagged on next scan; asks the player. Its save folders stay and show up as orphaned saves ([Discovery](#discovery)) |
 | New device, existing players | Join flow asks for this device's mappings ([navigation](ui/navigation.md)) |
 
 ## Verify
