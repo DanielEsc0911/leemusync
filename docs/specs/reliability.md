@@ -1,6 +1,6 @@
 # Reliability
 
-> **Status:** Draft · **Related:** [rules](../rules.md) (B3), [sync-model](sync-model.md), [security](security.md), [testing](testing.md), [platforms](platforms/desktop.md) · **Code:** `crates/engine` (`fsx.rs`, `snapshot.rs`, `upload.rs`; restore planned)
+> **Status:** Draft · **Related:** [rules](../rules.md) (B3), [sync-model](sync-model.md), [security](security.md), [testing](testing.md), [platforms](platforms/desktop.md) · **Code:** `crates/engine` (`fsx.rs`, `snapshot.rs`, `upload.rs`, `restore.rs`)
 
 ## Purpose
 A save must never be lost or corrupted, and sync must keep running around the clock wherever the OS allows.
@@ -8,14 +8,14 @@ A save must never be lost or corrupted, and sync must keep running around the cl
 ## Invariants
 Each invariant has tests (unit, simulation with injected faults) that must pass before any release.
 
-| ID | Invariant |
-|---|---|
-| I1 | No local save is overwritten unless its previous content is in local history first |
-| I2 | The remote is append-only. Only leases and `repo.json` are overwritten, and only retention GC deletes |
-| I3 | Never read for a snapshot, or write a restore, while the emulator runs (when detectable) or before the quiet period ends |
-| I4 | Every local write is atomic: temp file in the same folder → write → fsync → rename → fsync folder (not done on Windows; see V-REL-6) (`crates/engine/src/fsx.rs`) |
-| I5 | Every multi-step operation is journaled and resumes or rolls back after a crash |
-| I6 | Nothing is committed or restored until it's verified (AEAD authentication + content hash) |
+| ID | Invariant | Tests |
+|---|---|---|
+| I1 | No local save is overwritten unless its previous content is in local history first | tested (M1a) |
+| I2 | The remote is append-only. Only leases and `repo.json` are overwritten, and only retention GC deletes | — |
+| I3 | Never read for a snapshot, or write a restore, while the emulator runs (when detectable) or before the quiet period ends | tested (M1a) |
+| I4 | Every local write is atomic: temp file in the same folder → write → fsync → rename → fsync folder (not done on Windows; see V-REL-6) (`crates/engine/src/fsx.rs`) | tested (M1a) |
+| I5 | Every multi-step operation is journaled and resumes or rolls back after a crash | tested (M1a) |
+| I6 | Nothing is committed or restored until it's verified (AEAD authentication + content hash) | tested (M1a) |
 
 ## Restore procedure
 1. Download all blobs to staging (`<data>/staging/<op>/`) and verify them (I6).
@@ -26,6 +26,13 @@ Each invariant has tests (unit, simulation with injected faults) that must pass 
 6. Journal "done" and set `base` = restored version.
 
 A crash between 4 and 6 → on startup the journal restores every file from the step-3 backup, then retries. A stream is never left half old, half new.
+
+Implemented in `crates/engine/src/restore.rs`; crash tests at every journal step (`restore.after_backup`, `restore.mid_swap`, `restore.before_done`).
+- Every staged file is checked against its manifest size and the profile's per-file limit before anything is written. Writes stay inside the grant and never follow symlinks.
+- The step-3 backup (`<data>/history/<stream>/<ms>-<reason>/`) is read consistently, built in a temp folder, fsynced (files and folders) and renamed into place before the journal entry is written.
+- Files the version doesn't have are removed from the save folder after the swap; they are in the backup.
+- An I/O error during the swap rolls back at once. A crash is rolled back when the engine next opens (postponed while the emulator runs) and at the start of `sync` and `restore`.
+- A rollback keeps I1 too: if the folder differs from the backup, its current files go to `<ms>-pre-rollback` in local history first. Rolling back is idempotent.
 
 ## Upload procedure
 1. Take a snapshot (quiet, consistent read, [sync-model §Snapshot rules](sync-model.md#snapshot-rules)) into local history.

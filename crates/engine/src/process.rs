@@ -20,8 +20,17 @@ impl ProcessProbe for SysinfoProbe {
             let comm = p.name().to_string_lossy().into_owned();
             names
                 .iter()
-                .any(|n| exe.as_deref() == Some(n.as_str()) || comm == *n)
+                .any(|n| exe.as_deref().is_some_and(|e| same_name(e, n)) || same_name(&comm, n))
         })
+    }
+}
+
+/// Executable names are case-insensitive on Windows and macOS file systems.
+fn same_name(found: &str, wanted: &str) -> bool {
+    if cfg!(any(windows, target_os = "macos")) {
+        found.eq_ignore_ascii_case(wanted)
+    } else {
+        found == wanted
     }
 }
 
@@ -51,6 +60,15 @@ mod tests {
         assert!(!p.running(&["Cemu".into()]));
         p.set(true);
         assert!(p.running(&["Cemu".into()]));
+    }
+
+    #[test]
+    fn names_ignore_case_only_where_the_file_system_does() {
+        assert!(same_name("Cemu", "Cemu"));
+        assert_eq!(
+            same_name("cemu.exe", "Cemu.exe"),
+            cfg!(any(windows, target_os = "macos"))
+        );
     }
 
     #[test]

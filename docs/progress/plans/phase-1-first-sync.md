@@ -6814,12 +6814,12 @@ Spec: [reliability §Restore procedure, §Invariants](../../specs/reliability.md
 - Consumes: Tasks 10–13.
 - Produces:
   - `restore::Source<'a>::{Remote(&'a Version), Local(&'a Path)}` (a version from the repo, or a local-history folder).
-  - `restore::Ctx<'a> { repo: Option<&'a Repo>, state: &'a State, data_dir: &'a Path, grants: &'a [PathBuf], probe: &'a dyn ProcessProbe, process_names: &'a [String], fp: &'a Failpoints }`.
+  - `restore::Ctx<'a> { repo: Option<&'a Repo>, state: &'a State, data_dir: &'a Path, grants: &'a [PathBuf], probe: &'a dyn ProcessProbe, process_names: &'a [String], max_file_bytes: u64, fp: &'a Failpoints }` (`max_file_bytes` = the profile's per-file limit; every staged file is checked against it and against its manifest size).
   - `restore::restore(ctx: &Ctx<'_>, stream: &StreamId, target: &Path, source: Source<'_>, reason: &str) -> Result<Option<PathBuf>, EngineError>` (async; returns the backup folder, `None` when the target was empty). Failpoints: `restore.after_backup`, `restore.mid_swap` (after the first file), `restore.before_done`.
   - `restore::recover(state: &State, probe: &dyn ProcessProbe) -> Result<Vec<Warning>, EngineError>`: rolls every unfinished swap back to its backup. Leaves the entry if the emulator runs, and returns `EmulatorRunning`.
   - `Engine::recover_journal(&self) -> Result<Vec<Warning>, EngineError>` (crate-private), called by `Engine::open` (an `EmulatorRunning` error there is ignored, so the CLI still starts) and at the start of `sync` and `restore` (where it's fatal).
 
-- [ ] **Step 1: Failing tests** at the bottom of `crates/engine/src/restore.rs`:
+- [x] **Step 1: Failing tests** at the bottom of `crates/engine/src/restore.rs`:
 
 ```rust
 #[cfg(test)]
@@ -6871,7 +6871,7 @@ mod tests {
     }
 
     fn ctx<'a>(w: &'a World, grants: &'a [PathBuf], probe: &'a FakeProbe, fp: &'a Failpoints, data: &'a Path) -> Ctx<'a> {
-        Ctx { repo: Some(&w.repo), state: &w.state, data_dir: data, grants, probe, process_names: &[], fp }
+        Ctx { repo: Some(&w.repo), state: &w.state, data_dir: data, grants, probe, process_names: &[], max_file_bytes: 1 << 20, fp }
     }
 
     #[tokio::test]
@@ -6925,8 +6925,8 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Run** `cargo test -p leemusync-engine restore` → compile errors.
-- [ ] **Step 3: Implement** (above the tests):
+- [x] **Step 2: Run** `cargo test -p leemusync-engine restore` → compile errors.
+- [x] **Step 3: Implement** (above the tests):
 
 ```rust
 //! Staged, journaled, atomic restore with a backup first (reliability §Restore procedure).
@@ -6954,6 +6954,7 @@ pub(crate) struct Ctx<'a> {
     pub grants: &'a [PathBuf],
     pub probe: &'a dyn ProcessProbe,
     pub process_names: &'a [String],
+    pub max_file_bytes: u64,
     pub fp: &'a Failpoints,
 }
 
@@ -7091,8 +7092,8 @@ impl Engine {
 
 At the end of `Engine::open`, after building `engine`: `match engine.recover_journal() { Ok(_) | Err(EngineError::EmulatorRunning(_)) => {} Err(e) => return Err(e) }`. Remove the temporary `#[allow(dead_code)]` attributes from Task 10 once clippy is clean without them.
 
-- [ ] **Step 4: Run** `cargo test -p leemusync-engine && cargo clippy -p leemusync-engine --all-targets -- -D warnings` → PASS.
-- [ ] **Step 5: Commit.** `docs/specs/reliability.md` §Restore procedure: add "Implemented in `crates/engine/src/restore.rs`; crash tests at every journal step (`restore.after_backup`, `restore.mid_swap`, `restore.before_done`)." Invariants table: mark I1, I3–I6 as "tested (M1a)". `just check`, then:
+- [x] **Step 4: Run** `cargo test -p leemusync-engine && cargo clippy -p leemusync-engine --all-targets -- -D warnings` → PASS.
+- [x] **Step 5: Commit.** `docs/specs/reliability.md` §Restore procedure: add "Implemented in `crates/engine/src/restore.rs`; crash tests at every journal step (`restore.after_backup`, `restore.mid_swap`, `restore.before_done`)." Invariants table: mark I1, I3–I6 as "tested (M1a)". `just check`, then:
 
 ```bash
 git add crates/engine docs/specs/reliability.md
@@ -7431,6 +7432,7 @@ impl Engine {
                     grants: &self.config.grants,
                     probe: self.env.processes.as_ref(),
                     process_names: &names,
+                    max_file_bytes: profile.max_file_bytes(),
                     fp: &self.failpoints,
                 };
                 restore::restore(&ctx, &stream, &folder, Source::Remote(v), "pre-restore").await?;
@@ -7728,6 +7730,7 @@ impl Engine {
             grants: &self.config.grants,
             probe: self.env.processes.as_ref(),
             process_names: &names,
+            max_file_bytes: profile.max_file_bytes(),
             fp: &self.failpoints,
         };
         if let Some(v) = versions.values().find(|v| v.id.to_string().eq_ignore_ascii_case(what)) {

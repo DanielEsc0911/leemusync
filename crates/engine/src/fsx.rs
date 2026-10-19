@@ -73,16 +73,37 @@ pub fn rename_dir(from: &Path, to: &Path) -> io::Result<()> {
     }
 }
 
-/// Makes the rename durable. Not done on Windows; see reliability V-REL-6.
+/// Makes renames, creations and removals inside `dir` durable. Not done on Windows; see
+/// reliability V-REL-6.
+///
+/// # Errors
+/// Any I/O error opening or syncing the folder.
 #[cfg(unix)]
-fn sync_dir(dir: &Path) -> io::Result<()> {
+pub fn sync_dir(dir: &Path) -> io::Result<()> {
     fs::File::open(dir)?.sync_all()
 }
 
+/// # Errors
+/// Never; Windows has no folder fsync (V-REL-6).
 #[cfg(not(unix))]
 #[allow(clippy::unnecessary_wraps)] // same signature as the unix version
-fn sync_dir(_dir: &Path) -> io::Result<()> {
+pub fn sync_dir(_dir: &Path) -> io::Result<()> {
     Ok(())
+}
+
+/// `sync_dir` on `dir` and every folder below it (never following symlinks), so new
+/// subfolders and removed files are durable, not just the files themselves.
+///
+/// # Errors
+/// Any I/O error.
+pub fn sync_tree(dir: &Path) -> io::Result<()> {
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        if fs::symlink_metadata(entry.path())?.is_dir() {
+            sync_tree(&entry.path())?;
+        }
+    }
+    sync_dir(dir)
 }
 
 /// Fails if `path` is outside `root` or any existing component between them is a symlink.
@@ -232,6 +253,15 @@ mod tests {
             list_files(dir.path()).is_err(),
             "listing refuses symlinks too"
         );
+    }
+
+    #[test]
+    fn sync_tree_walks_nested_folders() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("a/b")).unwrap();
+        std::fs::write(dir.path().join("a/b/x"), b"x").unwrap();
+        sync_tree(dir.path()).unwrap();
+        assert!(sync_tree(&dir.path().join("missing")).is_err());
     }
 
     #[test]

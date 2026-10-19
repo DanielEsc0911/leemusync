@@ -12,6 +12,7 @@ mod process;
 mod profiles;
 mod repo;
 mod repo_config;
+mod restore;
 mod scan;
 mod secrets;
 mod setup;
@@ -84,13 +85,24 @@ impl Engine {
             c.save(&path)?;
             c
         };
-        Ok(Self {
+        let engine = Self {
             env,
             config,
             state,
             failpoints: Failpoints::default(),
             repo: None,
-        })
+        };
+        // A running emulator only postpones recovery (to `sync`/`restore`); the CLI still starts.
+        match engine.recover_journal() {
+            Ok(_) | Err(EngineError::EmulatorRunning(_)) => {}
+            Err(e) => return Err(e),
+        }
+        Ok(engine)
+    }
+
+    /// Rolls back every restore a crash interrupted (reliability §Restore procedure).
+    pub(crate) fn recover_journal(&self) -> Result<Vec<leemusync_api::Warning>, EngineError> {
+        restore::recover(&self.state, self.env.processes.as_ref())
     }
 
     #[must_use]
@@ -128,7 +140,6 @@ pub(crate) fn new_version_id() -> Result<VersionId, EngineError> {
 }
 
 /// Local history for one stream: `<data>/history/<stream id>` (reliability §Local history).
-#[allow(dead_code)] // used by Task 14
 pub(crate) fn history_dir(
     data_dir: &std::path::Path,
     stream: &leemusync_core::StreamId,

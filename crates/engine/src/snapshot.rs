@@ -134,7 +134,10 @@ fn copy_listed(
 }
 
 /// The first path that was added, removed or changed (size or mtime) between two sorted listings.
-fn first_change(before: &[(String, Metadata)], after: &[(String, Metadata)]) -> Option<String> {
+pub(crate) fn first_change(
+    before: &[(String, Metadata)],
+    after: &[(String, Metadata)],
+) -> Option<String> {
     for i in 0..before.len().max(after.len()) {
         match (before.get(i), after.get(i)) {
             (Some((a, am)), Some((b, bm))) if a == b => {

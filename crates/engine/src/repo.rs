@@ -365,7 +365,6 @@ impl Repo {
     }
 
     /// Decrypts and checks that the content still hashes to `id`.
-    #[allow(dead_code)] // used by Task 14
     pub(crate) async fn get_blob(&self, id: &BlobId) -> Result<Vec<u8>, EngineError> {
         let path = blob_path(id);
         let data = self
