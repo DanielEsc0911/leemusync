@@ -1194,7 +1194,7 @@ Spec: [sync-model §Repo config](../../specs/sync-model.md#repo-config), [player
   - `RepoConfig::add_player(&mut self, id: PlayerId, name: &str) -> Result<(), ConfigError>`, `player_named(&self, name: &str) -> Option<PlayerId>`, `map_account(&mut self, device: DeviceId, player: PlayerId, emulator: &str, account: &str) -> Result<(), ConfigError>`, `account_of(&self, device: DeviceId, player: PlayerId, emulator: &str) -> Option<&str>`, `player_on_account(&self, device: DeviceId, emulator: &str, account: &str) -> Option<PlayerId>`, `add_game(&mut self, player: PlayerId, emulator: &str, game: &str) -> bool` (true if it was new), `games_of(&self, player: PlayerId) -> Vec<(String, String)>` (emulator, game), `merge(configs: &[&RepoConfig]) -> (RepoConfig, Vec<String>)` (the strings are renamed player names).
   - `ConfigVersion { format, id, parents, device, created_at, config }` with `to_json(&self) -> Result<Vec<u8>, ConfigError>` and `from_json(bytes: &[u8], id: &VersionId) -> Result<ConfigVersion, ConfigError>`.
 
-- [ ] **Step 1: Failing tests** in `crates/core/src/config.rs`:
+- [x] **Step 1: Failing tests** in `crates/core/src/config.rs`:
 
 ```rust
 //! Repo config: players and per-device account mappings. Spec: docs/specs/sync-model.md (Repo config).
@@ -1243,7 +1243,6 @@ mod tests {
         a.add_player(p(1), "A").unwrap();
         a.map_account(d(1), p(1), "cemu", "80000001").unwrap();
         let mut b = RepoConfig::default();
-        b.add_player(p(1), "A").unwrap();
         b.add_player(p(3), "a").unwrap();
         b.map_account(d(2), p(3), "cemu", "80000001").unwrap();
         let (m, renamed) = RepoConfig::merge(&[&a, &b]);
@@ -1302,8 +1301,8 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Run** `cargo test -p leemusync-core config` → compile errors.
-- [ ] **Step 3: Implement** (above the tests):
+- [x] **Step 2: Run** `cargo test -p leemusync-core config` → compile errors.
+- [x] **Step 3: Implement** (above the tests):
 
 ```rust
 use std::collections::{BTreeMap, BTreeSet};
@@ -1524,8 +1523,8 @@ impl ConfigVersion {
 
 Note on `merge`: players iterate in id order (`BTreeMap`), so the earlier id keeps the plain name and the result doesn't depend on the order of `configs`. Mapping clashes keep the smaller player id for the same reason.
 
-- [ ] **Step 4: Run** `cargo test -p leemusync-core config && cargo clippy -p leemusync-core --all-targets -- -D warnings` → PASS.
-- [ ] **Step 5: Commit** (`just check` first):
+- [x] **Step 4: Run** `cargo test -p leemusync-core config && cargo clippy -p leemusync-core --all-targets -- -D warnings` → PASS.
+- [x] **Step 5: Commit** (`just check` first):
 
 ```bash
 git add crates/core
