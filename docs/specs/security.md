@@ -32,6 +32,8 @@ Use audited RustCrypto/BLAKE3 crates only. No custom primitives ([D21](../decisi
 | Randomness | OS CSPRNG (`getrandom`) |
 | Secret memory | `zeroize` on drop |
 
+`repo.json` KDF parameters are bounded on read (`m` 19 456–1 048 576 KiB, `t` 1–10, `p` 1–4), so a tampered file can neither weaken a rewrap below OWASP's minimum nor exhaust memory. The recovery key is 32 random bytes shown as Crockford base32 in groups of 4; its key-encryption key is BLAKE3 `derive_key("leemusync v1 recovery-kek", recovery key)` (it's already full-entropy, so no Argon2id).
+
 - **AAD** binds every ciphertext to its kind and id (e.g., `"blob" ‖ blobId`), so the server can't swap objects.
 - **Blob ids** are a keyed hash of the plaintext. After decryption the id is recomputed and must match.
 - **Manifests** carry file names and metadata, and they're encrypted. The provider sees only object counts, sizes and timing (accepted leak).
@@ -47,7 +49,7 @@ Use audited RustCrypto/BLAKE3 crates only. No custom primitives ([D21](../decisi
 A provider can serve an old state or hide new versions. Devices remember the highest version seen per stream (state DB) and warn if the remote goes backwards. Withholding can't be fully prevented without a trusted server, and that's accepted and documented.
 
 ## Network
-- **No inbound listeners**, ever. Outbound connections only to configured backends and OAuth endpoints.
+- **No inbound listeners**, ever, except the OAuth loopback redirect during login ([D28](../decisions.md#d28-oauth-loopback-listener-during-login-only-2026-10-18)). Outbound connections only to configured backends and OAuth endpoints.
 - TLS via `rustls` with the platform verifier. No OpenSSL. Certificate errors are never ignorable from the UI.
 - `http://` endpoints are refused unless the user explicitly allows them for a LAN host. A persistent warning stays visible.
 

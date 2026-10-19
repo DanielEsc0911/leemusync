@@ -34,14 +34,15 @@ The engine derives the tier. Profiles don't declare it ([D9](../decisions.md#d9-
 | `layout` | enum | See [Layouts](#layouts) |
 | `requires_closed` | bool, default `true` | Never snapshot or restore while the emulator runs |
 | `platforms.<os>.roots` | [template] | Candidate base folders, in priority order (`os`: windows, macos, linux, android, ios) |
+| `platforms.<os>.config_roots` | [string] | Config folder for each entry of `roots`, same order (Cemu keeps `settings.xml` outside its data folder). Optional; defaults to the matching root |
 | `platforms.<os>.process` | [string] | Process names for detection (desktop) |
 | `platforms.android.package` | string | Package name for launching and detection |
-| `config_keys` | [{file, format, key, var}] | Read a user-customised path from the emulator's config (`format`: xml, ini, json) into variable `var` |
+| `config_keys` | [{file, format, key, var, default?}] | Read a user-customised path from the emulator's config (`format`: xml, ini, json) into variable `var`; optional `default` is the value used when the key is missing |
 | `saves.root` | template | Save root under the base folder |
 | `saves.pattern` | template | Path per stream, with captures `{title_id}`, `{account}`, `{game}` |
 | `saves.shared` | [template] | Folders shared by all accounts |
 | `saves.include` / `saves.exclude` | [glob] | Files that belong to a stream |
-| `saves.max_file_mb` | int, default `64` | Size guard |
+| `saves.max_file_mb` | int, default `64` | Per-file size limit for snapshots (disk-fill guard) |
 | `accounts` | {root, id_regex, name_file?, name_key?} | Account discovery (multi-user emulators) |
 | `game_key` | {from, normalize[]} | Which capture identifies the game, and how to normalise it |
 | `compat` | [string] | Compat groups whose files are interchangeable |
@@ -51,6 +52,8 @@ The engine derives the tier. Profiles don't declare it ([D9](../decisions.md#d9-
 
 ### Templates
 Allowed variables: `{home}` `{xdg_data}` `{xdg_config}` `{appdata}` `{localappdata}` `{documents}` `{mac_app_support}` `{flatpak:<app-id>}` `{android_storage}` `{exe_dir}`, plus `config_keys` variables and pattern captures. Anything else is a validation error.
+
+The M1a parser (`crates/core/src/profile.rs`) supports `{home}` `{xdg_data}` `{xdg_config}` `{exe_dir}` `{flatpak:<app-id>}` plus `{base}` `{mlc}` and captures; the other variables arrive with the platforms that need them.
 
 ### Example (Cemu; Linux part verified in SP7, Windows is still Verify SP7)
 ```toml
@@ -161,8 +164,7 @@ Evidence commands: `flatpak list --app --columns=application,version`; `find ~/.
 - **V-PROF-3** Which iOS emulators expose saves in the Files app (SP5).
 
 ## Open questions
-Schema gaps found by SP7 (the drafts in `profiles/` work around them with comments; resolve in Phase 1 before adopting):
-- **Config outside the base.** Cemu, Dolphin and their Flatpaks keep the config file in a different root (`config/`) from saves (`data/`). `config_keys.file` needs its own root or template.
+Schema gaps found by SP7 (config outside the base is solved by `platforms.<os>.config_roots`; the drafts in `profiles/` work around them with comments; resolve in Phase 1 before adopting):
 - **Extra captures.** RetroArch's core folder and Dolphin's region folder have no capture (`{core}`, `{region}`); the drafts match them with a glob.
 - **Two layouts in one emulator.** Dolphin has Wii NAND (`per_game_dir`) and GameCube cards (`per_game_file` or `container`). One profile declares one `layout`.
 - **Config value forms.** RetroArch paths may start with `~` or be `default`; DuckStation and PCSX2 folders are relative to the data root.

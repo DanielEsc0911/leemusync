@@ -6,7 +6,7 @@
 Let users keep their repo on storage they already own. The store layer moves opaque encrypted objects and knows nothing about saves.
 
 ## Interface
-`crates/store` exposes one trait, sketched here:
+`crates/store` exposes one `Store` type with these operations (one adapter per OpenDAL service; a trait comes when a non-OpenDAL adapter does):
 
 | Operation | Semantics |
 |---|---|
@@ -16,6 +16,8 @@ Let users keep their repo on storage they already own. The store layer moves opa
 | `delete(path)` | Idempotent |
 | `stat(path)` | Exists, size, server modified time |
 | `capabilities()` | `{create_only: native\|emulated, server_mtime: bool, max_object_mb}` |
+
+`list` returns names and sizes only in Phase 1; server modified time is read with `stat` when leases need it.
 
 - `create_only` uses the backend's native conditional write where available (OpenDAL `if_not_exists`). Otherwise it's emulated with stat-then-write. That's safe because version and blob names are unique ([D5](../decisions.md#d5-append-only-content-addressed-repo-with-derived-heads-2026-10-07)).
 - All errors are classified as `transient` (retry with exponential backoff + jitter, honouring `Retry-After`), `auth` (ask the user), `quota`, or `permanent`.
@@ -27,7 +29,7 @@ Let users keep their repo on storage they already own. The store layer moves opa
 | Nextcloud, ownCloud, Synology, `rclone serve webdav` | OpenDAL `webdav` | The most common self-hosted path |
 | Any SSH server (a Pi, a NAS) | OpenDAL `sftp` | Key-based auth recommended. Linux and macOS only ([D25](../decisions.md#d25-sftp-only-on-linux-and-macos-for-now-2026-10-08)); needs the system OpenSSH client. See [SFTP on mobile and Windows](#sftp-on-mobile-and-windows) |
 | Local folder, USB, mounted NAS/SMB | OpenDAL `fs` | Also serves iCloud Drive/OneDrive folders synced by the OS |
-| Google Drive | OpenDAL `gdrive` | Phase 6. Scope `drive.file` (only files LeemuSync created) |
+| Google Drive | OpenDAL `gdrive` | Phase 1 for the first test ([D26](../decisions.md#d26-google-drive-is-the-backend-for-the-first-real-test-2026-10-18)); the public client in Phase 6. Scope `drive.file` (only files LeemuSync created) |
 | OneDrive, Dropbox | OpenDAL `onedrive`, `dropbox` | Phase 6 |
 | MEGA | see [MEGA](#mega) | Phase 6 |
 
@@ -121,8 +123,8 @@ Local services are answered in [Tested capabilities](#tested-capabilities-sp6). 
 - **V-STORE-4** A pure-Rust SFTP adapter for Windows, Android and iOS (deferred by [D25](../decisions.md#d25-sftp-only-on-linux-and-macos-for-now-2026-10-08)).
 - **V-STORE-5** `fs`: how `crates/store` gets both crash-safe writes and an atomic `create_only` (e.g. its own temp file + `link`/`renameat2(RENAME_NOREPLACE)`), and whether it works on SMB and synced folders (Phase 1).
 - **V-STORE-6** CI S3 server for the conformance suite, since MinIO images weren't pullable on 2026-10-08 (SeaweedFS and RustFS worked). Decide in Phase 1.
-- **V-STORE-7** OpenDAL `gdrive` sends the refresh token and client secret in the token URL query, and network errors print that URL ([Google Drive (live)](#google-drive-live)). Options, not decided: `crates/store` refreshes tokens itself with a form body and gives OpenDAL only an `access_token` (rebuilding the operator on expiry), or fix it upstream in OpenDAL. In every case the log redaction layer must scrub OAuth query parameters (V-SEC-4). Decide in Phase 1.
-- **V-STORE-8** Drive duplicate names: two devices creating a shared name such as `repo.json` at once leave two files, and readers see the newest. Decide how `crates/store` handles this and whether to detect duplicates by listing raw file ids (Phase 1).
+- **V-STORE-7** Answered by [D27](../decisions.md#d27-store-refreshes-google-tokens-itself-opendal-gets-only-an-access-token-2026-10-18) in Phase 1. Still to do: an upstream OpenDAL issue.
+- **V-STORE-8** Drive duplicate names: two devices creating a shared name such as `repo.json` at once leave two files, and readers see the newest. Decide how `crates/store` handles this and whether to detect duplicates by listing raw file ids (Phase 1). Phase 1 handling: `init` refuses when `repo.json` already exists, and after writing it reads it back and compares the repo id. A mismatch means another device won the race, and `init` stops and tells the user to `join`.
 - **V-STORE-9** Drive trash: pruned data goes to the user's Drive trash. Retention and quota impact are untested. Decide whether pruning should permanently delete (Phase 6).
 
 ## Open questions

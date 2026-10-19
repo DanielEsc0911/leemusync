@@ -48,6 +48,13 @@ A scan lists the accounts it finds (id, plus the display name if the profile say
 
 **Orphaned saves.** A scan also lists save folders whose account no longer exists (for Cemu, `user/<id>/` with no `system/act/<id>/`). Deleting an account in Cemu leaves them behind ([above](#cemu-accounts-sp7)). The scan never ignores or deletes them. It offers to recover one: the player picks who it belongs to, and LeemuSync syncs it into that player's stream. The folder is only read; LeemuSync writes it to a live account only through a normal restore. Seen on the maintainer's CachyOS laptop (2026-10-18).
 
+**A player with no account here.** When a player's stream exists in the repo but the player has no account mapped on this device, `sync` reports it and does nothing for that stream. The player chooses:
+- **a. Use an existing account:** `leemusync accounts map <player> cemu <id>`. If that account already has files and the player has a version in the repo, the CLI asks whether to keep them (they're uploaded and become a second head, a conflict) or replace them (`--replace`): the current files go to local history first (I1), then the player's latest version is restored.
+- **b. Create the account in the emulator first,** then `leemusync scan` and `accounts map`.
+- **c. Let LeemuSync create it:** only after spike SP8 proves Cemu accepts it (V-ACC-3).
+
+**Recovering an orphaned save:** `leemusync accounts recover cemu <id> --player <name>` uploads the orphaned folder as the first version of that player's stream. It's refused if the player already has a version of that game, so a recovered save can never replace one. The folder itself is only read.
+
 ### Shared folders
 Some games write to a folder shared by all accounts (Wii U `user/common`). Per-player separation is impossible for those files. That part of the game drops to Basic (one lease for all players), and the UI says so. Profiles list such paths under `saves.shared`.
 
@@ -71,3 +78,4 @@ Swapping works the same way, but at container granularity: the whole memory card
 ## Verify
 - **V-ACC-1** Same Cemu layout and `account.dat` format on Windows and macOS. Deferred by the maintainer on 2026-10-08 (spike SP7 device pass). The second Linux install (CachyOS) is done ([above](#cemu-accounts-sp7)).
 - **V-ACC-2** RPCS3 and Yuzu-family layouts (Phase 6 profile work).
+- **V-ACC-3** Cemu 2.6 accepts an `account.dat` written by LeemuSync from an existing account as the template (new `PersistentId` from `persisid.dat`, new `Uuid`, new `MiiName`): it lists the account and BotW saves under it (spike SP8, [Phase 1 first-sync plan](../progress/plans/phase-1-first-sync.md)).

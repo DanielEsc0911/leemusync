@@ -141,7 +141,7 @@ The design must be in the specs before code (skill `leemusync-feature`, "Before 
 - Modify: `docs/progress/roadmap.md` (Phase 1 exit)
 - Modify: `docs/progress/README.md` (board row)
 
-- [ ] **Step 1: Append the decisions.** Add to the end of `docs/decisions.md`, word for word:
+- [x] **Step 1: Append the decisions.** Add to the end of `docs/decisions.md`, word for word:
 
 ```markdown
 ### D26 Google Drive is the backend for the first real test (2026-10-18)
@@ -162,7 +162,7 @@ Several heads of the repo-config stream are merged by union instead of being sho
 
 Each snippet below is written for the spec it goes into, so its links are relative to that spec's folder.
 
-- [ ] **Step 2: sync-model.md.**
+- [x] **Step 2: sync-model.md.**
   - §Versions, after the field list in the first bullet, add:
 
 ```markdown
@@ -181,7 +181,7 @@ Several heads are merged automatically by union ([D30](../decisions.md#d30-repo-
 With no `base` yet: no local files and one head → fast-forward. Local files and one head whose files are identical → adopt that head as `base` (clean). Local files and one different head → upload with no parents, which makes two heads (conflict): nothing is overwritten. `replace_local` (set when the player chooses to replace an account's current files, [players-and-accounts §Discovery](players-and-accounts.md#discovery)) turns that last case into a fast-forward with backup. With a `base`: if the local files equal a head, that head becomes `base` (this also makes a crash between writing a manifest and saving `base` harmless). A `base` the remote no longer has → warn that the remote went backwards ([security §Rollback and withholding](security.md#rollback-and-withholding)), no action.
 ```
 
-- [ ] **Step 3: players-and-accounts.md.** Append to §Discovery:
+- [x] **Step 3: players-and-accounts.md.** Append to §Discovery:
 
 ```markdown
 **A player with no account here.** When a player's stream exists in the repo but the player has no account mapped on this device, `sync` reports it and does nothing for that stream. The player chooses:
@@ -198,7 +198,7 @@ With no `base` yet: no local files and one head → fast-forward. Local files an
 - **V-ACC-3** Cemu 2.6 accepts an `account.dat` written by LeemuSync from an existing account as the template (new `PersistentId` from `persisid.dat`, new `Uuid`, new `MiiName`): it lists the account and BotW saves under it (spike SP8, [Phase 1 first-sync plan](../progress/plans/phase-1-first-sync.md)).
 ```
 
-- [ ] **Step 4: storage-backends.md.**
+- [x] **Step 4: storage-backends.md.**
   - §Interface: replace "exposes one trait, sketched here:" with "exposes one `Store` type with these operations (one adapter per OpenDAL service; a trait comes when a non-OpenDAL adapter does):". Under the table add: "`list` returns names and sizes only in Phase 1; server modified time is read with `stat` when leases need it."
   - §Adapters, Google Drive row: replace "Phase 6." with:
 
@@ -213,7 +213,7 @@ Phase 1 for the first test ([D26](../decisions.md#d26-google-drive-is-the-backen
 ```
 
     and end V-STORE-8 with: "Phase 1 handling: `init` refuses when `repo.json` already exists, and after writing it reads it back and compares the repo id. A mismatch means another device won the race, and `init` stops and tells the user to `join`."
-- [ ] **Step 5: security.md.**
+- [x] **Step 5: security.md.**
   - §Cryptography, after the table, add: "`repo.json` KDF parameters are bounded on read (`m` 19 456–1 048 576 KiB, `t` 1–10, `p` 1–4), so a tampered file can neither weaken a rewrap below OWASP's minimum nor exhaust memory. The recovery key is 32 random bytes shown as Crockford base32 in groups of 4; its key-encryption key is BLAKE3 `derive_key("leemusync v1 recovery-kek", recovery key)` (it's already full-entropy, so no Argon2id)."
   - §Network, replace the first bullet with:
 
@@ -221,7 +221,7 @@ Phase 1 for the first test ([D26](../decisions.md#d26-google-drive-is-the-backen
 - **No inbound listeners**, ever, except the OAuth loopback redirect during login ([D28](../decisions.md#d28-oauth-loopback-listener-during-login-only-2026-10-18)).
 ```
 
-- [ ] **Step 6: config-and-cli.md.**
+- [x] **Step 6: config-and-cli.md.**
   - §Config file, replace the first bullet with: "`config.toml`, versioned (`config_version = 1`), per device: device id and name, repo id, backend reference (`kind = "gdrive"` with `root` and `client_id`, or `kind = "fs"` with `path`), grants, emulator root overrides. Later phases add schedule, UI language and notification preferences."
   - §Commands: add rows "`leemusync backend add gdrive --client-id <id>` / `backend add fs <path>` / `backend login`", "`leemusync scan`" (accounts, save folders, orphaned saves, grants needed) and "`leemusync accounts recover <emulator> <id> --player <name>`". Change the `accounts map` row to "`leemusync players add/list` / `accounts map <player> <emulator> <id> [--keep\|--replace]`". After the table add:
 
@@ -229,15 +229,15 @@ Phase 1 for the first test ([D26](../decisions.md#d26-google-drive-is-the-backen
 The Phase 1 first slice ships `init`, `join`, `backend add/login`, `grant add/list`, `players add/list`, `scan`, `accounts map/recover`, `sync [--dry-run] [--yes]`, `status`, `history`, `restore` and `doctor` ([plan](../progress/plans/phase-1-first-sync.md)).
 ```
 
-- [ ] **Step 7: emulator-profiles.md §Schema.** Add two rows to the schema table: "`platforms.<os>.config_roots` | [string] | Config folder for each entry of `roots`, same order (Cemu keeps `settings.xml` outside its data folder). Optional; defaults to the matching root" and "`max_file_mb` | int | Per-file size limit for snapshots (disk-fill guard). Default 64". Remove the "Schema gap (SP7)" wording wherever it appears in that spec, and point to `config_roots`.
-- [ ] **Step 8: roadmap.md.** In Phase 1 **Exit**, before "Two players play BotW", add:
+- [x] **Step 7: emulator-profiles.md §Schema.** Add two rows to the schema table: "`platforms.<os>.config_roots` | [string] | Config folder for each entry of `roots`, same order (Cemu keeps `settings.xml` outside its data folder). Optional; defaults to the matching root" and "`max_file_mb` | int | Per-file size limit for snapshots (disk-fill guard). Default 64". Remove the "Schema gap (SP7)" wording wherever it appears in that spec, and point to `config_roots`.
+- [x] **Step 8: roadmap.md.** In Phase 1 **Exit**, before "Two players play BotW", add:
 
 ```markdown
 It's reached in two steps ([D29](../decisions.md#d29-m1-is-split-first-both-saves-on-both-pcs-then-leases-and-play-2026-10-18)): **M1a**, both players' saves on both PCs ([plan](plans/phase-1-first-sync.md)), then **M1b**, the rest below.
 ```
 
-- [ ] **Step 9: Board.** In `docs/progress/README.md`, set this plan's row to `In progress (Task 1 done)` with today's date.
-- [ ] **Step 10: Check and commit.**
+- [x] **Step 9: Board.** In `docs/progress/README.md`, set this plan's row to `In progress (Task 1 done)` with today's date.
+- [x] **Step 10: Check and commit.**
 
 Run: `cargo xtask docs-check`
 Expected: `xtask docs-check: ok`
