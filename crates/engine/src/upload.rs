@@ -24,6 +24,7 @@ pub(crate) struct UploadMeta<'a> {
 /// orphaned blobs, which GC collects; retrying is safe.
 ///
 /// Errors: `Data("history_changed:<path>")` if the history copy no longer matches the snapshot;
+/// `Data("blob_corrupt:<id>")` if a blob already on the remote is damaged;
 /// `Data("manifest_invalid")` if the manifest would break a validation rule.
 #[allow(dead_code)] // used by Task 15
 pub(crate) async fn upload(
@@ -34,14 +35,14 @@ pub(crate) async fn upload(
 ) -> Result<Version, EngineError> {
     for f in &snap.files {
         let data = std::fs::read(snap.dir.join(f.path.as_str()))?;
-        let changed = || EngineError::Data(format!("history_changed:{}", f.path.as_str()));
         if u64::try_from(data.len()).unwrap_or(u64::MAX) != f.size || repo.blob_id(&data) != f.blob
         {
-            return Err(changed());
+            return Err(EngineError::Data(format!(
+                "history_changed:{}",
+                f.path.as_str()
+            )));
         }
-        if repo.put_blob(&data).await? != f.blob {
-            return Err(changed());
-        }
+        repo.put_blob(&data).await?;
     }
     fp.hit("upload.before_manifest")?;
     let changed = snap
@@ -168,6 +169,56 @@ mod tests {
         assert!(
             repo.list_versions(&stream).await.unwrap().is_empty(),
             "no manifest points at a bad blob"
+        );
+    }
+    #[tokio::test]
+    async fn a_corrupt_existing_blob_blocks_the_upload() {
+        let dir = tempfile::tempdir().unwrap();
+        let remote = dir.path().join("remote");
+        let store = leemusync_store::Store::fs(&remote).unwrap();
+        let fast = leemusync_crypto::KdfParams {
+            m_kib: 19_456,
+            t: 1,
+            p: 1,
+        };
+        let (repo, _, _) = Repo::create(store, "p", fast).await.unwrap();
+        let src = dir.path().join("save");
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(src.join("option.sav"), b"opt").unwrap();
+        let snap =
+            crate::snapshot::take(&src, &dir.path().join("hist"), 1024, &|d| repo.blob_id(d))
+                .unwrap()
+                .unwrap();
+        let raw = leemusync_store::Store::fs(&remote).unwrap();
+        let path = crate::repo::blob_path(&snap.files[0].blob);
+        raw.put(
+            &path,
+            b"torn".to_vec(),
+            leemusync_store::PutMode::CreateOnly,
+        )
+        .await
+        .unwrap();
+        let stream = StreamId(Hash32([5; 32]));
+        let meta = UploadMeta {
+            stream,
+            parents: vec![],
+            device: DeviceId(VersionId::from_parts(1, [1; 10])),
+            player: PlayerId(VersionId::from_parts(2, [2; 10])),
+            emulator: "cemu",
+            base_files: &[],
+            note: None,
+        };
+        let result = upload(&repo, &snap, meta, &Failpoints::default()).await;
+        let expected = format!("blob_corrupt:{}", snap.files[0].blob);
+        assert!(matches!(result, Err(EngineError::Data(d)) if d == expected));
+        assert!(
+            repo.list_versions(&stream).await.unwrap().is_empty(),
+            "no manifest points at a corrupt blob"
+        );
+        assert_eq!(
+            raw.get(&path).await.unwrap(),
+            b"torn",
+            "never overwritten (I2)"
         );
     }
 }

@@ -340,7 +340,8 @@ impl Repo {
         Ok(ids)
     }
 
-    /// Idempotent: the name is the content's keyed hash.
+    /// Idempotent: the name is the content's keyed hash. An existing object is verified first;
+    /// `Data("blob_corrupt:<id>")` if it fails to decrypt or hash.
     #[allow(dead_code)] // used by Task 15
     pub(crate) async fn put_blob(&self, data: &[u8]) -> Result<BlobId, EngineError> {
         let id = self.blob_id(data);
@@ -348,7 +349,17 @@ impl Repo {
             .put_sealed(&blob_path(&id), &format!("blob\0{id}"), data)
             .await
         {
-            Err(EngineError::Store(e)) if e.class() == ErrorClass::AlreadyExists => Ok(id),
+            // Same name, so it should be the same content; a torn or tampered object is
+            // never referenced by a new manifest (I6) and never overwritten (I2).
+            Err(EngineError::Store(e)) if e.class() == ErrorClass::AlreadyExists => {
+                match self.get_blob(&id).await {
+                    Ok(_) => Ok(id),
+                    Err(EngineError::Data(_)) => {
+                        Err(EngineError::Data(format!("blob_corrupt:{id}")))
+                    }
+                    Err(other) => Err(other),
+                }
+            }
             other => other.map(|()| id),
         }
     }

@@ -3,7 +3,7 @@
 use std::fmt::Write as _;
 use std::fs::{self, Metadata, OpenOptions};
 use std::io::{self, Write as _};
-use std::path::{Component, Path};
+use std::path::{Component, Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
 const TEMP_PREFIX: &str = ".leemusync-";
@@ -26,12 +26,7 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
         .parent()
         .ok_or_else(|| io::Error::other("path has no parent"))?;
     fs::create_dir_all(parent)?;
-    let random = leemusync_crypto::random_bytes::<8>().map_err(io::Error::other)?;
-    let name = random.iter().fold(String::new(), |mut acc, b| {
-        let _ = write!(acc, "{b:02x}");
-        acc
-    });
-    let tmp = parent.join(format!("{TEMP_PREFIX}{name}{TEMP_SUFFIX}"));
+    let tmp = parent.join(temp_name()?);
     let result = (|| {
         let mut file = OpenOptions::new().write(true).create_new(true).open(&tmp)?;
         file.write_all(bytes)?;
@@ -43,6 +38,39 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
         let _ = fs::remove_file(&tmp);
     }
     result
+}
+
+/// A fresh random temp name (`.leemusync-<hex>.tmp`) that `list_files` skips.
+fn temp_name() -> io::Result<String> {
+    let random = leemusync_crypto::random_bytes::<8>().map_err(io::Error::other)?;
+    let name = random.iter().fold(String::new(), |mut acc, b| {
+        let _ = write!(acc, "{b:02x}");
+        acc
+    });
+    Ok(format!("{TEMP_PREFIX}{name}{TEMP_SUFFIX}"))
+}
+
+/// A not-yet-created temp path next to `path` (same folder, so a rename stays on one file system).
+///
+/// # Errors
+/// `path` has no parent, or the OS random source fails.
+pub fn temp_sibling(path: &Path) -> io::Result<PathBuf> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| io::Error::other("path has no parent"))?;
+    Ok(parent.join(temp_name()?))
+}
+
+/// Renames a finished folder into place, then fsyncs the parent (unix) so the rename is durable.
+///
+/// # Errors
+/// Any I/O error; on unix a non-empty `to` is never replaced.
+pub fn rename_dir(from: &Path, to: &Path) -> io::Result<()> {
+    fs::rename(from, to)?;
+    match to.parent() {
+        Some(parent) => sync_dir(parent),
+        None => Ok(()),
+    }
 }
 
 /// Makes the rename durable. Not done on Windows; see reliability V-REL-6.
