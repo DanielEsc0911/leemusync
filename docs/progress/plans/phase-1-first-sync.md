@@ -2614,7 +2614,7 @@ tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 **Interfaces:**
 - Produces:
-  - `Store` (`Clone`, `Send + Sync`): `Store::fs(root: &Path) -> Result<Store, StoreError>`; `async get(&self, path: &str) -> Result<Vec<u8>, StoreError>`; `async put(&self, path: &str, bytes: Vec<u8>, mode: PutMode) -> Result<(), StoreError>`; `async list(&self, prefix: &str) -> Result<Vec<Entry>, StoreError>` (files directly under `prefix`, which ends with `/`; a missing prefix gives an empty list); `async stat(&self, path: &str) -> Result<Option<Entry>, StoreError>`; `async delete(&self, path: &str) -> Result<(), StoreError>` (idempotent); `capabilities(&self) -> Capabilities`.
+  - `Store` (`Clone`, `Send + Sync`): `Store::fs(root: &Path) -> Result<Store, StoreError>`; `async get(&self, path: &str) -> Result<Vec<u8>, StoreError>`; `async put(&self, path: &str, bytes: Vec<u8>, mode: PutMode) -> Result<(), StoreError>`; `async list(&self, prefix: &str) -> Result<Vec<Entry>, StoreError>` (files directly under `prefix`, which must end with `/`, else `Permanent`; the root `""` can't be listed; a missing prefix gives an empty list); `async stat(&self, path: &str) -> Result<Option<Entry>, StoreError>`; `async delete(&self, path: &str) -> Result<(), StoreError>` (idempotent; a path ending in `/` is `Permanent`); `capabilities(&self) -> Capabilities`.
   - `PutMode::{CreateOnly, Overwrite}`; `Entry { path: String, size: u64 }` (`path` relative to the store root, `size` may be 0 on Drive); `Capabilities { native_create_only: bool }`.
   - `StoreError` with `class(&self) -> ErrorClass` and `message(&self) -> &str` (always redacted); `ErrorClass::{NotFound, AlreadyExists, Transient, Auth, Quota, Permanent}`.
   - `redact(text: &str) -> String`.
@@ -2635,22 +2635,105 @@ mod tests {
         let out = redact(text);
         assert!(!out.contains("FAKE-REFRESH-TOKEN"));
         assert!(!out.contains("FAKE-CLIENT-SECRET"));
-        assert!(out.contains("client_id=FAKE-CLIENT-ID"), "client ids aren't secret");
+        assert!(
+            out.contains("client_id=FAKE-CLIENT-ID"),
+            "client ids aren't secret"
+        );
         assert!(out.contains("grant_type=refresh_token"));
     }
 
     #[test]
     fn scrubs_json_bodies_and_bearer_headers() {
-        let out = redact(r#"{"access_token": "ya29.SECRET", "expires_in": 3599, "refresh_token":"1//SECRET2"}"#);
+        let out = redact(
+            r#"{"access_token": "ya29.SECRET", "expires_in": 3599, "refresh_token":"1//SECRET2"}"#,
+        );
         assert!(!out.contains("SECRET"));
         assert!(out.contains("3599"));
-        assert_eq!(redact("authorization: Bearer ya29.SECRET rest"), "authorization: Bearer REDACTED rest");
+        assert_eq!(
+            redact("authorization: Bearer ya29.SECRET rest"),
+            "authorization: Bearer REDACTED rest"
+        );
     }
 
     #[test]
     fn leaves_lookalikes_alone() {
         assert_eq!(redact("barcode=1 zipcode=2"), "barcode=1 zipcode=2");
         assert_eq!(redact("code=abc&state=xyz"), "code=REDACTED&state=xyz");
+    }
+
+    #[test]
+    fn names_and_schemes_match_any_case() {
+        assert_eq!(
+            redact("Refresh_Token=abc&x=1"),
+            "Refresh_Token=REDACTED&x=1"
+        );
+        assert_eq!(
+            redact("Authorization: BEARER abc rest"),
+            "Authorization: BEARER REDACTED rest"
+        );
+        assert_eq!(
+            redact("authorization: bearer abc"),
+            "authorization: bearer REDACTED"
+        );
+    }
+
+    #[test]
+    fn tolerates_whitespace_around_separators() {
+        assert_eq!(
+            redact("client_secret: abc, ok"),
+            "client_secret: REDACTED, ok"
+        );
+        assert_eq!(
+            redact("client_secret = abc ok"),
+            "client_secret = REDACTED ok"
+        );
+        assert_eq!(
+            redact(r#"{"access_token" : "abc", "n": 1}"#),
+            r#"{"access_token" : "REDACTED", "n": 1}"#
+        );
+    }
+
+    #[test]
+    fn handles_backslash_escaped_json() {
+        let out = redact(r#"body: {\"access_token\":\"ya29.SECRET\",\"expires_in\":3599}"#);
+        assert!(!out.contains("SECRET"), "{out}");
+        assert!(out.contains("3599"));
+    }
+
+    #[test]
+    fn scrubs_the_extra_names() {
+        for text in [
+            "password=SECRET",
+            "password: SECRET",
+            "token=SECRET",
+            r#"{"token":"SECRET"}"#,
+            "api_key=SECRET",
+            "apikey=SECRET",
+            "X-Amz-Signature=SECRET",
+            "x-amz-credential=SECRET",
+            "x-amz-security-token=SECRET",
+            "Authorization: Basic SECRET",
+        ] {
+            assert!(
+                !redact(text).contains("SECRET"),
+                "{text} -> {}",
+                redact(text)
+            );
+        }
+    }
+
+    #[test]
+    fn token_type_and_prose_are_not_secrets() {
+        assert_eq!(
+            redact(r#"{"token_type":"Bearer"}"#),
+            r#"{"token_type":"Bearer"}"#
+        );
+        assert_eq!(redact("token_type=Bearer&a=1"), "token_type=Bearer&a=1");
+        assert_eq!(
+            redact("Basic usage: error code: 404"),
+            "Basic usage: error code: 404"
+        );
+        assert_eq!(redact("mytoken=1 x-token=2"), "mytoken=1 x-token=2");
     }
 }
 ```
@@ -2667,16 +2750,51 @@ mod tests {
 
     #[test]
     fn classifies_by_kind_then_by_http_status() {
-        assert_eq!(classify(ErrorKind::NotFound, false, ""), ErrorClass::NotFound);
-        assert_eq!(classify(ErrorKind::ConditionNotMatch, false, ""), ErrorClass::AlreadyExists);
-        assert_eq!(classify(ErrorKind::PermissionDenied, false, ""), ErrorClass::Auth);
-        assert_eq!(classify(ErrorKind::RateLimited, false, ""), ErrorClass::Transient);
-        assert_eq!(classify(ErrorKind::Unexpected, true, ""), ErrorClass::Transient);
+        assert_eq!(
+            classify(ErrorKind::NotFound, false, ""),
+            ErrorClass::NotFound
+        );
+        assert_eq!(
+            classify(ErrorKind::ConditionNotMatch, false, ""),
+            ErrorClass::AlreadyExists
+        );
+        assert_eq!(
+            classify(ErrorKind::PermissionDenied, false, ""),
+            ErrorClass::Auth
+        );
+        assert_eq!(
+            classify(ErrorKind::RateLimited, false, ""),
+            ErrorClass::Transient
+        );
+        assert_eq!(
+            classify(ErrorKind::Unexpected, true, ""),
+            ErrorClass::Transient
+        );
         // OpenDAL's gdrive service reports a 401 as Unexpected (seen 2026-10-18 with a fake token).
-        assert_eq!(classify(ErrorKind::Unexpected, false, "response: Parts { status: 401, ..."), ErrorClass::Auth);
-        assert_eq!(classify(ErrorKind::Unexpected, false, "status: 403 ... storageQuotaExceeded"), ErrorClass::Quota);
-        assert_eq!(classify(ErrorKind::Unexpected, false, "status: 503"), ErrorClass::Transient);
-        assert_eq!(classify(ErrorKind::Unexpected, false, "status: 400"), ErrorClass::Permanent);
+        assert_eq!(
+            classify(
+                ErrorKind::Unexpected,
+                false,
+                "response: Parts { status: 401, ..."
+            ),
+            ErrorClass::Auth
+        );
+        assert_eq!(
+            classify(
+                ErrorKind::Unexpected,
+                false,
+                "status: 403 ... storageQuotaExceeded"
+            ),
+            ErrorClass::Quota
+        );
+        assert_eq!(
+            classify(ErrorKind::Unexpected, false, "status: 503"),
+            ErrorClass::Transient
+        );
+        assert_eq!(
+            classify(ErrorKind::Unexpected, false, "status: 400"),
+            ErrorClass::Permanent
+        );
     }
 
     #[test]
@@ -2685,6 +2803,39 @@ mod tests {
         assert_eq!(e.message(), "refresh_token=REDACTED");
         assert_eq!(e.to_string(), "refresh_token=REDACTED");
     }
+
+    #[test]
+    fn provider_errors_are_redacted_on_conversion() {
+        let raw = opendal::Error::new(
+            ErrorKind::Unexpected,
+            "send failed: refresh_token=SECRET&client_secret=SECRET2",
+        );
+        let e = StoreError::from(raw);
+        assert!(!e.message().contains("SECRET"), "{}", e.message());
+        assert!(!e.to_string().contains("SECRET"));
+    }
+
+    #[test]
+    fn drive_403s_arrive_as_permission_denied_but_keep_their_meaning() {
+        let denied = ErrorKind::PermissionDenied;
+        assert_eq!(
+            classify(denied, false, "reason: storageQuotaExceeded"),
+            ErrorClass::Quota
+        );
+        assert_eq!(
+            classify(denied, false, "reason: rateLimitExceeded"),
+            ErrorClass::Transient
+        );
+        assert_eq!(
+            classify(denied, false, "reason: userRateLimitExceeded"),
+            ErrorClass::Transient
+        );
+        assert_eq!(
+            classify(denied, false, "reason: insufficientPermissions"),
+            ErrorClass::Auth
+        );
+        assert_eq!(classify(denied, false, ""), ErrorClass::Auth);
+    }
 }
 ```
 
@@ -2692,79 +2843,142 @@ mod tests {
 - [x] **Step 3: Implement `redact.rs`** (above its tests):
 
 ```rust
-const SECRET_PARAMS: [&str; 6] = ["access_token", "refresh_token", "client_secret", "code", "code_verifier", "id_token"];
+/// Secret names, lowercase. The flag says whether `name: value` (no quotes) counts; it is off for
+/// words that also appear in prose ("error code: 404").
+const SECRET_NAMES: [(&str, bool); 14] = [
+    ("access_token", true),
+    ("refresh_token", true),
+    ("client_secret", true),
+    ("code", false),
+    ("code_verifier", true),
+    ("id_token", true),
+    ("password", true),
+    ("token", false),
+    ("api_key", true),
+    ("apikey", true),
+    ("x-amz-signature", true),
+    ("x-amz-credential", true),
+    ("x-amz-security-token", true),
+    ("signature", false),
+];
 const VALUE_END: [char; 9] = ['&', ' ', '"', '\'', ',', '}', ')', '\n', '\r'];
 const MARK: &str = "REDACTED";
 
-/// Replaces OAuth secret values (query/form `name=value`, JSON `"name": "value"`, `Bearer <token>`).
+/// Replaces OAuth secret values: `name=value`, `name: value`, JSON `"name": "value"` (also
+/// backslash-escaped), `Bearer <token>` and `Authorization: Basic <token>`. Names and schemes are
+/// matched without regard to case. `token_type` and words that merely end in a secret name are kept.
 #[must_use]
 pub fn redact(text: &str) -> String {
     let mut out = text.to_owned();
-    for name in SECRET_PARAMS {
-        out = redact_query(&out, name);
-        out = redact_json(&out, name);
+    for (name, colon_ok) in SECRET_NAMES {
+        out = redact_named(&out, name, colon_ok);
     }
-    redact_bearer(&out)
+    out = redact_scheme(&out, "bearer ", false);
+    redact_scheme(&out, "basic ", true)
 }
 
+/// True when `at` is not in the middle of a longer identifier.
 fn starts_param(text: &str, at: usize) -> bool {
-    at == 0 || !text[..at].chars().next_back().is_some_and(|c| c.is_ascii_alphanumeric() || c == '_')
+    !text[..at]
+        .chars()
+        .next_back()
+        .is_some_and(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
 }
 
-fn redact_query(text: &str, name: &str) -> String {
-    let needle = format!("{name}=");
-    let mut out = String::with_capacity(text.len());
-    let mut rest = text;
-    while let Some(pos) = rest.find(&needle) {
-        let absolute = text.len() - rest.len() + pos;
-        out.push_str(&rest[..pos + needle.len()]);
-        let value = &rest[pos + needle.len()..];
-        let end = value.find(VALUE_END).unwrap_or(value.len());
-        if starts_param(text, absolute) {
-            out.push_str(MARK);
-        } else {
-            out.push_str(&value[..end]);
-        }
-        rest = &value[end..];
+fn skip_blanks(text: &str, from: usize) -> usize {
+    from + (text[from..].len() - text[from..].trim_start_matches([' ', '\t']).len())
+}
+
+/// Where the secret value starting at `at` begins and ends.
+fn value_span(text: &str, at: usize) -> (usize, usize) {
+    let rest = &text[at..];
+    if let Some(inner) = rest.strip_prefix("\\\"") {
+        let start = at + 2;
+        let end = [inner.find("\\\""), inner.find('"')]
+            .into_iter()
+            .flatten()
+            .min()
+            .map_or(text.len(), |n| start + n);
+        (start, end)
+    } else if rest.starts_with(['"', '\'']) {
+        let quote = &rest[..1];
+        let start = at + 1;
+        (
+            start,
+            text[start..].find(quote).map_or(text.len(), |n| start + n),
+        )
+    } else {
+        (at, rest.find(VALUE_END).map_or(text.len(), |n| at + n))
     }
-    out.push_str(rest);
-    out
 }
 
-fn redact_json(text: &str, name: &str) -> String {
-    let needle = format!("\"{name}\":");
+fn redact_named(text: &str, name: &str, colon_ok: bool) -> String {
+    let lower = text.to_ascii_lowercase();
     let mut out = String::with_capacity(text.len());
-    let mut rest = text;
-    while let Some(pos) = rest.find(&needle) {
-        out.push_str(&rest[..pos + needle.len()]);
-        let after = &rest[pos + needle.len()..];
-        let trimmed = after.trim_start();
-        out.push_str(&after[..after.len() - trimmed.len()]);
-        if let Some(value) = trimmed.strip_prefix('"') {
-            let end = value.find('"').unwrap_or(value.len());
-            out.push('"');
-            out.push_str(MARK);
-            rest = &value[end..];
-        } else {
-            rest = trimmed;
+    let mut cursor = 0;
+    let mut search = 0;
+    while let Some(rel) = lower[search..].find(name) {
+        let at = search + rel;
+        let mut i = at + name.len();
+        search = i;
+        if !starts_param(text, at) {
+            continue;
         }
-    }
-    out.push_str(rest);
-    out
-}
-
-fn redact_bearer(text: &str) -> String {
-    let needle = "Bearer ";
-    let mut out = String::with_capacity(text.len());
-    let mut rest = text;
-    while let Some(pos) = rest.find(needle) {
-        out.push_str(&rest[..pos + needle.len()]);
-        let value = &rest[pos + needle.len()..];
-        let end = value.find(VALUE_END).unwrap_or(value.len());
+        let quoted_key = text[i..].starts_with("\\\"") || text[i..].starts_with('"');
+        if text[i..].starts_with("\\\"") {
+            i += 2;
+        } else if quoted_key {
+            i += 1;
+        }
+        i = skip_blanks(text, i);
+        let sep_ok = match text[i..].chars().next() {
+            Some('=') => true,
+            Some(':') => colon_ok || quoted_key,
+            _ => false,
+        };
+        if !sep_ok {
+            continue;
+        }
+        let (start, end) = value_span(text, skip_blanks(text, i + 1));
+        if start == end {
+            continue;
+        }
+        out.push_str(&text[cursor..start]);
         out.push_str(MARK);
-        rest = &value[end..];
+        cursor = end;
+        search = end;
     }
-    out.push_str(rest);
+    out.push_str(&text[cursor..]);
+    out
+}
+
+/// `scheme` is lowercase with a trailing space. `needs_header` limits the match to the value of an
+/// `Authorization:` header, for words that are also plain English ("Basic usage").
+fn redact_scheme(text: &str, scheme: &str, needs_header: bool) -> String {
+    let lower = text.to_ascii_lowercase();
+    let mut out = String::with_capacity(text.len());
+    let mut cursor = 0;
+    let mut search = 0;
+    while let Some(rel) = lower[search..].find(scheme) {
+        let at = search + rel;
+        let start = at + scheme.len();
+        search = start;
+        let header_ok = !needs_header || lower[..at].trim_end().ends_with("authorization:");
+        if !starts_param(text, at) || !header_ok {
+            continue;
+        }
+        let end = text[start..]
+            .find(VALUE_END)
+            .map_or(text.len(), |n| start + n);
+        if start == end {
+            continue;
+        }
+        out.push_str(&text[cursor..start]);
+        out.push_str(MARK);
+        cursor = end;
+        search = end;
+    }
+    out.push_str(&text[cursor..]);
     out
 }
 ```
@@ -2799,7 +3013,10 @@ pub struct StoreError {
 impl StoreError {
     #[must_use]
     pub fn new(class: ErrorClass, message: &str) -> Self {
-        Self { class, message: redact(message) }
+        Self {
+            class,
+            message: redact(message),
+        }
     }
 
     #[must_use]
@@ -2832,11 +3049,16 @@ pub(crate) fn classify(kind: ErrorKind, temporary: bool, text: &str) -> ErrorCla
     match kind {
         ErrorKind::NotFound => ErrorClass::NotFound,
         ErrorKind::ConditionNotMatch | ErrorKind::AlreadyExists => ErrorClass::AlreadyExists,
+        // Drive reports its 403s (quota, rate limit, real denials) as PermissionDenied.
+        ErrorKind::PermissionDenied if text.contains("storageQuotaExceeded") => ErrorClass::Quota,
+        ErrorKind::PermissionDenied if text.contains("ateLimitExceeded") => ErrorClass::Transient,
         ErrorKind::PermissionDenied => ErrorClass::Auth,
         ErrorKind::RateLimited => ErrorClass::Transient,
         _ if temporary => ErrorClass::Transient,
         _ if text.contains("status: 401") => ErrorClass::Auth,
-        _ if text.contains("storageQuotaExceeded") || text.contains("status: 507") => ErrorClass::Quota,
+        _ if text.contains("storageQuotaExceeded") || text.contains("status: 507") => {
+            ErrorClass::Quota
+        }
         _ if text.contains("status: 429") || text.contains("status: 5") => ErrorClass::Transient,
         _ => ErrorClass::Permanent,
     }
@@ -2847,30 +3069,80 @@ pub(crate) fn classify(kind: ErrorKind, temporary: bool, text: &str) -> ErrorCla
 
 ```rust
 //! One suite for every adapter (storage-backends §Conformance suite).
+#![allow(clippy::unwrap_used)] // test helper; clippy.toml only exempts `#[test]` fns
 
-use leemusync_store::{ErrorClass, PutMode, Store};
+use leemusync_store::{Entry, ErrorClass, PutMode, Store};
 
-pub async fn suite(store: &Store, root: &str) {
+async fn suite(store: &Store, root: &str) {
     let a = format!("{root}a");
     let b = format!("{root}b");
-    store.put(&a, b"one".to_vec(), PutMode::CreateOnly).await.unwrap();
-    let again = store.put(&a, b"two".to_vec(), PutMode::CreateOnly).await.unwrap_err();
-    assert_eq!(again.class(), ErrorClass::AlreadyExists, "create-only never overwrites");
+    store
+        .put(&a, b"one".to_vec(), PutMode::CreateOnly)
+        .await
+        .unwrap();
+    let again = store
+        .put(&a, b"two".to_vec(), PutMode::CreateOnly)
+        .await
+        .unwrap_err();
+    assert_eq!(
+        again.class(),
+        ErrorClass::AlreadyExists,
+        "create-only never overwrites"
+    );
     assert_eq!(store.get(&a).await.unwrap(), b"one");
     assert!(store.stat(&a).await.unwrap().is_some());
-    assert!(store.stat(&format!("{root}missing")).await.unwrap().is_none());
-    assert_eq!(store.get(&format!("{root}missing")).await.unwrap_err().class(), ErrorClass::NotFound);
-    store.put(&b, b"v1".to_vec(), PutMode::Overwrite).await.unwrap();
-    store.put(&b, b"v2".to_vec(), PutMode::Overwrite).await.unwrap();
+    assert!(
+        store
+            .stat(&format!("{root}missing"))
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert_eq!(
+        store
+            .get(&format!("{root}missing"))
+            .await
+            .unwrap_err()
+            .class(),
+        ErrorClass::NotFound
+    );
+    store
+        .put(&b, b"v1".to_vec(), PutMode::Overwrite)
+        .await
+        .unwrap();
+    store
+        .put(&b, b"v2".to_vec(), PutMode::Overwrite)
+        .await
+        .unwrap();
     assert_eq!(store.get(&b).await.unwrap(), b"v2");
-    let mut names: Vec<String> = store.list(root).await.unwrap().into_iter().map(|e| e.path).collect();
+    let mut names: Vec<String> = store
+        .list(root)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|e| e.path)
+        .collect();
     names.sort();
     assert_eq!(names, vec![a.clone(), b.clone()]);
-    assert!(store.list(&format!("{root}nothing/")).await.unwrap().is_empty());
+    assert_eq!(
+        store.list(&format!("{root}nothing/")).await.unwrap(),
+        Vec::<Entry>::new()
+    );
+    let empty = format!("{root}empty");
+    store
+        .put(&empty, Vec::new(), PutMode::CreateOnly)
+        .await
+        .unwrap();
+    assert_eq!(store.get(&empty).await.unwrap(), Vec::<u8>::new());
+    assert_eq!(store.stat(&empty).await.unwrap().map(|e| e.size), Some(0));
+    store.delete(&empty).await.unwrap();
     store.delete(&a).await.unwrap();
     store.delete(&a).await.unwrap();
     assert!(store.stat(&a).await.unwrap().is_none());
-    assert!(store.get("../escape").await.is_err(), "paths are validated before I/O");
+    assert!(
+        store.get("../escape").await.is_err(),
+        "paths are validated before I/O"
+    );
     store.delete(&b).await.unwrap();
 }
 
@@ -2936,11 +3208,19 @@ impl Store {
     /// # Errors
     /// `Permanent` if the folder can't be created or opened.
     pub fn fs(root: &Path) -> Result<Self, StoreError> {
-        std::fs::create_dir_all(root).map_err(|e| StoreError::new(ErrorClass::Permanent, &e.to_string()))?;
-        let root = root.to_str().ok_or_else(|| StoreError::new(ErrorClass::Permanent, "store path is not UTF-8"))?;
+        std::fs::create_dir_all(root)
+            .map_err(|e| StoreError::new(ErrorClass::Permanent, &e.to_string()))?;
+        let root = root
+            .to_str()
+            .ok_or_else(|| StoreError::new(ErrorClass::Permanent, "store path is not UTF-8"))?;
         let op = Operator::new(Fs::default().root(root))?;
         let native = op.info().capability().write_with_if_not_exists;
-        Ok(Self { inner: Inner::Plain(op), caps: Capabilities { native_create_only: native } })
+        Ok(Self {
+            inner: Inner::Plain(op),
+            caps: Capabilities {
+                native_create_only: native,
+            },
+        })
     }
 
     #[must_use]
@@ -2948,6 +3228,7 @@ impl Store {
         self.caps
     }
 
+    #[allow(clippy::unused_async, clippy::unused_async_trait_impl)] // used by Task 8: the Drive operator is rebuilt when its token expires
     async fn op(&self) -> Result<Operator, StoreError> {
         match &self.inner {
             Inner::Plain(op) => Ok(op.clone()),
@@ -2986,18 +3267,28 @@ impl Store {
         Ok(())
     }
 
-    /// Files directly under `prefix` (which ends with `/`).
+    /// Files directly under `prefix`. The prefix is a valid object path that ends with `/`; the
+    /// store root itself (`""`) can't be listed, because the engine only lists named folders.
     ///
     /// # Errors
-    /// Any classified backend error except `NotFound`, which gives an empty list.
+    /// `Permanent` for a prefix without a trailing `/`. Any classified backend error except `NotFound`, which gives an empty list.
     pub async fn list(&self, prefix: &str) -> Result<Vec<Entry>, StoreError> {
         check_path(prefix)?;
+        if !prefix.ends_with('/') {
+            return Err(StoreError::new(
+                ErrorClass::Permanent,
+                "list prefix must end with /",
+            ));
+        }
         let op = self.op().await?;
         match op.list(prefix).await {
             Ok(entries) => Ok(entries
                 .into_iter()
                 .filter(|e| e.metadata().is_file())
-                .map(|e| Entry { path: e.path().to_owned(), size: e.metadata().content_length() })
+                .map(|e| Entry {
+                    path: e.path().to_owned(),
+                    size: e.metadata().content_length(),
+                })
                 .collect()),
             Err(e) if e.kind() == opendal::ErrorKind::NotFound => Ok(Vec::new()),
             Err(e) => Err(e.into()),
@@ -3009,7 +3300,10 @@ impl Store {
     pub async fn stat(&self, path: &str) -> Result<Option<Entry>, StoreError> {
         check_path(path)?;
         match self.op().await?.stat(path).await {
-            Ok(meta) => Ok(Some(Entry { path: path.to_owned(), size: meta.content_length() })),
+            Ok(meta) => Ok(Some(Entry {
+                path: path.to_owned(),
+                size: meta.content_length(),
+            })),
             Err(e) if e.kind() == opendal::ErrorKind::NotFound => Ok(None),
             Err(e) => Err(e.into()),
         }
@@ -3018,9 +3312,15 @@ impl Store {
     /// Idempotent. On Google Drive this moves the file to the trash (V-STORE-9).
     ///
     /// # Errors
-    /// Any classified backend error.
+    /// `Permanent` for a path ending in `/` (folders aren't objects). Any classified backend error.
     pub async fn delete(&self, path: &str) -> Result<(), StoreError> {
         check_path(path)?;
+        if path.ends_with('/') {
+            return Err(StoreError::new(
+                ErrorClass::Permanent,
+                "delete takes an object, not a folder",
+            ));
+        }
         Ok(self.op().await?.delete(path).await?)
     }
 }
@@ -3029,9 +3329,74 @@ fn check_path(path: &str) -> Result<(), StoreError> {
     let ok = !path.is_empty()
         && path.len() <= 512
         && !path.starts_with('/')
-        && path.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || matches!(b, b'.' | b'_' | b'/' | b'-'))
-        && path.split('/').all(|c| c != "..");
-    if ok { Ok(()) } else { Err(StoreError::new(ErrorClass::Permanent, "invalid object path")) }
+        && path.bytes().all(|b| {
+            b.is_ascii_lowercase() || b.is_ascii_digit() || matches!(b, b'.' | b'_' | b'/' | b'-')
+        })
+        && path
+            .strip_suffix('/')
+            .unwrap_or(path)
+            .split('/')
+            .all(|c| !c.is_empty() && c != "." && c != "..");
+    if ok {
+        Ok(())
+    } else {
+        Err(StoreError::new(
+            ErrorClass::Permanent,
+            "invalid object path",
+        ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn check_path_accepts_object_names() {
+        for ok in [
+            "a",
+            "leemusync/streams/ab-cd_1.2/versions/",
+            "x".repeat(512).as_str(),
+        ] {
+            assert!(check_path(ok).is_ok(), "{ok}");
+        }
+    }
+
+    #[test]
+    fn check_path_rejects_everything_else() {
+        let long = "x".repeat(513);
+        for bad in [
+            "",
+            "/abs",
+            "Upper",
+            "a/../b",
+            "..",
+            "a//b",
+            "a b",
+            "caf\u{e9}",
+            long.as_str(),
+        ] {
+            let e = check_path(bad).unwrap_err();
+            assert_eq!(e.class(), ErrorClass::Permanent, "{bad}");
+        }
+    }
+
+    #[tokio::test]
+    async fn list_needs_a_trailing_slash_and_delete_forbids_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::fs(dir.path()).unwrap();
+        for bad in ["a", "", "/"] {
+            assert_eq!(
+                store.list(bad).await.unwrap_err().class(),
+                ErrorClass::Permanent,
+                "{bad:?}"
+            );
+        }
+        assert_eq!(
+            store.delete("a/").await.unwrap_err().class(),
+            ErrorClass::Permanent
+        );
+    }
 }
 ```
 

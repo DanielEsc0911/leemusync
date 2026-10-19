@@ -63,6 +63,9 @@ pub(crate) fn classify(kind: ErrorKind, temporary: bool, text: &str) -> ErrorCla
     match kind {
         ErrorKind::NotFound => ErrorClass::NotFound,
         ErrorKind::ConditionNotMatch | ErrorKind::AlreadyExists => ErrorClass::AlreadyExists,
+        // Drive reports its 403s (quota, rate limit, real denials) as PermissionDenied.
+        ErrorKind::PermissionDenied if text.contains("storageQuotaExceeded") => ErrorClass::Quota,
+        ErrorKind::PermissionDenied if text.contains("ateLimitExceeded") => ErrorClass::Transient,
         ErrorKind::PermissionDenied => ErrorClass::Auth,
         ErrorKind::RateLimited => ErrorClass::Transient,
         _ if temporary => ErrorClass::Transient,
@@ -145,5 +148,27 @@ mod tests {
         let e = StoreError::from(raw);
         assert!(!e.message().contains("SECRET"), "{}", e.message());
         assert!(!e.to_string().contains("SECRET"));
+    }
+
+    #[test]
+    fn drive_403s_arrive_as_permission_denied_but_keep_their_meaning() {
+        let denied = ErrorKind::PermissionDenied;
+        assert_eq!(
+            classify(denied, false, "reason: storageQuotaExceeded"),
+            ErrorClass::Quota
+        );
+        assert_eq!(
+            classify(denied, false, "reason: rateLimitExceeded"),
+            ErrorClass::Transient
+        );
+        assert_eq!(
+            classify(denied, false, "reason: userRateLimitExceeded"),
+            ErrorClass::Transient
+        );
+        assert_eq!(
+            classify(denied, false, "reason: insufficientPermissions"),
+            ErrorClass::Auth
+        );
+        assert_eq!(classify(denied, false, ""), ErrorClass::Auth);
     }
 }

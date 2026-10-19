@@ -106,12 +106,19 @@ impl Store {
         Ok(())
     }
 
-    /// Files directly under `prefix` (which ends with `/`).
+    /// Files directly under `prefix`. The prefix is a valid object path that ends with `/`; the
+    /// store root itself (`""`) can't be listed, because the engine only lists named folders.
     ///
     /// # Errors
-    /// Any classified backend error except `NotFound`, which gives an empty list.
+    /// `Permanent` for a prefix without a trailing `/`. Any classified backend error except `NotFound`, which gives an empty list.
     pub async fn list(&self, prefix: &str) -> Result<Vec<Entry>, StoreError> {
         check_path(prefix)?;
+        if !prefix.ends_with('/') {
+            return Err(StoreError::new(
+                ErrorClass::Permanent,
+                "list prefix must end with /",
+            ));
+        }
         let op = self.op().await?;
         match op.list(prefix).await {
             Ok(entries) => Ok(entries
@@ -144,9 +151,15 @@ impl Store {
     /// Idempotent. On Google Drive this moves the file to the trash (V-STORE-9).
     ///
     /// # Errors
-    /// Any classified backend error.
+    /// `Permanent` for a path ending in `/` (folders aren't objects). Any classified backend error.
     pub async fn delete(&self, path: &str) -> Result<(), StoreError> {
         check_path(path)?;
+        if path.ends_with('/') {
+            return Err(StoreError::new(
+                ErrorClass::Permanent,
+                "delete takes an object, not a folder",
+            ));
+        }
         Ok(self.op().await?.delete(path).await?)
     }
 }
@@ -158,7 +171,11 @@ fn check_path(path: &str) -> Result<(), StoreError> {
         && path.bytes().all(|b| {
             b.is_ascii_lowercase() || b.is_ascii_digit() || matches!(b, b'.' | b'_' | b'/' | b'-')
         })
-        && path.split('/').all(|c| c != "..");
+        && path
+            .strip_suffix('/')
+            .unwrap_or(path)
+            .split('/')
+            .all(|c| !c.is_empty() && c != "." && c != "..");
     if ok {
         Ok(())
     } else {
@@ -166,5 +183,57 @@ fn check_path(path: &str) -> Result<(), StoreError> {
             ErrorClass::Permanent,
             "invalid object path",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn check_path_accepts_object_names() {
+        for ok in [
+            "a",
+            "leemusync/streams/ab-cd_1.2/versions/",
+            "x".repeat(512).as_str(),
+        ] {
+            assert!(check_path(ok).is_ok(), "{ok}");
+        }
+    }
+
+    #[test]
+    fn check_path_rejects_everything_else() {
+        let long = "x".repeat(513);
+        for bad in [
+            "",
+            "/abs",
+            "Upper",
+            "a/../b",
+            "..",
+            "a//b",
+            "a b",
+            "caf\u{e9}",
+            long.as_str(),
+        ] {
+            let e = check_path(bad).unwrap_err();
+            assert_eq!(e.class(), ErrorClass::Permanent, "{bad}");
+        }
+    }
+
+    #[tokio::test]
+    async fn list_needs_a_trailing_slash_and_delete_forbids_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::fs(dir.path()).unwrap();
+        for bad in ["a", "", "/"] {
+            assert_eq!(
+                store.list(bad).await.unwrap_err().class(),
+                ErrorClass::Permanent,
+                "{bad:?}"
+            );
+        }
+        assert_eq!(
+            store.delete("a/").await.unwrap_err().class(),
+            ErrorClass::Permanent
+        );
     }
 }

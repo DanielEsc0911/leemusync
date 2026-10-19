@@ -58,6 +58,14 @@ async fn suite(store: &Store, root: &str) {
         store.list(&format!("{root}nothing/")).await.unwrap(),
         Vec::<Entry>::new()
     );
+    let empty = format!("{root}empty");
+    store
+        .put(&empty, Vec::new(), PutMode::CreateOnly)
+        .await
+        .unwrap();
+    assert_eq!(store.get(&empty).await.unwrap(), Vec::<u8>::new());
+    assert_eq!(store.stat(&empty).await.unwrap().map(|e| e.size), Some(0));
+    store.delete(&empty).await.unwrap();
     store.delete(&a).await.unwrap();
     store.delete(&a).await.unwrap();
     assert!(store.stat(&a).await.unwrap().is_none());
