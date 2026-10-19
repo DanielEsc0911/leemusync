@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 
 use serde::Deserialize;
 
+const CAPTURES: [&str; 3] = ["title_id", "account", "game"];
 pub const ALLOWED_VARS: [&str; 8] = [
     "base",
     "mlc",
@@ -247,13 +248,15 @@ fn expand_with(
 /// Splits a relative save pattern into literal and `{var}` components.
 ///
 /// # Errors
-/// `Malformed` for absolute paths, `..`, empty components or a variable that isn't a whole component.
+/// `Malformed` for absolute paths, `..`, empty components or a variable that isn't a whole component,
+/// `UnknownVar` for a variable that is not a capture (`title_id`, `account`, `game`): path variables
+/// such as `{home}` expand to absolute paths and would escape the save root.
 pub fn parse_pattern(pattern: &str) -> Result<Vec<PatternPart>, ProfileError> {
     pattern
         .split('/')
         .map(|c| {
             if let Some(name) = c.strip_prefix('{').and_then(|r| r.strip_suffix('}')) {
-                if is_allowed(name) {
+                if CAPTURES.contains(&name) {
                     Ok(PatternPart::Var(name.to_owned()))
                 } else {
                     Err(ProfileError::UnknownVar(name.to_owned()))
@@ -338,6 +341,32 @@ mod tests {
             Profile::from_toml(&none).unwrap().max_file_bytes(),
             64 * 1024 * 1024
         );
+    }
+
+    #[test]
+    fn patterns_only_allow_captures() {
+        assert_eq!(
+            parse_pattern("{home}/x"),
+            Err(ProfileError::UnknownVar("home".into()))
+        );
+        assert_eq!(
+            parse_pattern("00050000/{mlc}/user/{account}"),
+            Err(ProfileError::UnknownVar("mlc".into()))
+        );
+        assert!(parse_pattern("{game}/{account}").is_ok());
+        let bad_shared = CEMU.replace("00050000/{title_id}/user/common", "{exe_dir}");
+        assert_eq!(
+            Profile::from_toml(&bad_shared).unwrap_err(),
+            ProfileError::UnknownVar("exe_dir".into())
+        );
+        let bad_pattern = CEMU.replace(
+            "00050000/{title_id}/user/{account}",
+            "{home}/{title_id}/{account}",
+        );
+        assert!(matches!(
+            Profile::from_toml(&bad_pattern),
+            Err(ProfileError::UnknownVar(_))
+        ));
     }
 
     #[test]

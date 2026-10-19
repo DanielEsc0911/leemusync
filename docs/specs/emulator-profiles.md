@@ -66,16 +66,12 @@ requires_closed = true
 
 [platforms.linux]
 roots = ["{exe_dir}/portable", "{flatpak:info.cemu.Cemu}/data/Cemu", "{xdg_data}/Cemu"]
+config_roots = ["{exe_dir}/portable", "{flatpak:info.cemu.Cemu}/config/Cemu", "{xdg_config}/Cemu"]
 process = ["Cemu_relwithdebinfo", "Cemu", "cemu"]
 
 [platforms.windows]
 roots = ["{exe_dir}", "{appdata}/Cemu"]
 process = ["Cemu.exe"]
-
-[platforms.linux]
-roots = ["{exe_dir}/portable", "{flatpak:info.cemu.Cemu}/data/Cemu", "{xdg_data}/Cemu"]
-config_roots = ["{exe_dir}/portable", "{flatpak:info.cemu.Cemu}/config/Cemu", "{xdg_config}/Cemu"]
-process = ["Cemu_relwithdebinfo", "Cemu", "cemu"]
 
 [[config_keys]]
 file = "settings.xml"              # relative to the matching config root
@@ -126,7 +122,7 @@ Per device: base path, extra roots, include/exclude tweaks, disable a profile. *
 | DuckStation | Shared card → Basic. Per-game cards → Standard (recommended setting) | Per-game card (by title) is the default → Standard | Windows, macOS, Android |
 | PCSX2 | `.ps2` file → Basic. Folder memory cards → Standard (recommended setting) | `Mcd001.ps2` file → Basic | Windows, macOS |
 
-These five cover every layout and both ways of handling players. Draft profiles and fixture trees: `profiles/<id>.toml`, `profiles/fixtures/<id>/` (not loaded or tested until Phase 1).
+These five cover every layout and both ways of handling players. Draft profiles and fixture trees: `profiles/<id>.toml`, `profiles/fixtures/<id>/` (the Cemu profile is loaded and tested by `crates/core`).
 
 ### Linux paths (SP7)
 Verified 2026-10-08 on Fedora 44 x86_64. Flatpak trees were read from real installs (names only). Native and portable rules come from the upstream source at the tested version. Process names are what `ps -o comm` shows; Linux truncates `comm` to 15 characters, so discovery must match the full executable name (`/proc/<pid>/exe` or `cmdline`), not `comm`.
