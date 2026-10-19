@@ -102,3 +102,45 @@ async fn grants_refuse_home_and_root() {
     assert!(engine.grant_add(&root.path().join("home")).is_err());
     assert!(engine.grant_add(&root.path().join("missing")).is_err());
 }
+
+#[tokio::test]
+async fn a_mlc_outside_the_base_asks_for_the_mlc_not_the_base() {
+    let root = tempfile::tempdir().unwrap();
+    let data = install_fixture(root.path(), false);
+    let config = root.path().join("home/.config/Cemu");
+    let mlc = root.path().join("games/mlc");
+    std::fs::create_dir_all(mlc.join("usr/save")).unwrap();
+    let xml = format!("<content><mlc_path>{}</mlc_path></content>", mlc.display());
+    std::fs::write(config.join("settings.xml"), xml).unwrap();
+    let mut engine = Engine::open(env(root.path())).unwrap();
+    engine.grant_add(&data).unwrap();
+    engine.grant_add(&config).unwrap();
+    let report = engine.scan().await.unwrap();
+    let cemu = &report.installs[0];
+    assert!(!cemu.granted);
+    assert_eq!(
+        cemu.needs_grant,
+        [mlc.join("usr/save").display().to_string()]
+    );
+    engine.grant_add(&mlc).unwrap();
+    let report = engine.scan().await.unwrap();
+    assert!(report.installs[0].granted);
+    assert_eq!(report.installs[0].needs_grant.len(), 0);
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn an_unreadable_save_folder_is_a_warning_not_zero_files() {
+    let root = tempfile::tempdir().unwrap();
+    let data = install_fixture(root.path(), true);
+    let save = data.join("mlc01/usr/save/00050000/101c9400/user/80000001");
+    std::os::unix::fs::symlink(root.path(), save.join("link")).unwrap();
+    let mut engine = Engine::open(env(root.path())).unwrap();
+    engine
+        .grant_add(&root.path().join("home/.var/app/info.cemu.Cemu"))
+        .unwrap();
+    let report = engine.scan().await.unwrap();
+    assert!(report.warnings.iter().any(|w| {
+        w.code == leemusync_api::WarningCode::UnreadableFolder && w.detail.ends_with("80000001")
+    }));
+}

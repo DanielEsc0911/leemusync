@@ -100,6 +100,8 @@ pub enum WarningCode {
     /// `init` created the repo, but a later step failed on this device; `detail` is the error
     /// code. `leemusync join` with the passphrase finishes the setup.
     SetupIncomplete,
+    /// A save folder could not be read safely (symlink or I/O error); `detail` is its path.
+    UnreadableFolder,
 }
 
 /// Result of `leemusync scan`: what was found on this machine.

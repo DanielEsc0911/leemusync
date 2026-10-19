@@ -102,7 +102,13 @@ impl Engine {
         for (profile, install, discovery) in self.installs()? {
             let mut needs_grant = Vec::new();
             if !grants::is_granted(&self.config.grants, &install.saves_root) {
-                needs_grant.push(install.base.display().to_string());
+                // The folder that would actually help: an mlc outside the base needs its own grant.
+                let needed = if install.saves_root.starts_with(&install.base) {
+                    &install.base
+                } else {
+                    &install.saves_root
+                };
+                needs_grant.push(needed.display().to_string());
             }
             if install.config_dir != install.base
                 && !grants::is_granted(&self.config.grants, &install.config_dir)
@@ -132,26 +138,30 @@ impl Engine {
                             }),
                         })
                         .collect();
-                    let saves = d
-                        .saves
-                        .iter()
-                        .map(|s| {
-                            if s.orphaned {
-                                warnings.push(Warning {
-                                    code: WarningCode::OrphanedSave,
-                                    detail: format!("{}/{}", s.game, s.account),
-                                });
-                            }
-                            let files = fsx::list_files(&s.path).unwrap_or_default();
-                            SaveReport {
-                                game: s.game.clone(),
-                                account: s.account.clone(),
-                                orphaned: s.orphaned,
-                                files: u32::try_from(files.len()).unwrap_or(u32::MAX),
-                                bytes: files.iter().map(|(_, m)| m.len()).sum(),
-                            }
-                        })
-                        .collect();
+                    warnings.extend(d.warnings.iter().cloned());
+                    let mut saves = Vec::new();
+                    for s in &d.saves {
+                        if s.orphaned {
+                            warnings.push(Warning {
+                                code: WarningCode::OrphanedSave,
+                                detail: format!("{}/{}", s.game, s.account),
+                            });
+                        }
+                        let files = fsx::list_files(&s.path).unwrap_or_else(|_| {
+                            warnings.push(Warning {
+                                code: WarningCode::UnreadableFolder,
+                                detail: s.path.display().to_string(),
+                            });
+                            Vec::new()
+                        });
+                        saves.push(SaveReport {
+                            game: s.game.clone(),
+                            account: s.account.clone(),
+                            orphaned: s.orphaned,
+                            files: u32::try_from(files.len()).unwrap_or(u32::MAX),
+                            bytes: files.iter().map(|(_, m)| m.len()).sum(),
+                        });
+                    }
                     (accounts, saves)
                 }
             };

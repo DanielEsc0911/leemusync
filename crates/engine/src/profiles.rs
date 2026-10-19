@@ -19,6 +19,11 @@ pub struct Install {
     pub saves_root: PathBuf,
     pub accounts_root: Option<PathBuf>,
     pub warnings: Vec<Warning>,
+    /// True when the emulator's config file exists but could not be read because it isn't
+    /// granted, so the paths above come from profile defaults and may be stale. Sync must refuse
+    /// provisional installs (Task 15); scan only reports them.
+    #[allow(dead_code)] // used by Task 15
+    pub provisional: bool,
 }
 
 /// # Errors
@@ -34,7 +39,17 @@ fn config_err(e: &impl ToString) -> EngineError {
     EngineError::Config(e.to_string())
 }
 
-fn vars(profile: &Profile, loc: &Locations) -> BTreeMap<String, String> {
+/// A Flatpak app id is a path component built from reverse-DNS names: nothing else is allowed.
+fn valid_app_id(app: &str) -> bool {
+    !app.is_empty()
+        && app != "."
+        && app != ".."
+        && app
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
+}
+
+fn vars(profile: &Profile, loc: &Locations) -> Result<BTreeMap<String, String>, EngineError> {
     let mut v = BTreeMap::new();
     v.insert("home".to_owned(), loc.home.display().to_string());
     v.insert("xdg_data".to_owned(), loc.xdg_data.display().to_string());
@@ -52,6 +67,9 @@ fn vars(profile: &Profile, loc: &Locations) -> BTreeMap<String, String> {
                 .strip_prefix("{flatpak:")
                 .and_then(|r| r.split('}').next())
             {
+                if !valid_app_id(app) {
+                    return Err(EngineError::Config("invalid_flatpak_app_id".into()));
+                }
                 v.insert(
                     format!("flatpak:{app}"),
                     loc.home.join(".var/app").join(app).display().to_string(),
@@ -59,7 +77,7 @@ fn vars(profile: &Profile, loc: &Locations) -> BTreeMap<String, String> {
             }
         }
     }
-    v
+    Ok(v)
 }
 
 /// First existing root in the profile's order (or the user's override). `granted` gates every read.
@@ -76,7 +94,7 @@ pub fn resolve(
     let Some(linux) = profile.platforms.get("linux") else {
         return Ok(None);
     };
-    let mut vars = vars(profile, loc);
+    let mut vars = vars(profile, loc)?;
     let mut found = None;
     for (i, root) in linux.roots.iter().enumerate() {
         let Ok(base) = expand(root, &vars) else {
@@ -105,12 +123,14 @@ pub fn resolve(
     };
     vars.insert("base".to_owned(), base.display().to_string());
     let mut warnings = Vec::new();
+    let mut provisional = false;
     for key in &profile.config_keys {
         let file = config_dir.join(&key.file);
         let value = if granted(&file) {
             read_xml_key(&file, &key.key)
         } else {
             if file.exists() {
+                provisional = true;
                 warnings.push(Warning {
                     code: WarningCode::NotGranted,
                     detail: config_dir.display().to_string(),
@@ -138,6 +158,7 @@ pub fn resolve(
         saves_root,
         accounts_root,
         warnings,
+        provisional,
     }))
 }
 
@@ -247,5 +268,35 @@ mod tests {
             read_xml_key(&file, "content/mlc_path").as_deref(),
             Some("/x")
         );
+    }
+
+    #[test]
+    fn an_install_is_provisional_only_when_the_config_exists_but_is_not_granted() {
+        let dir = tempfile::tempdir().unwrap();
+        let loc = Locations::under(dir.path());
+        std::fs::create_dir_all(loc.xdg_data.join("Cemu")).unwrap();
+        let none = resolve(&cemu(), &loc, None, &|_| false).unwrap().unwrap();
+        assert!(
+            !none.provisional,
+            "no settings.xml: the default is the answer"
+        );
+        write(
+            &loc.xdg_config.join("Cemu/settings.xml"),
+            "<content></content>",
+        );
+        let denied = resolve(&cemu(), &loc, None, &|_| false).unwrap().unwrap();
+        assert!(denied.provisional);
+        let granted = resolve(&cemu(), &loc, None, &|_| true).unwrap().unwrap();
+        assert!(!granted.provisional);
+    }
+
+    #[test]
+    fn flatpak_app_ids_are_validated() {
+        for ok in ["info.cemu.Cemu", "a-b_c.D1"] {
+            assert!(valid_app_id(ok), "{ok}");
+        }
+        for bad in ["", "..", ".", "a/b", "a\\b", "a b", "../x", "a:b", "é"] {
+            assert!(!valid_app_id(bad), "{bad}");
+        }
     }
 }

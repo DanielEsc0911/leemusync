@@ -5986,6 +5986,8 @@ Spec: [emulator-profiles §Discovery, §Linux paths](../../specs/emulator-profil
 
 - [x] **Step 1: Failing integration test.** First the shared helpers, `crates/engine/tests/common/mod.rs` (Tasks 15 and 16 add to this file):
 
+> **Note (W1):** the implementation in `crates/engine/src/{profiles,discover,scan,grants}.rs` supersedes the Task 12 snippets below (anchored regexes, explicit captures, symlink confinement, `provisional` installs, `UnreadableFolder` warnings, error keys instead of prose). Read the code, not the snippets.
+
 ```rust
 //! Shared helpers for engine integration tests. Fake data only.
 #![allow(dead_code)] // each test binary uses a different subset
@@ -7121,6 +7123,7 @@ Spec: [sync-model §Reconciliation](../../specs/sync-model.md#reconciliation) (w
   - After a fast-forward, `base_files` carries the restored files' on-disk mtimes, so the next `quick` check reports `SameAsBase`.
   - `restore` of an older version or a backup leaves `base` unchanged. The next `sync` then uploads it as a new version on top of the head, and history is never rewritten.
   - When an emulator runs, its streams are `Skipped` with an `EmulatorRunning` warning (I3).
+  - `sync` refuses installs whose `Install.provisional` is true (the emulator's config file exists but isn't granted, so the paths are defaults and may be stale): it skips them with a `NotGranted` warning and does nothing else (scan still reports them).
   - `sync` writes one config version at the end when it learned new games, or when it had to merge config heads.
 
 - [ ] **Step 1: Write `sync.rs`:**
@@ -7238,6 +7241,11 @@ impl Engine {
                 warnings.push(Warning { code: WarningCode::NotGranted, detail: install.base.display().to_string() });
                 continue;
             };
+            if install.provisional {
+                // settings.xml exists but isn't granted: the paths are defaults and may be stale.
+                warnings.push(Warning { code: WarningCode::NotGranted, detail: install.config_dir.display().to_string() });
+                continue;
+            }
             let names = process_names(&profile);
             let running = self.env.processes.running(&names);
             if running {
@@ -8364,6 +8372,7 @@ warning-remote_behind = The repo is missing versions this device saw ({ $detail 
 warning-restore_rolled_back = An interrupted restore was undone in { $detail }.
 warning-invalid_version = Ignored invalid data in the repo: { $detail }
 warning-setup_incomplete = The repo was created, but this device isn't fully set up ({ $detail }). Run `leemusync join` with your passphrase to finish.
+warning-unreadable_folder = A save folder couldn't be read safely and was skipped: { $detail }
 
 scan-install = { $emulator } at { $base }
 scan-needs-grant = Allow it: leemusync grant add { $path }
@@ -8524,6 +8533,7 @@ warning-remote_behind = Al repo le faltan versiones que este dispositivo vio ({ 
 warning-restore_rolled_back = Se deshizo una restauración interrumpida en { $detail }.
 warning-invalid_version = Se ignoraron datos no válidos del repo: { $detail }
 warning-setup_incomplete = Se creó el repo, pero este dispositivo no quedó configurado del todo ({ $detail }). Ejecuta `leemusync join` con tu frase de contraseña para terminar.
+warning-unreadable_folder = No se pudo leer una carpeta de guardado de forma segura y se omitió: { $detail }
 
 scan-install = { $emulator } en { $base }
 scan-needs-grant = Permítelo: leemusync grant add { $path }

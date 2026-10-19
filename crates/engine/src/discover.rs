@@ -3,11 +3,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
+use leemusync_api::{Warning, WarningCode};
 use leemusync_core::account::{decode_mii_name, key_value};
 use leemusync_core::profile::{PatternPart, Profile, parse_pattern};
 
-use crate::EngineError;
 use crate::profiles::Install;
+use crate::{EngineError, fsx};
 
 const MAX_ACCOUNT_FILE: u64 = 64 * 1024;
 const TITLE_ID: &str = "[0-9a-f]{8}";
@@ -30,6 +31,8 @@ pub struct Discovery {
     pub accounts: Vec<Account>,
     pub saves: Vec<SaveFolder>,
     pub shared_not_empty: Vec<PathBuf>,
+    /// Folders skipped because they are reached through a symlink (`UnreadableFolder`).
+    pub warnings: Vec<Warning>,
 }
 
 /// Compiles `pattern` anchored, so it must match a whole folder name.
@@ -116,6 +119,20 @@ pub fn discover(profile: &Profile, install: &Install) -> Result<Discovery, Engin
         }
         found = next;
     }
+    let mut warnings = Vec::new();
+    // Literal pattern components are followed by the file system; nothing below the saves root
+    // may be a symlink, or discovery would report folders outside the grant (B2).
+    let mut confined = |path: &Path| {
+        let ok = fsx::ensure_no_symlinks(&install.saves_root, path).is_ok();
+        if !ok {
+            warnings.push(Warning {
+                code: WarningCode::UnreadableFolder,
+                detail: path.display().to_string(),
+            });
+        }
+        ok
+    };
+    let found: Vec<_> = found.into_iter().filter(|(p, _)| confined(p)).collect();
     let known: Vec<&str> = accounts.iter().map(|a| a.id.as_str()).collect();
     let mut saves: Vec<SaveFolder> = found
         .into_iter()
@@ -142,7 +159,7 @@ pub fn discover(profile: &Profile, install: &Install) -> Result<Discovery, Engin
         for shared in &profile.saves.shared {
             let rel = shared.replace("{title_id}", &game);
             let path = install.saves_root.join(rel);
-            if std::fs::read_dir(&path).is_ok_and(|mut d| d.next().is_some()) {
+            if confined(&path) && std::fs::read_dir(&path).is_ok_and(|mut d| d.next().is_some()) {
                 shared_not_empty.push(path);
             }
         }
@@ -151,6 +168,7 @@ pub fn discover(profile: &Profile, install: &Install) -> Result<Discovery, Engin
         accounts,
         saves,
         shared_not_empty,
+        warnings,
     })
 }
 
@@ -202,6 +220,7 @@ mod tests {
             saves_root: root.join("mlc01/usr/save"),
             accounts_root: Some(root.join("mlc01/usr/save/system/act")),
             warnings: Vec::new(),
+            provisional: false,
         }
     }
 
@@ -295,5 +314,53 @@ mod tests {
         let d = discover(&cemu(), &i).unwrap();
         assert_eq!(d.accounts.len(), 1);
         assert_eq!(d.accounts[0].name, None);
+    }
+
+    #[test]
+    fn an_account_folder_without_account_dat_is_known_and_not_orphaned() {
+        let dir = tempfile::tempdir().unwrap();
+        let i = install(dir.path());
+        std::fs::create_dir_all(i.accounts_root.clone().unwrap().join("80000001")).unwrap();
+        std::fs::create_dir_all(i.saves_root.join("00050000/101c9400/user/80000001")).unwrap();
+        let d = discover(&cemu(), &i).unwrap();
+        assert_eq!(d.accounts.len(), 1);
+        assert_eq!(d.accounts[0].name, None);
+        assert_eq!(d.saves.len(), 1);
+        assert!(!d.saves[0].orphaned);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_symlinked_literal_component_hides_the_saves_behind_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let i = install(dir.path());
+        let outside = dir.path().join("outside");
+        std::fs::create_dir_all(outside.join("101c9400/user/80000001")).unwrap();
+        std::fs::create_dir_all(outside.join("101c9400/user/common")).unwrap();
+        std::fs::write(outside.join("101c9400/user/common/x"), "x").unwrap();
+        std::fs::create_dir_all(&i.saves_root).unwrap();
+        std::os::unix::fs::symlink(&outside, i.saves_root.join("00050000")).unwrap();
+        let d = discover(&cemu(), &i).unwrap();
+        assert_eq!(d.saves.len(), 0);
+        assert_eq!(d.shared_not_empty.len(), 0);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_symlinked_literal_below_the_game_is_dropped_with_a_warning() {
+        let dir = tempfile::tempdir().unwrap();
+        let i = install(dir.path());
+        let outside = dir.path().join("outside");
+        std::fs::create_dir_all(outside.join("80000001")).unwrap();
+        let game = i.saves_root.join("00050000/101c9400");
+        std::fs::create_dir_all(&game).unwrap();
+        std::os::unix::fs::symlink(&outside, game.join("user")).unwrap();
+        let d = discover(&cemu(), &i).unwrap();
+        assert_eq!(d.saves.len(), 0);
+        assert_eq!(d.warnings.len(), 1);
+        assert_eq!(
+            d.warnings[0].code,
+            leemusync_api::WarningCode::UnreadableFolder
+        );
     }
 }

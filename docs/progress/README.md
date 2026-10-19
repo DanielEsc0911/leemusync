@@ -14,6 +14,6 @@
 | Plan | Phase | Status | Updated |
 |---|---|---|---|
 | [phase-0-foundations](plans/phase-0-foundations.md) | 0 | In progress (Tasks 1–5 done; SP7 Linux done; SP6 in progress, Google Drive live done; SP1 in progress, Fedora, Android emulator and CachyOS done; SP3 skipped until an Android device is available; next M1 sync Fedora ↔ CachyOS) | 2026-10-18 |
-| [phase-1-first-sync](plans/phase-1-first-sync.md) | 1 | In progress (Tasks 1–12 done, Task 8 Step 8 live Drive run is the maintainer's; M1a: both BotW saves on both PCs through Google Drive; Tasks 18–19 are manual) | 2026-10-18 |
+| [phase-1-first-sync](plans/phase-1-first-sync.md) | 1 | In progress (Tasks 1–12 done, Task 8 Step 8 live Drive run is the maintainer's; M1a: both BotW saves on both PCs through Google Drive; Tasks 18–19 are manual) | 2026-10-19 |
 
 Status values: Not started · In progress · Blocked (reason) · Done (awaiting cleanup).
