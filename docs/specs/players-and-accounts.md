@@ -23,6 +23,7 @@ Verified on Cemu 2.6 (Linux Flatpak) against the [v2.6 source][cemu-acc], 2026-1
 - `account.dat` is a line-based text file. The first line is `AccountInstance_20120705`, then `Key=value` lines (`PersistentId`, `Uuid`, `MiiData`, `MiiName`, `AccountId`, `Country`, …).
 - **Display name:** key `MiiName`. The value is exactly 44 hex characters: 11 UTF-16 code units, each written as 4 hex digits (most significant first), padded with `0000`. Decode until the first `0000`. Cemu rejects any other length. The maintainer's real file matches this format (value not recorded).
 - **BotW and `user/common`:** BotW (US, `00050000/101c9400`) creates `user/common/`. On the maintainer's long-played install (Fedora 44, Cemu 2.6 Flatpak) it exists but is empty. All game data (`0/`–`5/` slots, `option.sav`, `album/`, `pict_book/`, `tracker/`) is under `user/80000001/`. So BotW is fully per-player. The profile still lists `user/common` under `saves.shared` for games that use it.
+- **Second Linux install (CachyOS, 2026-10-18):** native package `cemu-bin` 2.6 (`/usr/bin/cemu`), data root `~/.local/share/Cemu`, config `~/.config/Cemu/settings.xml` with an empty `mlc_path`. Two accounts, `80000001` and `80000002`. Both `account.dat` files have the same first line, the same key set and a 44-character `MiiName`. BotW US has full game data under each `user/<id>/`, and `user/common/` is empty. Everything matches the Fedora install (names and formats only, no values recorded). The maintainer then deleted `80000002` on both machines for M1 ([roadmap](../progress/roadmap.md#phase-1-sync-engine--cli-desktop)). Deleting an account in Cemu removes only `system/act/80000002/`. BotW's `user/80000002/` save folder stays behind, so discovery can find save folders with no matching account.
 - **BotW title ids** ([WiiUBrew title database][wiiubrew]): JP `00050000-101C9300` (`WUP-P-ALZJ`), US `00050000-101C9400` (`WUP-P-ALZE`), EU `00050000-101C9500` (`WUP-P-ALZP`). Updates use high part `0005000E`, DLC `0005000C`. Cemu writes folder names in lowercase.
 
 [cemu-acc]: https://github.com/cemu-project/Cemu/blob/v2.6/src/Cafe/Account/Account.cpp
@@ -45,6 +46,8 @@ desktop = "80000002"
 ### Discovery
 A scan lists the accounts it finds (id, plus the display name if the profile says how to read it). LeemuSync proposes mappings by matching names and the player confirms. Unmatched accounts → ask. Two players can't map to the same id on one device.
 
+**Orphaned saves.** A scan also lists save folders whose account no longer exists (for Cemu, `user/<id>/` with no `system/act/<id>/`). Deleting an account in Cemu leaves them behind ([above](#cemu-accounts-sp7)). The scan never ignores or deletes them. It offers to recover one: the player picks who it belongs to, and LeemuSync syncs it into that player's stream. The folder is only read; LeemuSync writes it to a live account only through a normal restore. Seen on the maintainer's CachyOS laptop (2026-10-18).
+
 ### Shared folders
 Some games write to a folder shared by all accounts (Wii U `user/common`). Per-player separation is impossible for those files. That part of the game drops to Basic (one lease for all players), and the UI says so. Profiles list such paths under `saves.shared`.
 
@@ -62,9 +65,9 @@ Swapping works the same way, but at container granularity: the whole memory card
 |---|---|
 | Player removed | Mappings removed; streams and history kept |
 | Device renamed | Mappings follow the device id |
-| Account deleted in the emulator | Mapping flagged on next scan; asks the player |
+| Account deleted in the emulator | Mapping flagged on next scan; asks the player. Its save folders stay and show up as orphaned saves ([Discovery](#discovery)) |
 | New device, existing players | Join flow asks for this device's mappings ([navigation](ui/navigation.md)) |
 
 ## Verify
-- **V-ACC-1** Same Cemu layout and `account.dat` format on Windows and macOS, and on a second long-played Linux install (CachyOS). Deferred by the maintainer on 2026-10-08 (spike SP7 device pass).
+- **V-ACC-1** Same Cemu layout and `account.dat` format on Windows and macOS. Deferred by the maintainer on 2026-10-08 (spike SP7 device pass). The second Linux install (CachyOS) is done ([above](#cemu-accounts-sp7)).
 - **V-ACC-2** RPCS3 and Yuzu-family layouts (Phase 6 profile work).

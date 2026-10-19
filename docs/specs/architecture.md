@@ -88,7 +88,19 @@ Defined in `crates/api`, versioned (`api_version`), and identical in-process and
 | Idle RSS, release app after 6 s | 143 MiB (profile probe: 169 MiB max) | none for the UI (the daemon's is in [reliability](reliability.md)) |
 | Rust dependency graph | 112 crates for Linux (FRB, UniFFI, rustls, platform verifier) | — |
 
-The 120 Hz case was not measurable (60 Hz display).
+The 120 Hz case was not measurable (60 Hz display). It was measured on CachyOS (below).
+
+**SP1 results, CachyOS (2026-10-18).** CachyOS (kernel 7.2.9-2-cachyos), KDE Plasma 6.8.0 on Wayland, Intel Iris Xe (Alder Lake-P) + NVIDIA GeForce RTX 3050 Mobile, 1920×1080 at 144 Hz, Flutter 3.47.6, Rust 1.99.0. Same probe and commands as on Fedora.
+
+| Measure | Result | Budget |
+|---|---|---|
+| Dart → Rust sync call | Works (`#1`, `#2`). HTTPS through the platform verifier returns a response | — |
+| Cold start to first rasterized frame (3 runs) | 127–135 ms | ≤ 1 s |
+| Frames during the 10 s animation (profile) | 611 frames (about 61 fps) while `refresh_hz` reports 144. Build p50 0.19 ms / p99 0.32 ms; raster p50 0.33 ms / p99 0.62 ms; 3 frames over 8.3 ms. Same count with `GDK_BACKEND=wayland` (618) and `GDK_BACKEND=x11` (617; raster p99 6.0 ms, 19 over 8.3 ms) | 120 fps on high-refresh displays ([design-system](ui/design-system.md#performance)) |
+| Release bundle | 23 MB: engine 17 MB, app AOT 3.2 MB, bridge 2.0 MB (same as Fedora) | — |
+| Idle RSS, release app after 6 s | 186 MiB (profile probe: 239 MiB) | none for the UI |
+
+Frame work fits well inside the 120 Hz budget, but the Linux app is paced at about 60 fps on a 144 Hz display. The cause is not confirmed (V-DESK-5 in [desktop](platforms/desktop.md#verify)).
 
 **SP1 results, Android emulator (2026-10-18).** Pixel 8 AVD, Android 14 (API 34, x86_64, Google Play image), emulator 36.5.10 on the Fedora PC, NDK 28.2.13676358, JDK 21 (Android Studio's JBR). Emulator frame and start times use a software GPU path, so they say nothing about real devices.
 
@@ -98,7 +110,7 @@ The 120 Hz case was not measurable (60 Hz display).
 | TLS with Android's verifier (release build) | `www.rust-lang.org` accepted. Expired → `invalid peer certificate: Expired`; self-signed and untrusted root → `UnknownIssuer`; wrong host → `certificate not valid for name` |
 | Real app, `flutter build apk --release --split-per-abi` | Builds the bridge for all three ABIs. arm64-v8a 17.4 MB (bridge 1.9 MB), armeabi-v7a 13.8 MB (1.2 MB), x86_64 19.0 MB (2.2 MB). Launches with no crash |
 
-CachyOS, Windows, macOS, iOS and a real Android device (Galaxy A25) are still to run ([Phase 0 plan](../progress/plans/phase-0-foundations.md#sp1-flutter--rust-bridge-on-every-target)). Swift bindings generate on Linux (`enginePing()`); the in-app check needs the iOS run.
+Windows, macOS, iOS and a real Android device (Galaxy A25) are still to run ([Phase 0 plan](../progress/plans/phase-0-foundations.md#sp1-flutter--rust-bridge-on-every-target)). Swift bindings generate on Linux (`enginePing()`); the in-app check needs the iOS run.
 
 ## Engine internals
 | Module | Job |

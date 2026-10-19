@@ -27,8 +27,8 @@ What the project can test on today (2026-10-17). Update this table when devices 
 | Device | Availability | Covers |
 |---|---|---|
 | Fedora 44 PC, XFCE on X11 (the maintainer's main machine) | Always | Linux x86_64, XFCE tray (StatusNotifier), X11 |
-| Desktop PC (a second machine), dual-boot: CachyOS (Arch-based; record the desktop environment) | Always | Linux x86_64 on Arch, AppImage/tar.gz, a second desktop environment. With the Fedora PC, the M1 BotW pair ([roadmap](../progress/roadmap.md#phase-1-sync-engine--cli-desktop)) |
-| Desktop PC, dual-boot: Windows | Always | Windows x64: tray, toasts, MSI/EXE installers |
+| Laptop (a second machine), dual-boot: CachyOS (Arch-based), KDE Plasma 6.8 on Wayland, Intel Iris Xe + RTX 3050 Mobile, 1920×1080 at 144 Hz | Always | Linux x86_64 on Arch, AppImage/tar.gz, a second desktop environment. With the Fedora PC, the M1 BotW pair ([roadmap](../progress/roadmap.md#phase-1-sync-engine--cli-desktop)) |
+| Laptop, dual-boot: Windows | Always | Windows x64: tray, toasts, MSI/EXE installers |
 | Samsung Galaxy A25 | Always | Android, One UI (record the version; Now Bar availability is Verify SP4) |
 | MacBook Air M4 | Occasional | macOS Apple Silicon, `.dmg`, building and running iOS from Xcode |
 | iPhone 15 Pro | Occasional | iOS 17+, Dynamic Island, Live Activities (free Apple ID provisioning) |
