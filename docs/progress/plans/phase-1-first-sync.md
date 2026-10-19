@@ -267,7 +267,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 **Interfaces:**
 - Produces: `VersionId::from_parts(unix_ms: u64, random: [u8; 10]) -> VersionId`, `VersionId::unix_ms(self) -> u64`, `Display`/`FromStr` (26-char Crockford base32), serde as string; `Hash32([u8; 32])` with `to_hex()`, `from_hex(&str)`, serde as hex; `BlobId(pub Hash32)`, `StreamId(pub Hash32)`; `PlayerId(pub VersionId)`, `DeviceId(pub VersionId)` (serde as the inner string); `RelPath::parse(&str) -> Result<RelPath, PathError>`, `RelPath::as_str()`, `RelPath::components()`; `IdError`, `PathError`.
 
-- [ ] **Step 1: Add the dependencies.** Root `Cargo.toml`, after `[workspace.package]`:
+- [x] **Step 1: Add the dependencies.** Root `Cargo.toml`, after `[workspace.package]`:
 
 ```toml
 [workspace.dependencies]
@@ -286,7 +286,7 @@ thiserror = { workspace = true }
 serde_json = "1.0.154"
 ```
 
-- [ ] **Step 2: Write the failing tests** in `crates/core/src/id.rs`:
+- [x] **Step 2: Write the failing tests** in `crates/core/src/id.rs`:
 
 ```rust
 //! Identifiers. Spec: docs/specs/sync-model.md (Versions, Streams).
@@ -349,12 +349,12 @@ mod tests {
 }
 ```
 
-- [ ] **Step 3: Run them to see them fail.**
+- [x] **Step 3: Run them to see them fail.**
 
 Run: `cargo test -p leemusync-core`
 Expected: compile errors, `cannot find type VersionId`.
 
-- [ ] **Step 4: Implement `id.rs`** (above the tests):
+- [x] **Step 4: Implement `id.rs`** (above the tests):
 
 ```rust
 use std::fmt;
@@ -521,7 +521,7 @@ impl fmt::Display for DeviceId {
 }
 ```
 
-- [ ] **Step 5: Write the failing path tests** in `crates/core/src/path.rs`:
+- [x] **Step 5: Write the failing path tests** in `crates/core/src/path.rs`:
 
 ```rust
 //! Validated relative paths. Spec: docs/specs/security.md (File-system confinement).
@@ -573,9 +573,9 @@ mod tests {
 }
 ```
 
-- [ ] **Step 6: Run them to see them fail.** Run: `cargo test -p leemusync-core path` → compile errors.
+- [x] **Step 6: Run them to see them fail.** Run: `cargo test -p leemusync-core path` → compile errors.
 
-- [ ] **Step 7: Implement `path.rs`** (above the tests):
+- [x] **Step 7: Implement `path.rs`** (above the tests):
 
 ```rust
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -667,7 +667,7 @@ impl<'de> Deserialize<'de> for RelPath {
 }
 ```
 
-- [ ] **Step 8: Wire the modules.** `crates/core/src/lib.rs`:
+- [x] **Step 8: Wire the modules.** `crates/core/src/lib.rs`:
 
 ```rust
 //! Domain model and pure sync logic. No I/O, no async.
@@ -680,8 +680,8 @@ pub use id::{BlobId, DeviceId, Hash32, IdError, PlayerId, StreamId, VersionId};
 pub use path::{PathError, RelPath};
 ```
 
-- [ ] **Step 9: Run the tests.** Run: `cargo test -p leemusync-core && cargo clippy -p leemusync-core --all-targets -- -D warnings` → all pass, no warnings.
-- [ ] **Step 10: Commit.** Update `docs/specs/security.md` §File-system confinement: add "Implemented in `crates/core/src/path.rs`." Then `just check`, and:
+- [x] **Step 9: Run the tests.** Run: `cargo test -p leemusync-core && cargo clippy -p leemusync-core --all-targets -- -D warnings` → all pass, no warnings.
+- [x] **Step 10: Commit.** Update `docs/specs/security.md` §File-system confinement: add "Implemented in `crates/core/src/path.rs`." Then `just check`, and:
 
 ```bash
 git add Cargo.toml Cargo.lock crates/core docs/specs/security.md

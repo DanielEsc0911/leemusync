@@ -58,7 +58,7 @@ Same-user only: socket permissions plus a peer credential check ([architecture �
 
 ## File-system confinement
 - The engine reads and writes only inside **grants**: folders the user approved, which are canonicalised when stored.
-- Every path from a manifest or profile is validated in `core`: relative; no `..`; not absolute; no drive letters, UNC paths, NUL bytes, `:` (alternate data streams) or Windows reserved names (`CON`, `NUL`, …); length limits.
+- Every path from a manifest or profile is validated in `core`: relative; no `..`; not absolute; no drive letters, UNC paths, NUL bytes, `:` (alternate data streams) or Windows reserved names (`CON`, `NUL`, …); length limits. Implemented in `crates/core/src/path.rs`.
 - Writes never follow symlinks (open with no-follow / capability-based directory handles). A symlink that resolves outside a grant is refused.
 - Per-file and per-stream size limits (profile `max_file_mb`) stop disk-filling.
 - Restores always back up first ([reliability](reliability.md#invariants)).

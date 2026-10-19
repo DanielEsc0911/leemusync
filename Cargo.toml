@@ -9,6 +9,11 @@ license = "MPL-2.0"
 repository = "https://github.com/DanielEsc0911/leemusync"
 rust-version = "1.99" # same as rust-toolchain.toml
 
+[workspace.dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+thiserror = "2.0.21"
+
 [workspace.lints.rust]
 unsafe_code = "forbid"
 

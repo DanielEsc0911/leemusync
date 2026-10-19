@@ -745,6 +745,11 @@ version = "0.0.1-alpha.1"
 [[package]]
 name = "leemusync-core"
 version = "0.0.1-alpha.1"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror",
+]
 
 [[package]]
 name = "leemusync-crypto"
