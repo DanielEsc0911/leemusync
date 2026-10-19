@@ -27,7 +27,7 @@ Every command supports `--json` (stable English keys, versioned) and `--help`. H
 
 | Command | Does |
 |---|---|
-| `leemusync init` | Create a repo on a backend; set passphrase; show recovery key |
+| `leemusync init` | Create a repo on a backend; set passphrase; show recovery key. Once the repo exists the key is always shown: if a later step fails on this device, `init` warns and `leemusync join` finishes it |
 | `leemusync join` | Join an existing repo (passphrase or recovery key) |
 | `leemusync status` | Engine state, pending transfers, conflicts, leases |
 | `leemusync sync [--dry-run]` | Sync now |

@@ -57,6 +57,12 @@ struct Wrapped {
     recovery: String,
 }
 
+/// Only `format`, read before the strict parse.
+#[derive(Deserialize)]
+struct FormatProbe {
+    format: u32,
+}
+
 /// `repo.json` after validation: every field decoded and in range.
 struct RepoMeta {
     id: String,
@@ -167,6 +173,11 @@ async fn get_bounded(store: &Store, path: &str, max: usize) -> Result<Vec<u8>, E
 /// Reads and validates `repo.json`. The KDF parameters are checked here, before any Argon2 run.
 async fn read_meta(store: &Store) -> Result<RepoMeta, EngineError> {
     let bytes = get_bounded(store, REPO_JSON, MAX_REPO_JSON).await?;
+    // The format is read first: a newer one may add fields, and that's an upgrade, not corruption.
+    let probe: FormatProbe = serde_json::from_slice(&bytes).map_err(|_| data(REPO_JSON))?;
+    if probe.format > REPO_FORMAT {
+        return Err(EngineError::Data("repo_format_newer".into()));
+    }
     let file: RepoFile = serde_json::from_slice(&bytes).map_err(|_| data(REPO_JSON))?;
     if file.format != REPO_FORMAT || file.kdf.algorithm != ALGORITHM {
         return Err(data(REPO_JSON));
@@ -638,6 +649,27 @@ mod tests {
             ),
             "size"
         );
+    }
+
+    #[tokio::test]
+    async fn a_newer_repo_format_is_refused_with_its_own_key() {
+        let (_d, s) = store();
+        Repo::create(s.clone(), "pass phrase", FAST).await.unwrap();
+        // A newer format may add fields: it must not be reported as corruption.
+        tamper(&s, |v| {
+            v["format"] = 2.into();
+            v["new_field"] = true.into();
+        })
+        .await;
+        assert!(matches!(
+            Repo::open(s.clone(), Unlock::Passphrase("pass phrase")).await,
+            Err(EngineError::Data(k)) if k == "repo_format_newer"
+        ));
+        tamper(&s, |v| v["format"] = 0.into()).await;
+        assert!(matches!(
+            Repo::open(s, Unlock::Passphrase("pass phrase")).await,
+            Err(EngineError::Data(k)) if k == REPO_JSON
+        ));
     }
 
     #[tokio::test]

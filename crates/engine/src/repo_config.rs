@@ -2,6 +2,7 @@
 
 use std::collections::BTreeMap;
 
+use leemusync_api::{Warning, WarningCode};
 use leemusync_core::config::{CONFIG_FORMAT, ConfigVersion, RepoConfig};
 use leemusync_core::heads::{Graph, heads};
 use leemusync_core::{DeviceId, VersionId};
@@ -14,11 +15,36 @@ pub(crate) struct LoadedConfig {
     /// Current heads. A version written on top of this config lists them all as parents (D30).
     pub heads: Vec<VersionId>,
     /// Player names the merge had to rename (e.g. `"Ana (2)"`), for the CLI to report (D30).
-    #[allow(dead_code)] // used by Task 15
     pub renamed: Vec<String>,
     /// Config versions that failed to decrypt or parse (ignored, reported as a warning).
-    #[allow(dead_code)] // used by Task 15
     pub invalid: usize,
+}
+
+impl LoadedConfig {
+    /// What the merge did, for the user (D30): invalid versions skipped (detail: their count),
+    /// players renamed (detail: the new name), several heads merged. Details are data, never prose.
+    pub fn warnings(&self) -> Vec<Warning> {
+        let mut out = Vec::new();
+        if self.invalid > 0 {
+            out.push(Warning {
+                code: WarningCode::InvalidVersion,
+                detail: self.invalid.to_string(),
+            });
+        }
+        for name in &self.renamed {
+            out.push(Warning {
+                code: WarningCode::PlayerRenamed,
+                detail: name.clone(),
+            });
+        }
+        if self.heads.len() > 1 {
+            out.push(Warning {
+                code: WarningCode::ConfigMerged,
+                detail: String::new(),
+            });
+        }
+        out
+    }
 }
 
 /// One config version: from the state DB cache, else decrypted from the repo and then cached.
@@ -104,22 +130,26 @@ pub(crate) async fn write(
 }
 
 /// Loads (merging any heads), applies `f`, and writes the result with every head as a parent.
+/// Returns the new config and the merge's warnings (`LoadedConfig::warnings`), which the caller
+/// passes on to the user.
 pub(crate) async fn update(
     repo: &Repo,
     state: &State,
     device: DeviceId,
     f: impl FnOnce(&mut RepoConfig) -> Result<(), EngineError>,
-) -> Result<RepoConfig, EngineError> {
+) -> Result<(RepoConfig, Vec<Warning>), EngineError> {
     let loaded = load(repo, state).await?;
+    let warnings = loaded.warnings();
     let mut config = loaded.config;
     f(&mut config)?;
     write(repo, state, device, loaded.heads, config.clone()).await?;
-    Ok(config)
+    Ok((config, warnings))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use leemusync_api::{Warning, WarningCode};
     use leemusync_core::PlayerId;
 
     async fn setup(dir: &std::path::Path) -> (Repo, crate::State, leemusync_store::Store) {
@@ -160,7 +190,7 @@ mod tests {
         let loaded = load(&repo, &state).await.unwrap();
         assert_eq!(loaded.heads.len(), 2);
         assert_eq!(loaded.config.players.len(), 2);
-        let after = update(&repo, &state, dev, |_| Ok(())).await.unwrap();
+        let (after, _) = update(&repo, &state, dev, |_| Ok(())).await.unwrap();
         assert_eq!(after.players.len(), 2);
         assert_eq!(
             load(&repo, &state).await.unwrap().heads.len(),
@@ -184,7 +214,21 @@ mod tests {
         let hb = write(&repo, &state, dev, vec![], b).await.unwrap();
         let loaded = load(&repo, &state).await.unwrap();
         assert_eq!(loaded.renamed, vec!["ana (2)".to_string()]);
-        update(&repo, &state, dev, |_| Ok(())).await.unwrap();
+        let (_, warnings) = update(&repo, &state, dev, |_| Ok(())).await.unwrap();
+        // D30: the rename the update writes is reported, so the CLI can say so.
+        assert_eq!(
+            warnings,
+            vec![
+                Warning {
+                    code: WarningCode::PlayerRenamed,
+                    detail: "ana (2)".into()
+                },
+                Warning {
+                    code: WarningCode::ConfigMerged,
+                    detail: String::new()
+                },
+            ]
+        );
         let after = load(&repo, &state).await.unwrap();
         assert_eq!(
             after.renamed,
@@ -229,5 +273,14 @@ mod tests {
         assert_eq!(loaded.invalid, 1);
         assert_eq!(loaded.heads, vec![good]);
         assert_eq!(loaded.config.players.len(), 1);
+        let (_, warnings) = update(&repo, &state, dev, |_| Ok(())).await.unwrap();
+        assert_eq!(
+            warnings,
+            vec![Warning {
+                code: WarningCode::InvalidVersion,
+                detail: "1".into()
+            }],
+            "a corrupt config version never vanishes silently"
+        );
     }
 }

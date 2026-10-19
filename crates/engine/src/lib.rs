@@ -55,7 +55,6 @@ pub struct Engine {
     env: EngineEnv,
     config: LocalConfig,
     state: State,
-    #[allow(dead_code)] // used by Task 15
     failpoints: Failpoints,
     /// The unlocked repo, opened on first use (`ensure_repo`).
     repo: Option<repo::Repo>,

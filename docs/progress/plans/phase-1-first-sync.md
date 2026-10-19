@@ -3941,7 +3941,7 @@ Spec: [architecture §Engine API](../../specs/architecture.md#engine-api), [conf
 - Modify: `crates/api/Cargo.toml` (`serde = { workspace = true }`; dev: `serde_json = { workspace = true }`), `crates/api/src/lib.rs`
 
 **Interfaces:**
-- Produces (all `#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]`, enums `#[serde(rename_all = "snake_case")]`; `StreamAction` and `WarningCode` also derive `Copy, Hash`, so callers can copy them out of borrowed reports): `API_VERSION: u32 = 1`; `SyncReport { api_version, dry_run, streams: Vec<StreamReport>, warnings: Vec<Warning> }`; `StreamReport { player, emulator, game, account: Option<String>, action: StreamAction, version: Option<String>, heads: Vec<String>, done: bool }`; `StreamAction::{Nothing, Adopt, FastForward, Upload, UploadThenConflict, Conflict, LocalMissing, RemoteBehind, NeedsAccount, Skipped}`; `Warning { code: WarningCode, detail: String }`; `WarningCode::{EmulatorRunning, NotGranted, SharedFolderNotEmpty, OrphanedSave, ConfigMerged, PlayerRenamed, RemoteBehind, RestoreRolledBack, InvalidVersion}`; `ScanReport { api_version, installs: Vec<InstallReport>, warnings: Vec<Warning> }`; `InstallReport { emulator, base, granted: bool, needs_grant: Vec<String>, accounts: Vec<AccountReport>, saves: Vec<SaveReport> }`; `AccountReport { id, name: Option<String>, player: Option<String> }`; `SaveReport { game, account, orphaned: bool, files: u32, bytes: u64 }`; `StatusReport { api_version, device, device_id, repo: Option<String>, backend: Option<String>, grants: Vec<String>, players: Vec<String>, streams: Vec<StreamStatus> }`; `StreamStatus { player, emulator, game, account: Option<String>, base: Option<String> }`; `HistoryReport { api_version, versions: Vec<HistoryEntry>, backups: Vec<String> }`; `HistoryEntry { id, created_at: u64, device: String, files: u32, bytes: u64, parents: Vec<String>, head: bool }`; `InitReport { api_version, repo, device }`; `DoctorReport { api_version, checks: Vec<Check> }`; `Check { name, ok: bool, detail: String }`; `ErrorReport { api_version, error: ErrorBody }`; `ErrorBody { code, message }`. Every `String` field holds display text that is never translated (player names, ids, paths).
+- Produces (all `#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]`, enums `#[serde(rename_all = "snake_case")]`; `StreamAction` and `WarningCode` also derive `Copy, Hash`, so callers can copy them out of borrowed reports): `API_VERSION: u32 = 1`; `SyncReport { api_version, dry_run, streams: Vec<StreamReport>, warnings: Vec<Warning> }`; `StreamReport { player, emulator, game, account: Option<String>, action: StreamAction, version: Option<String>, heads: Vec<String>, done: bool }`; `StreamAction::{Nothing, Adopt, FastForward, Upload, UploadThenConflict, Conflict, LocalMissing, RemoteBehind, NeedsAccount, Skipped}`; `Warning { code: WarningCode, detail: String }`; `WarningCode::{EmulatorRunning, NotGranted, SharedFolderNotEmpty, OrphanedSave, ConfigMerged, PlayerRenamed, RemoteBehind, RestoreRolledBack, InvalidVersion, SetupIncomplete}` (`SetupIncomplete` added by the Task 11 fix round); `ScanReport { api_version, installs: Vec<InstallReport>, warnings: Vec<Warning> }`; `InstallReport { emulator, base, granted: bool, needs_grant: Vec<String>, accounts: Vec<AccountReport>, saves: Vec<SaveReport> }`; `AccountReport { id, name: Option<String>, player: Option<String> }`; `SaveReport { game, account, orphaned: bool, files: u32, bytes: u64 }`; `StatusReport { api_version, device, device_id, repo: Option<String>, backend: Option<String>, grants: Vec<String>, players: Vec<String>, streams: Vec<StreamStatus> }`; `StreamStatus { player, emulator, game, account: Option<String>, base: Option<String> }`; `HistoryReport { api_version, versions: Vec<HistoryEntry>, backups: Vec<String> }`; `HistoryEntry { id, created_at: u64, device: String, files: u32, bytes: u64, parents: Vec<String>, head: bool }`; `InitReport { api_version, repo, device, warnings: Vec<Warning> }` (`warnings` added by the Task 11 fix round); `DoctorReport { api_version, checks: Vec<Check> }`; `Check { name, ok: bool, detail: String }`; `ErrorReport { api_version, error: ErrorBody }`; `ErrorBody { code, message }`. Every `String` field holds display text that is never translated (player names, ids, paths).
 - The recovery key is **not** in any report. The CLI prints it once, in human form only (Task 16).
 
 - [x] **Step 1: Failing test** at the bottom of `crates/api/src/lib.rs`:
@@ -5261,8 +5261,8 @@ Spec: [sync-model §Remote layout, §Repo config](../../specs/sync-model.md#remo
 - Produces:
   - `repo::Repo` (crate-private) with `create(store: Store, passphrase: &str, kdf: KdfParams) -> Result<(Repo, Key, RecoveryKey), EngineError>`, `open(store: Store, unlock: Unlock<'_>) -> Result<(Repo, Key), EngineError>`, `id() -> &str`, `blob_id(&[u8]) -> BlobId`, `stream_id(PlayerId, emulator: &str, game: &str) -> StreamId`, `put_blob(&[u8]) -> Result<BlobId, _>`, `get_blob(&BlobId) -> Result<Vec<u8>, _>` (verifies the keyed hash), `put_version(&Version)`, `list_versions(&StreamId) -> Result<Vec<VersionId>, _>`, `get_version(&StreamId, &VersionId) -> Result<Vec<u8>, _>` (decrypted JSON), `put_config(&ConfigVersion)`, `list_configs() -> Result<Vec<VersionId>, _>`, `get_config(&VersionId) -> Result<Vec<u8>, _>`, `put_device(&DeviceRecord)`. `Unlock::{Passphrase(&str), Recovery(&RecoveryKey), Master(Key)}`.
   - Remote names (all lowercase): `leemusync/repo.json`, `leemusync/blobs/<2 hex>/<blob id>`, `leemusync/streams/<stream id>/versions/<version id>`, `leemusync/config/versions/<version id>`, `leemusync/devices/<device id>`. AAD strings: `"blob\0<blob id>"`, `"version\0<stream id>\0<version id>"`, `"config\0<version id>"`, `"device\0<device id>"`, `"wrap\0passphrase\0<repo id>"`, `"wrap\0recovery\0<repo id>"`, `"check\0<repo id>"`.
-  - `repo_config::{load, update, write, LoadedConfig}` (crate-private): `load(&Repo, &State) -> Result<LoadedConfig, EngineError>` where `LoadedConfig { config: RepoConfig, heads: Vec<VersionId>, renamed: Vec<String>, invalid: usize }`; `write(&Repo, &State, DeviceId, parents: Vec<VersionId>, config: RepoConfig) -> Result<VersionId, EngineError>`; `update(&Repo, &State, DeviceId, f: impl FnOnce(&mut RepoConfig) -> Result<(), EngineError>) -> Result<RepoConfig, EngineError>`.
-  - Public `Engine` methods: `backend_add_fs(&mut self, path: &Path) -> Result<(), EngineError>`; `gdrive_login_start(&mut self, client_id: &str, client_secret: &str) -> Result<GdriveLogin, EngineError>` (async) with `GdriveLogin::url(&self) -> &str`; `gdrive_login_finish(&mut self, login: GdriveLogin) -> Result<(), EngineError>` (async); `init(&mut self, passphrase: &str) -> Result<(InitReport, Zeroizing<String>), EngineError>` (async; the `Zeroizing<String>` is the recovery key's display form, shown once); `join(&mut self, secret: JoinSecret) -> Result<InitReport, EngineError>` (async) with `JoinSecret::{Passphrase(String), Recovery(String)}`; `players_add(&mut self, name: &str) -> Result<(), EngineError>` (async); `players_list(&mut self) -> Result<Vec<String>, EngineError>` (async). Crate-private: `store(&self) -> Result<Store, EngineError>`, `ensure_repo(&mut self) -> Result<(), EngineError>` (async, opens the repo once with the cached master key) and `repo_ref(&self) -> Result<&Repo, EngineError>`. Call `ensure_repo().await?` first, then borrow `repo_ref()?` and `&self.state` side by side (two shared borrows).
+  - `repo_config::{load, update, write, LoadedConfig}` (crate-private): `load(&Repo, &State) -> Result<LoadedConfig, EngineError>` where `LoadedConfig { config: RepoConfig, heads: Vec<VersionId>, renamed: Vec<String>, invalid: usize }`; `write(&Repo, &State, DeviceId, parents: Vec<VersionId>, config: RepoConfig) -> Result<VersionId, EngineError>`; `update(&Repo, &State, DeviceId, f: impl FnOnce(&mut RepoConfig) -> Result<(), EngineError>) -> Result<(RepoConfig, Vec<Warning>), EngineError>` (the warnings are `LoadedConfig::warnings()`: `InvalidVersion` with the count, `PlayerRenamed` with the new name, `ConfigMerged` when several heads were merged; D30, the CLI says so).
+  - Public `Engine` methods: `backend_add_fs(&mut self, path: &Path) -> Result<(), EngineError>`; `gdrive_login_start(&mut self, client_id: &str, client_secret: &str) -> Result<GdriveLogin, EngineError>` (async) with `GdriveLogin::url(&self) -> &str`; `gdrive_login_finish(&mut self, login: GdriveLogin) -> Result<(), EngineError>` (async); `init(&mut self, passphrase: &str) -> Result<(InitReport, Zeroizing<String>), EngineError>` (async; the `Zeroizing<String>` is the recovery key's display form, shown once; once `repo.json` is committed `init` never returns `Err`: a later failed step becomes a `SetupIncomplete` warning in `InitReport.warnings` whose detail is the error code, and `join` with the passphrase finishes the device); `join(&mut self, secret: JoinSecret) -> Result<InitReport, EngineError>` (async) with `JoinSecret::{Passphrase(String), Recovery(String)}`; `players_add(&mut self, name: &str) -> Result<Vec<Warning>, EngineError>` (async; the config merge's warnings); `players_list(&mut self) -> Result<Vec<String>, EngineError>` (async). Crate-private: `store(&self) -> Result<Store, EngineError>`, `ensure_repo(&mut self) -> Result<(), EngineError>` (async, opens the repo once with the cached master key) and `repo_ref(&self) -> Result<&Repo, EngineError>`. Call `ensure_repo().await?` first, then borrow `repo_ref()?` and `&self.state` side by side (two shared borrows).
   - `DeviceRecord { format: u32, id: DeviceId, name: String, created_at: u64 }` (serde, sealed like every object).
 
 - [x] **Step 1: Failing tests.** At the bottom of `crates/engine/src/repo.rs`:
@@ -7227,12 +7227,8 @@ impl Engine {
         let mut warnings = self.recover_journal()?;
         let device = self.device_id();
         let loaded = repo_config::load(self.repo_ref()?, &self.state).await?;
-        if loaded.invalid > 0 {
-            warnings.push(Warning { code: WarningCode::InvalidVersion, detail: format!("{} config versions", loaded.invalid) });
-        }
-        for name in &loaded.renamed {
-            warnings.push(Warning { code: WarningCode::PlayerRenamed, detail: name.clone() });
-        }
+        // Invalid config versions, renamed players and merged heads (D30): reported once, here.
+        warnings.extend(loaded.warnings());
         let merged = loaded.heads.len() > 1;
         let config = loaded.config;
         let mut streams = Vec::new();
@@ -7286,10 +7282,8 @@ impl Engine {
             }
         }
         if !opts.dry_run && (merged || !new_games.is_empty()) {
-            if merged {
-                warnings.push(Warning { code: WarningCode::ConfigMerged, detail: String::new() });
-            }
-            repo_config::update(self.repo_ref()?, &self.state, device, |c| {
+            // The merge warnings were already reported from the load above.
+            let _ = repo_config::update(self.repo_ref()?, &self.state, device, |c| {
                 for (p, e, g) in &new_games {
                     c.add_game(*p, e, g);
                 }
@@ -8111,7 +8105,7 @@ async fn both_saves_end_up_on_both_pcs() {
 
 Spec: [config-and-cli §Commands, §Exit codes, §Parity rule](../../specs/config-and-cli.md#commands), [i18n §Rust strings, §Rules, §Terminology, §Parity check](../../specs/i18n.md#rust-strings), D19. Skill: `leemusync-security` (secrets at prompts).
 
-Error keys from Task 11 (P6: engine payloads are keys or data, never prose): `NotSetUp` takes `backend`, `gdrive_login`, `repo`, `repo_key`; `Usage` takes `repo_exists`, `repo_race`, `already_joined`, `passphrase_too_short`, `player_name_invalid`, `player_name_taken`; `Config` takes `repo_mismatch`, `repo_config`; `Secrets` takes `bad_master_key`; `Data` carries the remote object name. Map each key to its own en + es Fluent message instead of printing it through `{ $detail }`.
+Error keys from Task 11 (P6: engine payloads are keys or data, never prose): `NotSetUp` takes `backend`, `gdrive_login`, `repo`, `repo_key`; `Usage` takes `repo_exists`, `repo_race`, `already_joined`, `passphrase_too_short`, `player_name_invalid`, `player_name_taken`; `Config` takes `repo_mismatch`, `repo_config`; `Secrets` takes `bad_master_key`; `Data` carries the remote object name, or `repo_format_newer` when `repo.json` is from a newer LeemuSync (tell the user to update). Map each key to its own en + es Fluent message instead of printing it through `{ $detail }`.
 
 **Files:**
 - Modify: `Cargo.toml` (`clap`, `rpassword`, `fluent-bundle`, `unic-langid`), `crates/cli/Cargo.toml`:
@@ -8369,6 +8363,7 @@ warning-player_renamed = Two players had the same name; one is now { $detail }.
 warning-remote_behind = The repo is missing versions this device saw ({ $detail }). Nothing was changed.
 warning-restore_rolled_back = An interrupted restore was undone in { $detail }.
 warning-invalid_version = Ignored invalid data in the repo: { $detail }
+warning-setup_incomplete = The repo was created, but this device isn't fully set up ({ $detail }). Run `leemusync join` with your passphrase to finish.
 
 scan-install = { $emulator } at { $base }
 scan-needs-grant = Allow it: leemusync grant add { $path }
@@ -8528,6 +8523,7 @@ warning-player_renamed = Dos jugadores tenían el mismo nombre; uno ahora se lla
 warning-remote_behind = Al repo le faltan versiones que este dispositivo vio ({ $detail }). No se cambió nada.
 warning-restore_rolled_back = Se deshizo una restauración interrumpida en { $detail }.
 warning-invalid_version = Se ignoraron datos no válidos del repo: { $detail }
+warning-setup_incomplete = Se creó el repo, pero este dispositivo no quedó configurado del todo ({ $detail }). Ejecuta `leemusync join` con tu frase de contraseña para terminar.
 
 scan-install = { $emulator } en { $base }
 scan-needs-grant = Permítelo: leemusync grant add { $path }
@@ -9031,6 +9027,8 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
                 output::json(&report);
             } else {
                 output::line(t, "init-done", &[("repo", s(report.repo.clone())), ("device", s(report.device.clone()))]);
+                // `SetupIncomplete`: the repo exists but this device must run `join` to finish.
+                output::warnings(t, &report.warnings);
             }
         }
         Cmd::Join { recovery } => {
@@ -9076,8 +9074,9 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
             }
         }
         Cmd::Players { cmd: PlayersCmd::Add { name } } => {
-            engine.players_add(name).await?;
+            let warnings = engine.players_add(name).await?;
             output::line(t, "players-added", &[("name", s(name.clone()))]);
+            output::warnings(t, &warnings);
         }
         Cmd::Players { cmd: PlayersCmd::List } => {
             let players = engine.players_list().await?;

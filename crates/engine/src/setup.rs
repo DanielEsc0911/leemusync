@@ -5,7 +5,7 @@
 use std::fmt;
 use std::path::Path;
 
-use leemusync_api::{API_VERSION, InitReport};
+use leemusync_api::{API_VERSION, InitReport, Warning, WarningCode};
 use leemusync_core::PlayerId;
 use leemusync_core::config::{ConfigError, RepoConfig};
 use leemusync_crypto::{Key, RecoveryKey};
@@ -180,6 +180,7 @@ impl Engine {
         self.env
             .secrets
             .set(&secret_master(repo.id()), &key_to_hex(master))?;
+        self.failpoints.hit("init.after_key")?;
         repo.put_device(&DeviceRecord {
             format: 1,
             id: self.device_id(),
@@ -193,6 +194,7 @@ impl Engine {
             api_version: API_VERSION,
             repo: repo.id().to_owned(),
             device: self.config.device.name.clone(),
+            warnings: Vec::new(),
         };
         self.repo = Some(repo);
         Ok(report)
@@ -215,7 +217,33 @@ impl Engine {
         }
         let (repo, master, recovery) =
             Repo::create(self.store()?, passphrase, self.env.kdf).await?;
-        let report = self.adopt_repo(repo, &master).await?;
+        // repo.json is committed: from here on `init` never fails, or the recovery key (wrapped
+        // in repo.json, never shown yet) would be lost. A failed step becomes a warning, and
+        // `leemusync join` with the passphrase finishes this device.
+        let shown = recovery.to_display();
+        drop(recovery);
+        let repo_id = repo.id().to_owned();
+        let mut warnings = Vec::new();
+        if let Err(e) = self.finish_init(repo, &master).await {
+            warnings.push(Warning {
+                code: WarningCode::SetupIncomplete,
+                detail: e.code().to_owned(),
+            });
+        }
+        let report = InitReport {
+            api_version: API_VERSION,
+            repo: repo_id,
+            device: self.config.device.name.clone(),
+            warnings,
+        };
+        Ok((report, shown))
+    }
+
+    /// The steps of `init` after `repo.json` exists. Each one is redone by `join`.
+    async fn finish_init(&mut self, repo: Repo, master: &Key) -> Result<(), EngineError> {
+        self.failpoints.hit("init.after_create")?;
+        self.adopt_repo(repo, master).await?;
+        self.failpoints.hit("init.before_config")?;
         let device = self.device_id();
         repo_config::write(
             self.repo_ref()?,
@@ -225,7 +253,7 @@ impl Engine {
             RepoConfig::default(),
         )
         .await?;
-        Ok((report, recovery.to_display()))
+        Ok(())
     }
 
     /// Joins the repo on the configured storage. Joining the same repo again is allowed (it
@@ -254,18 +282,21 @@ impl Engine {
         self.adopt_repo(repo, &master).await
     }
 
+    /// Returns what the config merge did (renamed players, merged heads, skipped invalid
+    /// versions), for the user to see (D30).
+    ///
     /// # Errors
     /// `Usage("player_name_invalid")` or `Usage("player_name_taken")`; storage or repo errors.
-    pub async fn players_add(&mut self, name: &str) -> Result<(), EngineError> {
+    pub async fn players_add(&mut self, name: &str) -> Result<Vec<Warning>, EngineError> {
         let id = PlayerId(new_version_id()?);
         let device = self.device_id();
         self.ensure_repo().await?;
         let repo = self.repo_ref()?;
-        repo_config::update(repo, &self.state, device, |c| {
+        let (_, warnings) = repo_config::update(repo, &self.state, device, |c| {
             c.add_player(id, name).map_err(|e| player_error(&e))
         })
         .await?;
-        Ok(())
+        Ok(warnings)
     }
 
     /// Player names in creation order (player ids are time-ordered).
@@ -286,6 +317,10 @@ impl Engine {
 
 #[cfg(test)]
 mod tests {
+    use leemusync_api::{Warning, WarningCode};
+    use leemusync_core::config::RepoConfig;
+    use leemusync_core::{PlayerId, VersionId};
+
     use crate::tests::test_env;
     use crate::{Engine, EngineError, JoinSecret};
 
@@ -383,6 +418,96 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(b.players_list().await.unwrap(), vec!["Ana".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn a_failed_step_after_create_still_returns_the_recovery_key() {
+        // Each point leaves a different partial state: nothing adopted; master key cached but no
+        // device record or config.toml; fully adopted but no first config version.
+        for point in ["init.after_create", "init.after_key", "init.before_config"] {
+            let root = tempfile::tempdir().unwrap();
+            let remote = root.path().join("remote");
+            let mut a = Engine::open(test_env(&root.path().join("a"))).unwrap();
+            a.backend_add_fs(&remote).unwrap();
+            a.arm_failpoint(point);
+            let (report, recovery) = a.init("pass phrase").await.unwrap();
+            assert_eq!(recovery.split('-').count(), 13, "{point}");
+            assert_eq!(
+                report.warnings,
+                vec![Warning {
+                    code: WarningCode::SetupIncomplete,
+                    detail: "injected".into()
+                }],
+                "{point}"
+            );
+            // The repo exists: init again is refused, join finishes this device.
+            assert!(
+                matches!(a.init("pass phrase").await, Err(EngineError::Usage(_))),
+                "{point}"
+            );
+            let joined = a
+                .join(JoinSecret::Passphrase("pass phrase".into()))
+                .await
+                .unwrap();
+            assert_eq!(
+                (joined.repo.as_str(), joined.warnings.len()),
+                (report.repo.as_str(), 0),
+                "{point}"
+            );
+            assert_eq!(a.players_add("Ana").await.unwrap(), vec![], "{point}");
+            assert_eq!(
+                a.players_list().await.unwrap(),
+                vec!["Ana".to_string()],
+                "{point}"
+            );
+            // And the recovery key that was shown works.
+            let mut c = Engine::open(test_env(&root.path().join("c"))).unwrap();
+            c.backend_add_fs(&remote).unwrap();
+            c.join(JoinSecret::Recovery(recovery.to_string()))
+                .await
+                .unwrap();
+            assert_eq!(
+                c.players_list().await.unwrap(),
+                vec!["Ana".to_string()],
+                "{point}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn players_add_reports_what_the_merge_did() {
+        let root = tempfile::tempdir().unwrap();
+        let mut a = Engine::open(test_env(&root.path().join("a"))).unwrap();
+        a.backend_add_fs(&root.path().join("remote")).unwrap();
+        a.init("pass phrase").await.unwrap();
+        a.ensure_repo().await.unwrap();
+        // Two devices added "Zoe" at the same moment: two config heads with the same name.
+        let dev = a.device_id();
+        for (n, name) in [(2, "Zoe"), (3, "zoe")] {
+            let mut c = RepoConfig::default();
+            c.add_player(
+                PlayerId(VersionId::from_parts(n, [u8::try_from(n).unwrap(); 10])),
+                name,
+            )
+            .unwrap();
+            crate::repo_config::write(a.repo_ref().unwrap(), &a.state, dev, vec![], c)
+                .await
+                .unwrap();
+        }
+        let warnings = a.players_add("Ana").await.unwrap();
+        assert!(warnings.contains(&Warning {
+            code: WarningCode::PlayerRenamed,
+            detail: "zoe (2)".into()
+        }));
+        assert!(warnings.contains(&Warning {
+            code: WarningCode::ConfigMerged,
+            detail: String::new()
+        }));
+        assert_eq!(
+            a.players_add("Beto").await.unwrap(),
+            vec![],
+            "one head again"
+        );
     }
 
     #[tokio::test]

@@ -97,6 +97,9 @@ pub enum WarningCode {
     RestoreRolledBack,
     /// A version id could not be parsed.
     InvalidVersion,
+    /// `init` created the repo, but a later step failed on this device; `detail` is the error
+    /// code. `leemusync join` with the passphrase finishes the setup.
+    SetupIncomplete,
 }
 
 /// Result of `leemusync scan`: what was found on this machine.
@@ -228,6 +231,8 @@ pub struct InitReport {
     pub repo: String,
     /// Name of this device.
     pub device: String,
+    /// Non-fatal findings, e.g. `SetupIncomplete`.
+    pub warnings: Vec<Warning>,
 }
 
 /// Result of `leemusync doctor`.
@@ -303,5 +308,24 @@ mod tests {
         assert_eq!(a, StreamAction::UploadThenConflict);
         let c = r.warnings[0].code;
         assert_eq!(c, WarningCode::OrphanedSave);
+    }
+
+    #[test]
+    fn init_report_carries_setup_warnings() {
+        let r = InitReport {
+            api_version: API_VERSION,
+            repo: "0123456789abcdef0123456789abcdef".into(),
+            device: "pc".into(),
+            warnings: vec![Warning {
+                code: WarningCode::SetupIncomplete,
+                detail: "secrets".into(),
+            }],
+        };
+        let json = serde_json::to_string(&r).unwrap();
+        assert_eq!(
+            json,
+            r#"{"api_version":1,"repo":"0123456789abcdef0123456789abcdef","device":"pc","warnings":[{"code":"setup_incomplete","detail":"secrets"}]}"#
+        );
+        assert_eq!(serde_json::from_str::<InitReport>(&json).unwrap(), r);
     }
 }
