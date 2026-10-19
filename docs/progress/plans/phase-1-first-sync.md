@@ -3941,10 +3941,10 @@ Spec: [architecture §Engine API](../../specs/architecture.md#engine-api), [conf
 - Modify: `crates/api/Cargo.toml` (`serde = { workspace = true }`; dev: `serde_json = { workspace = true }`), `crates/api/src/lib.rs`
 
 **Interfaces:**
-- Produces (all `#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]`, enums `#[serde(rename_all = "snake_case")]`): `API_VERSION: u32 = 1`; `SyncReport { api_version, dry_run, streams: Vec<StreamReport>, warnings: Vec<Warning> }`; `StreamReport { player, emulator, game, account: Option<String>, action: StreamAction, version: Option<String>, heads: Vec<String>, done: bool }`; `StreamAction::{Nothing, Adopt, FastForward, Upload, UploadThenConflict, Conflict, LocalMissing, RemoteBehind, NeedsAccount, Skipped}`; `Warning { code: WarningCode, detail: String }`; `WarningCode::{EmulatorRunning, NotGranted, SharedFolderNotEmpty, OrphanedSave, ConfigMerged, PlayerRenamed, RemoteBehind, RestoreRolledBack, InvalidVersion}`; `ScanReport { api_version, installs: Vec<InstallReport>, warnings: Vec<Warning> }`; `InstallReport { emulator, base, granted: bool, needs_grant: Vec<String>, accounts: Vec<AccountReport>, saves: Vec<SaveReport> }`; `AccountReport { id, name: Option<String>, player: Option<String> }`; `SaveReport { game, account, orphaned: bool, files: u32, bytes: u64 }`; `StatusReport { api_version, device, device_id, repo: Option<String>, backend: Option<String>, grants: Vec<String>, players: Vec<String>, streams: Vec<StreamStatus> }`; `StreamStatus { player, emulator, game, account: Option<String>, base: Option<String> }`; `HistoryReport { api_version, versions: Vec<HistoryEntry>, backups: Vec<String> }`; `HistoryEntry { id, created_at: u64, device: String, files: u32, bytes: u64, parents: Vec<String>, head: bool }`; `InitReport { api_version, repo, device }`; `DoctorReport { api_version, checks: Vec<Check> }`; `Check { name, ok: bool, detail: String }`; `ErrorReport { api_version, error: ErrorBody }`; `ErrorBody { code, message }`. Every `String` field holds display text that is never translated (player names, ids, paths).
+- Produces (all `#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]`, enums `#[serde(rename_all = "snake_case")]`; `StreamAction` and `WarningCode` also derive `Copy, Hash`, so callers can copy them out of borrowed reports): `API_VERSION: u32 = 1`; `SyncReport { api_version, dry_run, streams: Vec<StreamReport>, warnings: Vec<Warning> }`; `StreamReport { player, emulator, game, account: Option<String>, action: StreamAction, version: Option<String>, heads: Vec<String>, done: bool }`; `StreamAction::{Nothing, Adopt, FastForward, Upload, UploadThenConflict, Conflict, LocalMissing, RemoteBehind, NeedsAccount, Skipped}`; `Warning { code: WarningCode, detail: String }`; `WarningCode::{EmulatorRunning, NotGranted, SharedFolderNotEmpty, OrphanedSave, ConfigMerged, PlayerRenamed, RemoteBehind, RestoreRolledBack, InvalidVersion}`; `ScanReport { api_version, installs: Vec<InstallReport>, warnings: Vec<Warning> }`; `InstallReport { emulator, base, granted: bool, needs_grant: Vec<String>, accounts: Vec<AccountReport>, saves: Vec<SaveReport> }`; `AccountReport { id, name: Option<String>, player: Option<String> }`; `SaveReport { game, account, orphaned: bool, files: u32, bytes: u64 }`; `StatusReport { api_version, device, device_id, repo: Option<String>, backend: Option<String>, grants: Vec<String>, players: Vec<String>, streams: Vec<StreamStatus> }`; `StreamStatus { player, emulator, game, account: Option<String>, base: Option<String> }`; `HistoryReport { api_version, versions: Vec<HistoryEntry>, backups: Vec<String> }`; `HistoryEntry { id, created_at: u64, device: String, files: u32, bytes: u64, parents: Vec<String>, head: bool }`; `InitReport { api_version, repo, device }`; `DoctorReport { api_version, checks: Vec<Check> }`; `Check { name, ok: bool, detail: String }`; `ErrorReport { api_version, error: ErrorBody }`; `ErrorBody { code, message }`. Every `String` field holds display text that is never translated (player names, ids, paths).
 - The recovery key is **not** in any report. The CLI prints it once, in human form only (Task 16).
 
-- [ ] **Step 1: Failing test** at the bottom of `crates/api/src/lib.rs`:
+- [x] **Step 1: Failing test** at the bottom of `crates/api/src/lib.rs`:
 
 ```rust
 #[cfg(test)]
@@ -3978,10 +3978,10 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Run** `cargo test -p leemusync-api` → compile errors.
-- [ ] **Step 3: Implement** every type in the Interfaces list, in that order, in `crates/api/src/lib.rs` under the existing doc comment, with `pub` fields, the derives above and a one-line `///` doc per type. Use `pub const API_VERSION: u32 = 1;`.
-- [ ] **Step 4: Run** `cargo test -p leemusync-api && cargo clippy -p leemusync-api --all-targets -- -D warnings` → PASS.
-- [ ] **Step 5: Commit** (`just check` first): `feat(api): add versioned report types for the CLI's --json output` with the trailer.
+- [x] **Step 2: Run** `cargo test -p leemusync-api` → compile errors.
+- [x] **Step 3: Implement** every type in the Interfaces list, in that order, in `crates/api/src/lib.rs` under the existing doc comment, with `pub` fields, the derives above and a one-line `///` doc per type. Use `pub const API_VERSION: u32 = 1;`.
+- [x] **Step 4: Run** `cargo test -p leemusync-api && cargo clippy -p leemusync-api --all-targets -- -D warnings` → PASS.
+- [x] **Step 5: Commit** (`just check` first): `feat(api): add versioned report types for the CLI's --json output` with the trailer.
 
 ---
 
