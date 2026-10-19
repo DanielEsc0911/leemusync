@@ -34,7 +34,7 @@
 | `thiserror` | `2.0.21` | Task 2 |
 | `toml` | `1.1.8` | Task 5 |
 | `chacha20poly1305` | `0.10.1` | Task 6 |
-| `argon2` | `0.5.3` | Task 6 |
+| `argon2` | `0.5.3`, `default-features = false`, `alloc`, `zeroize` | Task 6 |
 | `blake3` | `1.8.7` | Task 6 |
 | `zeroize` | `1.9.1`, `derive` | Task 6 |
 | `getrandom` | `0.4.3` | Task 6 |
@@ -2021,7 +2021,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 Spec: [security §Cryptography, §Keys](../../specs/security.md#cryptography) (with Task 1's KDF bounds and recovery-key text). Skill: `leemusync-security`.
 
 **Files:**
-- Modify: `Cargo.toml` (`chacha20poly1305 = "0.10.1"`, `argon2 = "0.5.3"`, `blake3 = "1.8.7"`, `zeroize = { version = "1.9.1", features = ["derive"] }`, `getrandom = "0.4.3"` in `[workspace.dependencies]`), `crates/crypto/Cargo.toml` (all five as `{ workspace = true }`, plus `thiserror`)
+- Modify: `Cargo.toml` (`chacha20poly1305 = "0.10.1"`, `argon2 = { version = "0.5.3", default-features = false, features = ["alloc", "zeroize"] }`, `blake3 = "1.8.7"`, `zeroize = { version = "1.9.1", features = ["derive"] }`, `getrandom = "0.4.3"` in `[workspace.dependencies]`), `crates/crypto/Cargo.toml` (all five as `{ workspace = true }`, plus `thiserror`)
 - Modify: `crates/crypto/src/lib.rs`
 
 **Interfaces:**
@@ -2033,7 +2033,7 @@ Spec: [security §Cryptography, §Keys](../../specs/security.md#cryptography) (w
   - `KdfParams { m_kib: u32, t: u32, p: u32 }`, `KdfParams::DEFAULT`, `KdfParams::check(&self) -> Result<(), CryptoError>`; `passphrase_kek(passphrase: &[u8], salt: &[u8; 16], params: &KdfParams) -> Result<Key, CryptoError>`.
   - `RepoKeys { object, blob_id, stream_id }` with `RepoKeys::from_master(&Key) -> RepoKeys`.
   - `wrap(kek: &Key, aad: &[u8], master: &Key) -> Result<Vec<u8>, CryptoError>`, `unwrap_key(kek: &Key, aad: &[u8], wrapped: &[u8]) -> Result<Key, CryptoError>`.
-  - `RecoveryKey`: `RecoveryKey::generate() -> Result<RecoveryKey, CryptoError>`, `to_display(&self) -> String` (13 groups of 4 Crockford base32 characters, `-` separated), `RecoveryKey::parse(&str) -> Result<RecoveryKey, CryptoError>`, `kek(&self) -> Key`.
+  - `RecoveryKey`: `RecoveryKey::generate() -> Result<RecoveryKey, CryptoError>`, `to_display(&self) -> Zeroizing<String>` (re-exported `zeroize::Zeroizing`; 13 groups of 4 Crockford base32 characters, `-` separated), `RecoveryKey::parse(&str) -> Result<RecoveryKey, CryptoError>`, `kek(&self) -> Key`.
   - `CryptoError::{Random, Encrypt, Decrypt, Malformed, KdfParams, Kdf, RecoveryKey}`.
   - Constants `OBJECT_CONTEXT = "leemusync v1 object"`, `BLOB_ID_CONTEXT = "leemusync v1 blob-id"`, `STREAM_ID_CONTEXT = "leemusync v1 stream-id"`, `RECOVERY_CONTEXT = "leemusync v1 recovery-kek"`.
 
@@ -2042,6 +2042,8 @@ Spec: [security §Cryptography, §Keys](../../specs/security.md#cryptography) (w
 ```rust
 #[cfg(test)]
 mod tests {
+    use std::fmt::Write;
+
     use super::*;
 
     #[test]
@@ -2050,20 +2052,39 @@ mod tests {
         let sealed = seal(&key, b"blob\0abc", b"save data").unwrap();
         assert_eq!(&sealed[..4], b"LSE1");
         assert_eq!(open(&key, b"blob\0abc", &sealed).unwrap(), b"save data");
-        assert_eq!(open(&key, b"blob\0abd", &sealed), Err(CryptoError::Decrypt), "AAD binds the id");
-        assert_eq!(open(&Key::from_bytes([8; 32]), b"blob\0abc", &sealed), Err(CryptoError::Decrypt));
+        assert_eq!(
+            open(&key, b"blob\0abd", &sealed),
+            Err(CryptoError::Decrypt),
+            "AAD binds the id"
+        );
+        assert_eq!(
+            open(&Key::from_bytes([8; 32]), b"blob\0abc", &sealed),
+            Err(CryptoError::Decrypt)
+        );
         let mut flipped = sealed.clone();
         let last = flipped.len() - 1;
         flipped[last] ^= 1;
-        assert_eq!(open(&key, b"blob\0abc", &flipped), Err(CryptoError::Decrypt));
-        assert_eq!(open(&key, b"blob\0abc", b"LSE1short"), Err(CryptoError::Malformed));
-        assert_eq!(open(&key, b"blob\0abc", &[b'X'; 64]), Err(CryptoError::Malformed));
+        assert_eq!(
+            open(&key, b"blob\0abc", &flipped),
+            Err(CryptoError::Decrypt)
+        );
+        assert_eq!(
+            open(&key, b"blob\0abc", b"LSE1short"),
+            Err(CryptoError::Malformed)
+        );
+        assert_eq!(
+            open(&key, b"blob\0abc", &[b'X'; 64]),
+            Err(CryptoError::Malformed)
+        );
     }
 
     #[test]
     fn every_seal_uses_a_fresh_nonce() {
         let key = Key::from_bytes([7; 32]);
-        assert_ne!(seal(&key, b"", b"x").unwrap(), seal(&key, b"", b"x").unwrap());
+        assert_ne!(
+            seal(&key, b"", b"x").unwrap(),
+            seal(&key, b"", b"x").unwrap()
+        );
     }
 
     #[test]
@@ -2072,9 +2093,18 @@ mod tests {
         let keys = RepoKeys::from_master(&master);
         assert_ne!(keys.object.as_bytes(), keys.blob_id.as_bytes());
         assert_ne!(keys.blob_id.as_bytes(), keys.stream_id.as_bytes());
-        assert_eq!(RepoKeys::from_master(&master).object.as_bytes(), keys.object.as_bytes());
-        assert_eq!(keyed_hash(&keys.blob_id, b"a"), keyed_hash(&keys.blob_id, b"a"));
-        assert_ne!(keyed_hash(&keys.blob_id, b"a"), keyed_hash(&keys.stream_id, b"a"));
+        assert_eq!(
+            RepoKeys::from_master(&master).object.as_bytes(),
+            keys.object.as_bytes()
+        );
+        assert_eq!(
+            keyed_hash(&keys.blob_id, b"a"),
+            keyed_hash(&keys.blob_id, b"a")
+        );
+        assert_ne!(
+            keyed_hash(&keys.blob_id, b"a"),
+            keyed_hash(&keys.stream_id, b"a")
+        );
     }
 
     #[test]
@@ -2088,30 +2118,71 @@ mod tests {
             .output_len(32)
             .build()
             .unwrap();
-        let a = argon2::Argon2::new_with_secret(&[3; 8], argon2::Algorithm::Argon2id, argon2::Version::V0x13, params)
-            .unwrap();
+        let a = argon2::Argon2::new_with_secret(
+            &[3; 8],
+            argon2::Algorithm::Argon2id,
+            argon2::Version::V0x13,
+            params,
+        )
+        .unwrap();
         let mut out = [0u8; 32];
         a.hash_password_into(&[1; 32], &[2; 16], &mut out).unwrap();
-        let hex: String = out.iter().map(|b| format!("{b:02x}")).collect();
-        assert_eq!(hex, "0d640df58d78766c08c037a34a8b53c9d01ef0452d75b65eb52520e96b01e659");
+        let hex = out.iter().fold(String::new(), |mut acc, b| {
+            let _ = write!(acc, "{b:02x}");
+            acc
+        });
+        assert_eq!(
+            hex,
+            "0d640df58d78766c08c037a34a8b53c9d01ef0452d75b65eb52520e96b01e659"
+        );
     }
 
     #[test]
     fn passphrase_kek_is_deterministic_and_bounded() {
         let salt = [9; 16];
-        let small = KdfParams { m_kib: 19_456, t: 1, p: 1 };
+        let small = KdfParams {
+            m_kib: 19_456,
+            t: 1,
+            p: 1,
+        };
         let a = passphrase_kek(b"correct horse", &salt, &small).unwrap();
         let b = passphrase_kek(b"correct horse", &salt, &small).unwrap();
         assert_eq!(a.as_bytes(), b.as_bytes());
-        assert_ne!(passphrase_kek(b"wrong", &salt, &small).unwrap().as_bytes(), a.as_bytes());
+        assert_ne!(
+            passphrase_kek(b"wrong", &salt, &small).unwrap().as_bytes(),
+            a.as_bytes()
+        );
         for bad in [
-            KdfParams { m_kib: 1024, t: 3, p: 1 },
-            KdfParams { m_kib: 2_000_000, t: 3, p: 1 },
-            KdfParams { m_kib: 65_536, t: 0, p: 1 },
-            KdfParams { m_kib: 65_536, t: 11, p: 1 },
-            KdfParams { m_kib: 65_536, t: 3, p: 5 },
+            KdfParams {
+                m_kib: 1024,
+                t: 3,
+                p: 1,
+            },
+            KdfParams {
+                m_kib: 2_000_000,
+                t: 3,
+                p: 1,
+            },
+            KdfParams {
+                m_kib: 65_536,
+                t: 0,
+                p: 1,
+            },
+            KdfParams {
+                m_kib: 65_536,
+                t: 11,
+                p: 1,
+            },
+            KdfParams {
+                m_kib: 65_536,
+                t: 3,
+                p: 5,
+            },
         ] {
-            assert_eq!(passphrase_kek(b"x", &salt, &bad).err(), Some(CryptoError::KdfParams));
+            assert_eq!(
+                passphrase_kek(b"x", &salt, &bad).err(),
+                Some(CryptoError::KdfParams)
+            );
         }
         assert!(KdfParams::DEFAULT.check().is_ok());
     }
@@ -2121,12 +2192,26 @@ mod tests {
         let master = Key::random().unwrap();
         let kek = Key::random().unwrap();
         let wrapped = wrap(&kek, b"wrap\0passphrase", &master).unwrap();
-        assert_eq!(unwrap_key(&kek, b"wrap\0passphrase", &wrapped).unwrap().as_bytes(), master.as_bytes());
-        assert!(unwrap_key(&kek, b"wrap\0recovery", &wrapped).is_err());
+        assert_eq!(
+            unwrap_key(&kek, b"wrap\0passphrase", &wrapped)
+                .unwrap()
+                .as_bytes(),
+            master.as_bytes()
+        );
+        assert_eq!(
+            unwrap_key(&kek, b"wrap\0recovery", &wrapped).err(),
+            Some(CryptoError::Decrypt)
+        );
         let recovery = RecoveryKey::generate().unwrap();
         let wrapped = wrap(&recovery.kek(), b"wrap\0recovery", &master).unwrap();
-        let typed = RecoveryKey::parse(&recovery.to_display().to_lowercase().replace('-', " ")).unwrap();
-        assert_eq!(unwrap_key(&typed.kek(), b"wrap\0recovery", &wrapped).unwrap().as_bytes(), master.as_bytes());
+        let typed =
+            RecoveryKey::parse(&recovery.to_display().to_lowercase().replace('-', " ")).unwrap();
+        assert_eq!(
+            unwrap_key(&typed.kek(), b"wrap\0recovery", &wrapped)
+                .unwrap()
+                .as_bytes(),
+            master.as_bytes()
+        );
     }
 
     #[test]
@@ -2135,11 +2220,56 @@ mod tests {
         let text = r.to_display();
         assert_eq!(text.len(), 13 * 4 + 12);
         assert_eq!(text.split('-').count(), 13);
-        assert_eq!(RecoveryKey::parse(&text).unwrap().kek().as_bytes(), r.kek().as_bytes());
+        assert_eq!(
+            RecoveryKey::parse(&text).unwrap().kek().as_bytes(),
+            r.kek().as_bytes()
+        );
         let ambiguous = text.replace('0', "O").replace('1', "l");
-        assert_eq!(RecoveryKey::parse(&ambiguous).unwrap().kek().as_bytes(), r.kek().as_bytes());
-        assert_eq!(RecoveryKey::parse("ABCD").err(), Some(CryptoError::RecoveryKey));
-        assert_eq!(RecoveryKey::parse(&text.replacen(|c: char| c.is_ascii_alphanumeric(), "U", 1)).err(), Some(CryptoError::RecoveryKey));
+        assert_eq!(
+            RecoveryKey::parse(&ambiguous).unwrap().kek().as_bytes(),
+            r.kek().as_bytes()
+        );
+        assert_eq!(
+            RecoveryKey::parse("ABCD").err(),
+            Some(CryptoError::RecoveryKey)
+        );
+        assert_eq!(
+            RecoveryKey::parse(&text.replacen(|c: char| c.is_ascii_alphanumeric(), "U", 1)).err(),
+            Some(CryptoError::RecoveryKey)
+        );
+    }
+
+    #[test]
+    fn recovery_key_rejects_padding_bits_and_accepts_aliases() {
+        let r = RecoveryKey::generate().unwrap();
+        let text = r.to_display();
+        // The last character carries 1 key bit and 4 padding bits: '1' sets a padding bit.
+        let mut padded = text.clone();
+        padded.pop();
+        padded.push('1');
+        assert_eq!(
+            RecoveryKey::parse(&padded).err(),
+            Some(CryptoError::RecoveryKey)
+        );
+        let canonical = text.replace('0', "O").replace('1', "I").to_lowercase();
+        assert_eq!(
+            RecoveryKey::parse(&canonical).unwrap().kek().as_bytes(),
+            r.kek().as_bytes()
+        );
+        let mixed = text.replace('0', "o").replace('1', "i");
+        assert_eq!(
+            RecoveryKey::parse(&mixed).unwrap().kek().as_bytes(),
+            r.kek().as_bytes()
+        );
+    }
+
+    #[test]
+    fn minimum_length_object_is_an_authentication_failure() {
+        let key = Key::from_bytes([7; 32]);
+        let mut exact = b"LSE1".to_vec();
+        exact.extend_from_slice(&[0; 40]);
+        assert_eq!(exact.len(), 44);
+        assert_eq!(open(&key, b"", &exact), Err(CryptoError::Decrypt));
     }
 
     #[test]
@@ -2161,7 +2291,9 @@ use std::fmt;
 
 use chacha20poly1305::aead::{Aead, KeyInit, Payload};
 use chacha20poly1305::{XChaCha20Poly1305, XNonce};
-use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
+use zeroize::{Zeroize, ZeroizeOnDrop};
+
+pub use zeroize::Zeroizing;
 
 pub const OBJECT_CONTEXT: &str = "leemusync v1 object";
 pub const BLOB_ID_CONTEXT: &str = "leemusync v1 blob-id";
@@ -2243,9 +2375,16 @@ pub fn keyed_hash(key: &Key, data: &[u8]) -> [u8; 32] {
 /// `Random` or `Encrypt`.
 pub fn seal(key: &Key, aad: &[u8], plaintext: &[u8]) -> Result<Vec<u8>, CryptoError> {
     let nonce: [u8; NONCE_LEN] = random_bytes()?;
-    let cipher = XChaCha20Poly1305::new_from_slice(key.as_bytes()).map_err(|_| CryptoError::Encrypt)?;
+    let cipher =
+        XChaCha20Poly1305::new_from_slice(key.as_bytes()).map_err(|_| CryptoError::Encrypt)?;
     let ct = cipher
-        .encrypt(XNonce::from_slice(&nonce), Payload { msg: plaintext, aad })
+        .encrypt(
+            XNonce::from_slice(&nonce),
+            Payload {
+                msg: plaintext,
+                aad,
+            },
+        )
         .map_err(|_| CryptoError::Encrypt)?;
     let mut out = Vec::with_capacity(MAGIC.len() + NONCE_LEN + ct.len());
     out.extend_from_slice(MAGIC);
@@ -2261,7 +2400,8 @@ pub fn open(key: &Key, aad: &[u8], sealed: &[u8]) -> Result<Vec<u8>, CryptoError
         return Err(CryptoError::Malformed);
     }
     let (nonce, ct) = sealed[MAGIC.len()..].split_at(NONCE_LEN);
-    let cipher = XChaCha20Poly1305::new_from_slice(key.as_bytes()).map_err(|_| CryptoError::Decrypt)?;
+    let cipher =
+        XChaCha20Poly1305::new_from_slice(key.as_bytes()).map_err(|_| CryptoError::Decrypt)?;
     cipher
         .decrypt(XNonce::from_slice(nonce), Payload { msg: ct, aad })
         .map_err(|_| CryptoError::Decrypt)
@@ -2275,15 +2415,25 @@ pub struct KdfParams {
 }
 
 impl KdfParams {
-    pub const DEFAULT: Self = Self { m_kib: 65_536, t: 3, p: 1 };
+    pub const DEFAULT: Self = Self {
+        m_kib: 65_536,
+        t: 3,
+        p: 1,
+    };
 
     /// Bounds from security §Cryptography: a tampered `repo.json` can't weaken or exhaust.
     ///
     /// # Errors
     /// `CryptoError::KdfParams` when out of range.
     pub fn check(&self) -> Result<(), CryptoError> {
-        let ok = (19_456..=1_048_576).contains(&self.m_kib) && (1..=10).contains(&self.t) && (1..=4).contains(&self.p);
-        if ok { Ok(()) } else { Err(CryptoError::KdfParams) }
+        let ok = (19_456..=1_048_576).contains(&self.m_kib)
+            && (1..=10).contains(&self.t)
+            && (1..=4).contains(&self.p);
+        if ok {
+            Ok(())
+        } else {
+            Err(CryptoError::KdfParams)
+        }
     }
 }
 
@@ -2291,12 +2441,22 @@ impl KdfParams {
 ///
 /// # Errors
 /// `KdfParams` for out-of-range parameters, `Kdf` if hashing fails.
-pub fn passphrase_kek(passphrase: &[u8], salt: &[u8; 16], params: &KdfParams) -> Result<Key, CryptoError> {
+pub fn passphrase_kek(
+    passphrase: &[u8],
+    salt: &[u8; 16],
+    params: &KdfParams,
+) -> Result<Key, CryptoError> {
     params.check()?;
-    let p = argon2::Params::new(params.m_kib, params.t, params.p, Some(32)).map_err(|_| CryptoError::KdfParams)?;
+    let p = argon2::Params::new(params.m_kib, params.t, params.p, Some(32))
+        .map_err(|_| CryptoError::KdfParams)?;
+    let block_count = p.block_count();
     let argon = argon2::Argon2::new(argon2::Algorithm::Argon2id, argon2::Version::V0x13, p);
     let mut out = Zeroizing::new([0u8; 32]);
-    argon.hash_password_into(passphrase, salt, out.as_mut()).map_err(|_| CryptoError::Kdf)?;
+    // Caller-owned memory, wiped on drop (with argon2's `zeroize` feature, H0 and the final block are wiped too).
+    let mut blocks = Zeroizing::new(vec![argon2::Block::default(); block_count]);
+    argon
+        .hash_password_into_with_memory(passphrase, salt, out.as_mut(), blocks.as_mut_slice())
+        .map_err(|_| CryptoError::Kdf)?;
     Ok(Key(*out))
 }
 
@@ -2328,8 +2488,13 @@ pub fn wrap(kek: &Key, aad: &[u8], master: &Key) -> Result<Vec<u8>, CryptoError>
 /// Same as `open`, plus `Malformed` if the payload isn't 32 bytes.
 pub fn unwrap_key(kek: &Key, aad: &[u8], wrapped: &[u8]) -> Result<Key, CryptoError> {
     let plain = Zeroizing::new(open(kek, aad, wrapped)?);
-    let bytes: [u8; 32] = plain.as_slice().try_into().map_err(|_| CryptoError::Malformed)?;
-    Ok(Key(bytes))
+    let bytes: Zeroizing<[u8; 32]> = Zeroizing::new(
+        plain
+            .as_slice()
+            .try_into()
+            .map_err(|_| CryptoError::Malformed)?,
+    );
+    Ok(Key(*bytes))
 }
 
 /// 32 random bytes the user writes down at setup.
@@ -2348,24 +2513,22 @@ impl RecoveryKey {
     }
 
     #[must_use]
-    pub fn to_display(&self) -> String {
+    pub fn to_display(&self) -> Zeroizing<String> {
         let bits = self.0.as_bytes();
-        let chars: Vec<u8> = (0..RECOVERY_CHARS)
-            .map(|i| {
-                let mut v = 0usize;
-                for b in 0..5 {
-                    let bit = i * 5 + b;
-                    let set = bit < 256 && bits[bit / 8] & (0x80 >> (bit % 8)) != 0;
-                    v = (v << 1) | usize::from(set);
-                }
-                CROCKFORD[v]
-            })
-            .collect();
-        chars
-            .chunks(4)
-            .map(|c| String::from_utf8_lossy(c).into_owned())
-            .collect::<Vec<_>>()
-            .join("-")
+        let mut text = Zeroizing::new(String::with_capacity(RECOVERY_CHARS + RECOVERY_CHARS / 4));
+        for i in 0..RECOVERY_CHARS {
+            if i > 0 && i % 4 == 0 {
+                text.push('-');
+            }
+            let mut v = 0usize;
+            for b in 0..5 {
+                let bit = i * 5 + b;
+                let set = bit < 256 && bits[bit / 8] & (0x80 >> (bit % 8)) != 0;
+                v = (v << 1) | usize::from(set);
+            }
+            text.push(char::from(CROCKFORD[v]));
+        }
+        text
     }
 
     /// Accepts any case, spaces and dashes, and Crockford's `O`→`0`, `I`/`L`→`1`.
@@ -2373,7 +2536,7 @@ impl RecoveryKey {
     /// # Errors
     /// `CryptoError::RecoveryKey`.
     pub fn parse(text: &str) -> Result<Self, CryptoError> {
-        let digits: Vec<usize> = text
+        let digits: Zeroizing<Vec<usize>> = text
             .chars()
             .filter(|c| !c.is_whitespace() && *c != '-')
             .map(|c| {
@@ -2382,13 +2545,17 @@ impl RecoveryKey {
                     'I' | 'L' => '1',
                     other => other,
                 };
-                CROCKFORD.iter().position(|d| char::from(*d) == c).ok_or(CryptoError::RecoveryKey)
+                CROCKFORD
+                    .iter()
+                    .position(|d| char::from(*d) == c)
+                    .ok_or(CryptoError::RecoveryKey)
             })
-            .collect::<Result<_, _>>()?;
+            .collect::<Result<Vec<usize>, _>>()
+            .map(Zeroizing::new)?;
         if digits.len() != RECOVERY_CHARS {
             return Err(CryptoError::RecoveryKey);
         }
-        let mut out = [0u8; 32];
+        let mut out = Zeroizing::new([0u8; 32]);
         for (i, d) in digits.iter().enumerate() {
             for b in 0..5 {
                 let bit = i * 5 + b;
@@ -2402,7 +2569,7 @@ impl RecoveryKey {
                 }
             }
         }
-        Ok(Self(Key(out)))
+        Ok(Self(Key(*out)))
     }
 }
 ```
@@ -4535,7 +4702,7 @@ Spec: [sync-model §Remote layout, §Repo config](../../specs/sync-model.md#remo
   - `repo::Repo` (crate-private) with `create(store: Store, passphrase: &str, kdf: KdfParams) -> Result<(Repo, Key, RecoveryKey), EngineError>`, `open(store: Store, unlock: Unlock<'_>) -> Result<(Repo, Key), EngineError>`, `id() -> &str`, `blob_id(&[u8]) -> BlobId`, `stream_id(PlayerId, emulator: &str, game: &str) -> StreamId`, `put_blob(&[u8]) -> Result<BlobId, _>`, `get_blob(&BlobId) -> Result<Vec<u8>, _>` (verifies the keyed hash), `put_version(&Version)`, `list_versions(&StreamId) -> Result<Vec<VersionId>, _>`, `get_version(&StreamId, &VersionId) -> Result<Vec<u8>, _>` (decrypted JSON), `put_config(&ConfigVersion)`, `list_configs() -> Result<Vec<VersionId>, _>`, `get_config(&VersionId) -> Result<Vec<u8>, _>`, `put_device(&DeviceRecord)`. `Unlock::{Passphrase(&str), Recovery(&RecoveryKey), Master(Key)}`.
   - Remote names (all lowercase): `leemusync/repo.json`, `leemusync/blobs/<2 hex>/<blob id>`, `leemusync/streams/<stream id>/versions/<version id>`, `leemusync/config/versions/<version id>`, `leemusync/devices/<device id>`. AAD strings: `"blob\0<blob id>"`, `"version\0<stream id>\0<version id>"`, `"config\0<version id>"`, `"device\0<device id>"`, `"wrap\0passphrase\0<repo id>"`, `"wrap\0recovery\0<repo id>"`, `"check\0<repo id>"`.
   - `repo_config::{load, update, write, LoadedConfig}` (crate-private): `load(&Repo, &State) -> Result<LoadedConfig, EngineError>` where `LoadedConfig { config: RepoConfig, heads: Vec<VersionId>, renamed: Vec<String>, invalid: usize }`; `write(&Repo, &State, DeviceId, parents: Vec<VersionId>, config: RepoConfig) -> Result<VersionId, EngineError>`; `update(&Repo, &State, DeviceId, f: impl FnOnce(&mut RepoConfig) -> Result<(), EngineError>) -> Result<RepoConfig, EngineError>`.
-  - Public `Engine` methods: `backend_add_fs(&mut self, path: &Path) -> Result<(), EngineError>`; `gdrive_login_start(&mut self, client_id: &str, client_secret: &str) -> Result<GdriveLogin, EngineError>` (async) with `GdriveLogin::url(&self) -> &str`; `gdrive_login_finish(&mut self, login: GdriveLogin) -> Result<(), EngineError>` (async); `init(&mut self, passphrase: &str) -> Result<(InitReport, String), EngineError>` (async; the `String` is the recovery key's display form, shown once); `join(&mut self, secret: JoinSecret) -> Result<InitReport, EngineError>` (async) with `JoinSecret::{Passphrase(String), Recovery(String)}`; `players_add(&mut self, name: &str) -> Result<(), EngineError>` (async); `players_list(&mut self) -> Result<Vec<String>, EngineError>` (async). Crate-private: `store(&self) -> Result<Store, EngineError>`, `ensure_repo(&mut self) -> Result<(), EngineError>` (async, opens the repo once with the cached master key) and `repo_ref(&self) -> Result<&Repo, EngineError>`. Call `ensure_repo().await?` first, then borrow `repo_ref()?` and `&self.state` side by side (two shared borrows).
+  - Public `Engine` methods: `backend_add_fs(&mut self, path: &Path) -> Result<(), EngineError>`; `gdrive_login_start(&mut self, client_id: &str, client_secret: &str) -> Result<GdriveLogin, EngineError>` (async) with `GdriveLogin::url(&self) -> &str`; `gdrive_login_finish(&mut self, login: GdriveLogin) -> Result<(), EngineError>` (async); `init(&mut self, passphrase: &str) -> Result<(InitReport, Zeroizing<String>), EngineError>` (async; the `Zeroizing<String>` is the recovery key's display form, shown once); `join(&mut self, secret: JoinSecret) -> Result<InitReport, EngineError>` (async) with `JoinSecret::{Passphrase(String), Recovery(String)}`; `players_add(&mut self, name: &str) -> Result<(), EngineError>` (async); `players_list(&mut self) -> Result<Vec<String>, EngineError>` (async). Crate-private: `store(&self) -> Result<Store, EngineError>`, `ensure_repo(&mut self) -> Result<(), EngineError>` (async, opens the repo once with the cached master key) and `repo_ref(&self) -> Result<&Repo, EngineError>`. Call `ensure_repo().await?` first, then borrow `repo_ref()?` and `&self.state` side by side (two shared borrows).
   - `DeviceRecord { format: u32, id: DeviceId, name: String, created_at: u64 }` (serde, sealed like every object).
 
 - [ ] **Step 1: Failing tests.** At the bottom of `crates/engine/src/repo.rs`:
@@ -5170,7 +5337,7 @@ impl Engine {
     ///
     /// # Errors
     /// `Usage` if this device already has a repo or the storage already holds one.
-    pub async fn init(&mut self, passphrase: &str) -> Result<(InitReport, String), EngineError> {
+    pub async fn init(&mut self, passphrase: &str) -> Result<(InitReport, Zeroizing<String>), EngineError> {
         if self.config.repo.is_some() {
             return Err(EngineError::Usage("this device already belongs to a repo".into()));
         }
@@ -8297,7 +8464,7 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
         Cmd::Init => {
             let pass = prompt::new_passphrase(t)?;
             let (report, recovery) = engine.init(&pass).await?;
-            eprintln!("{}\n\n    {recovery}\n", t.t("init-recovery", &[]));
+            eprintln!("{}\n\n    {}\n", t.t("init-recovery", &[]), recovery.as_str());
             if json {
                 output::json(&report);
             } else {

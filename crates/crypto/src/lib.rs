@@ -5,7 +5,9 @@ use std::fmt;
 
 use chacha20poly1305::aead::{Aead, KeyInit, Payload};
 use chacha20poly1305::{XChaCha20Poly1305, XNonce};
-use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
+use zeroize::{Zeroize, ZeroizeOnDrop};
+
+pub use zeroize::Zeroizing;
 
 pub const OBJECT_CONTEXT: &str = "leemusync v1 object";
 pub const BLOB_ID_CONTEXT: &str = "leemusync v1 blob-id";
@@ -161,10 +163,13 @@ pub fn passphrase_kek(
     params.check()?;
     let p = argon2::Params::new(params.m_kib, params.t, params.p, Some(32))
         .map_err(|_| CryptoError::KdfParams)?;
+    let block_count = p.block_count();
     let argon = argon2::Argon2::new(argon2::Algorithm::Argon2id, argon2::Version::V0x13, p);
     let mut out = Zeroizing::new([0u8; 32]);
+    // Caller-owned memory, wiped on drop (with argon2's `zeroize` feature, H0 and the final block are wiped too).
+    let mut blocks = Zeroizing::new(vec![argon2::Block::default(); block_count]);
     argon
-        .hash_password_into(passphrase, salt, out.as_mut())
+        .hash_password_into_with_memory(passphrase, salt, out.as_mut(), blocks.as_mut_slice())
         .map_err(|_| CryptoError::Kdf)?;
     Ok(Key(*out))
 }
@@ -197,11 +202,13 @@ pub fn wrap(kek: &Key, aad: &[u8], master: &Key) -> Result<Vec<u8>, CryptoError>
 /// Same as `open`, plus `Malformed` if the payload isn't 32 bytes.
 pub fn unwrap_key(kek: &Key, aad: &[u8], wrapped: &[u8]) -> Result<Key, CryptoError> {
     let plain = Zeroizing::new(open(kek, aad, wrapped)?);
-    let bytes: [u8; 32] = plain
-        .as_slice()
-        .try_into()
-        .map_err(|_| CryptoError::Malformed)?;
-    Ok(Key(bytes))
+    let bytes: Zeroizing<[u8; 32]> = Zeroizing::new(
+        plain
+            .as_slice()
+            .try_into()
+            .map_err(|_| CryptoError::Malformed)?,
+    );
+    Ok(Key(*bytes))
 }
 
 /// 32 random bytes the user writes down at setup.
@@ -220,24 +227,22 @@ impl RecoveryKey {
     }
 
     #[must_use]
-    pub fn to_display(&self) -> String {
+    pub fn to_display(&self) -> Zeroizing<String> {
         let bits = self.0.as_bytes();
-        let chars: Vec<u8> = (0..RECOVERY_CHARS)
-            .map(|i| {
-                let mut v = 0usize;
-                for b in 0..5 {
-                    let bit = i * 5 + b;
-                    let set = bit < 256 && bits[bit / 8] & (0x80 >> (bit % 8)) != 0;
-                    v = (v << 1) | usize::from(set);
-                }
-                CROCKFORD[v]
-            })
-            .collect();
-        chars
-            .chunks(4)
-            .map(|c| String::from_utf8_lossy(c).into_owned())
-            .collect::<Vec<_>>()
-            .join("-")
+        let mut text = Zeroizing::new(String::with_capacity(RECOVERY_CHARS + RECOVERY_CHARS / 4));
+        for i in 0..RECOVERY_CHARS {
+            if i > 0 && i % 4 == 0 {
+                text.push('-');
+            }
+            let mut v = 0usize;
+            for b in 0..5 {
+                let bit = i * 5 + b;
+                let set = bit < 256 && bits[bit / 8] & (0x80 >> (bit % 8)) != 0;
+                v = (v << 1) | usize::from(set);
+            }
+            text.push(char::from(CROCKFORD[v]));
+        }
+        text
     }
 
     /// Accepts any case, spaces and dashes, and Crockford's `O`→`0`, `I`/`L`→`1`.
@@ -245,7 +250,7 @@ impl RecoveryKey {
     /// # Errors
     /// `CryptoError::RecoveryKey`.
     pub fn parse(text: &str) -> Result<Self, CryptoError> {
-        let digits: Vec<usize> = text
+        let digits: Zeroizing<Vec<usize>> = text
             .chars()
             .filter(|c| !c.is_whitespace() && *c != '-')
             .map(|c| {
@@ -259,11 +264,12 @@ impl RecoveryKey {
                     .position(|d| char::from(*d) == c)
                     .ok_or(CryptoError::RecoveryKey)
             })
-            .collect::<Result<_, _>>()?;
+            .collect::<Result<Vec<usize>, _>>()
+            .map(Zeroizing::new)?;
         if digits.len() != RECOVERY_CHARS {
             return Err(CryptoError::RecoveryKey);
         }
-        let mut out = [0u8; 32];
+        let mut out = Zeroizing::new([0u8; 32]);
         for (i, d) in digits.iter().enumerate() {
             for b in 0..5 {
                 let bit = i * 5 + b;
@@ -277,7 +283,7 @@ impl RecoveryKey {
                 }
             }
         }
-        Ok(Self(Key(out)))
+        Ok(Self(Key(*out)))
     }
 }
 
@@ -439,7 +445,10 @@ mod tests {
                 .as_bytes(),
             master.as_bytes()
         );
-        assert!(unwrap_key(&kek, b"wrap\0recovery", &wrapped).is_err());
+        assert_eq!(
+            unwrap_key(&kek, b"wrap\0recovery", &wrapped).err(),
+            Some(CryptoError::Decrypt)
+        );
         let recovery = RecoveryKey::generate().unwrap();
         let wrapped = wrap(&recovery.kek(), b"wrap\0recovery", &master).unwrap();
         let typed =
@@ -475,6 +484,39 @@ mod tests {
             RecoveryKey::parse(&text.replacen(|c: char| c.is_ascii_alphanumeric(), "U", 1)).err(),
             Some(CryptoError::RecoveryKey)
         );
+    }
+
+    #[test]
+    fn recovery_key_rejects_padding_bits_and_accepts_aliases() {
+        let r = RecoveryKey::generate().unwrap();
+        let text = r.to_display();
+        // The last character carries 1 key bit and 4 padding bits: '1' sets a padding bit.
+        let mut padded = text.clone();
+        padded.pop();
+        padded.push('1');
+        assert_eq!(
+            RecoveryKey::parse(&padded).err(),
+            Some(CryptoError::RecoveryKey)
+        );
+        let canonical = text.replace('0', "O").replace('1', "I").to_lowercase();
+        assert_eq!(
+            RecoveryKey::parse(&canonical).unwrap().kek().as_bytes(),
+            r.kek().as_bytes()
+        );
+        let mixed = text.replace('0', "o").replace('1', "i");
+        assert_eq!(
+            RecoveryKey::parse(&mixed).unwrap().kek().as_bytes(),
+            r.kek().as_bytes()
+        );
+    }
+
+    #[test]
+    fn minimum_length_object_is_an_authentication_failure() {
+        let key = Key::from_bytes([7; 32]);
+        let mut exact = b"LSE1".to_vec();
+        exact.extend_from_slice(&[0; 40]);
+        assert_eq!(exact.len(), 44);
+        assert_eq!(open(&key, b"", &exact), Err(CryptoError::Decrypt));
     }
 
     #[test]
