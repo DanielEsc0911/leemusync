@@ -1,6 +1,6 @@
 # Config and CLI
 
-> **Status:** Draft · **Related:** [rules](../rules.md) (P5, P6, B2), [architecture](architecture.md), [emulator-profiles](emulator-profiles.md#overrides), [i18n](i18n.md#rust-strings), [platforms/headless](platforms/headless.md) · **Code:** `crates/cli` (planned)
+> **Status:** Draft · **Related:** [rules](../rules.md) (P5, P6, B2), [architecture](architecture.md), [emulator-profiles](emulator-profiles.md#overrides), [i18n](i18n.md#rust-strings), [platforms/headless](platforms/headless.md) · **Code:** `crates/engine/src/local_config.rs`, `crates/cli/`
 
 ## Purpose
 Power users and headless devices can do everything without the GUI (P5). The UI, CLI and config file are three views of the same settings.

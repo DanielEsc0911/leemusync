@@ -13,7 +13,7 @@ Each invariant has tests (unit, simulation with injected faults) that must pass 
 | I1 | No local save is overwritten unless its previous content is in local history first |
 | I2 | The remote is append-only. Only leases and `repo.json` are overwritten, and only retention GC deletes |
 | I3 | Never read for a snapshot, or write a restore, while the emulator runs (when detectable) or before the quiet period ends |
-| I4 | Every local write is atomic: temp file in the same folder → write → fsync → rename → fsync folder |
+| I4 | Every local write is atomic: temp file in the same folder → write → fsync → rename → fsync folder (unix; Windows skips the folder fsync, V-REL-6) (`crates/engine/src/fsx.rs`) |
 | I5 | Every multi-step operation is journaled and resumes or rolls back after a crash |
 | I6 | Nothing is committed or restored until it's verified (AEAD authentication + content hash) |
 
@@ -77,3 +77,4 @@ Targets for the daemon on desktop. Measured in Phase 1/2 benchmarks and enforced
 - **V-REL-5** Desktop idle suspend actually waits while LeemuSync holds its inhibit (needs an idle-timeout run): XFCE with `org.freedesktop.PowerManagement.Inhibit`; GNOME (gnome-settings-daemon follows `org.gnome.SessionManager` inhibitors, which the portal's `Inhibit` feeds) and KDE (PowerDevil's policy agent, which also reads logind inhibitors) from documentation only, unmeasured (SP2).
 - **V-REL-2** Windows logon task restart behaviour and tray from a scheduled task (SP2). Deferred by the maintainer on 2026-10-08.
 - **V-REL-3** Budgets are achievable with OpenDAL + tokio + SQLite (Phase 1 benchmarks).
+- **V-REL-6** Whether the I4 rename survives power loss on Windows without a folder fsync: `std` can't open a folder as a file there, so `fsx::write_atomic` skips that step (SP2).

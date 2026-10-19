@@ -4044,7 +4044,7 @@ keyring = { workspace = true, features = ["windows-native"] }
   - `trait ProcessProbe: Send + Sync { fn running(&self, names: &[String]) -> bool; }`, `SysinfoProbe`, `FakeProbe` (`FakeProbe::default()`, `set(&self, running: bool)`).
   - `EngineEnv { locations: Locations, secrets: Arc<dyn SecretStore>, processes: Arc<dyn ProcessProbe>, kdf: KdfParams }` with `EngineEnv::system() -> Result<EngineEnv, EngineError>`; `Engine::open(env: EngineEnv) -> Result<Engine, EngineError>`, `Engine::device_id(&self) -> DeviceId`, `Engine::local_config(&self) -> &LocalConfig`, `Engine::arm_failpoint(&self, name: &'static str)` (feature `failpoints`); crate-private `now_ms() -> u64` and `new_version_id() -> Result<VersionId, EngineError>`.
 
-- [ ] **Step 1: Failing tests.** `crates/engine/src/fsx.rs` (tests at the bottom):
+- [x] **Step 1: Failing tests.** `crates/engine/src/fsx.rs` (tests at the bottom):
 
 ```rust
 #[cfg(test)]
@@ -4200,8 +4200,8 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Run** `cargo test -p leemusync-engine` → compile errors.
-- [ ] **Step 3: Implement `error.rs`:**
+- [x] **Step 2: Run** `cargo test -p leemusync-engine` → compile errors.
+- [x] **Step 3: Implement `error.rs`:**
 
 ```rust
 //! Engine errors. Applications map `code()` to localised text (architecture §Engine internals).
@@ -4289,7 +4289,7 @@ impl From<rusqlite::Error> for EngineError {
 }
 ```
 
-- [ ] **Step 4: Implement `locations.rs`:**
+- [x] **Step 4: Implement `locations.rs`:**
 
 ```rust
 //! Where LeemuSync keeps its files (config-and-cli §Locations).
@@ -4338,7 +4338,7 @@ impl Locations {
 }
 ```
 
-- [ ] **Step 5: Implement `fsx.rs`** (above its tests):
+- [x] **Step 5: Implement `fsx.rs`** (above its tests):
 
 ```rust
 //! File helpers that keep invariant I4 (atomic writes) and never follow symlinks.
@@ -4450,7 +4450,7 @@ pub fn mtime_ms(meta: &Metadata) -> i64 {
 }
 ```
 
-- [ ] **Step 6: Implement `local_config.rs`:**
+- [x] **Step 6: Implement `local_config.rs`:**
 
 ```rust
 //! `config.toml`, per device (config-and-cli §Config file). Never holds secrets.
@@ -4536,7 +4536,7 @@ impl LocalConfig {
 }
 ```
 
-- [ ] **Step 7: Implement `secrets.rs`** (above its tests):
+- [x] **Step 7: Implement `secrets.rs`** (above its tests):
 
 ```rust
 //! Secrets live in the OS keystore only (security §Credentials).
@@ -4634,7 +4634,7 @@ impl SecretStore for MemorySecrets {
 }
 ```
 
-- [ ] **Step 8: Implement `state.rs`** (above its tests):
+- [x] **Step 8: Implement `state.rs`** (above its tests):
 
 ```rust
 //! Local SQLite state DB and journal (D12, reliability §Restore procedure).
@@ -4873,7 +4873,7 @@ impl State {
 }
 ```
 
-- [ ] **Step 9: Implement `failpoints.rs` and `process.rs`:**
+- [x] **Step 9: Implement `failpoints.rs` and `process.rs`:**
 
 ```rust
 //! Test-only fault injection: `hit` fails once at an armed point (testing §Fault injection).
@@ -4947,7 +4947,7 @@ impl ProcessProbe for FakeProbe {
 }
 ```
 
-- [ ] **Step 10: Implement `lib.rs`** (above its tests):
+- [x] **Step 10: Implement `lib.rs`** (above its tests):
 
 ```rust
 //! Sync engine: scanning, snapshots, transfers, journal, state.
@@ -5058,8 +5058,8 @@ pub(crate) fn new_version_id() -> Result<VersionId, EngineError> {
 
 `save_config`, `Engine::state`, `Engine::env` and `Engine::failpoints` are first read in Tasks 11–14. Until then put `#[allow(dead_code)] // read from Task 11` on `save_config` and on the `Engine` struct, and remove both attributes in Task 14 once everything is used (`-D warnings` turns dead-code warnings into errors).
 
-- [ ] **Step 11: Run** `cargo test -p leemusync-engine && cargo clippy -p leemusync-engine --all-targets -- -D warnings` → PASS. Run `cargo xtask layers` → ok.
-- [ ] **Step 12: Commit.** `docs/specs/config-and-cli.md` **Code:** `` `crates/engine/src/local_config.rs`, `crates/cli/` ``; `docs/specs/reliability.md` I4 gains "(`crates/engine/src/fsx.rs`)". `just check`, then:
+- [x] **Step 11: Run** `cargo test -p leemusync-engine && cargo clippy -p leemusync-engine --all-targets -- -D warnings` → PASS. Run `cargo xtask layers` → ok.
+- [x] **Step 12: Commit.** `docs/specs/config-and-cli.md` **Code:** `` `crates/engine/src/local_config.rs`, `crates/cli/` ``; `docs/specs/reliability.md` I4 gains "(`crates/engine/src/fsx.rs`)". `just check`, then:
 
 ```bash
 git add Cargo.toml Cargo.lock crates/engine docs/specs

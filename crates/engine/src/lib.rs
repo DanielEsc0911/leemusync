@@ -1,2 +1,155 @@
-//! Sync engine: scanning, snapshots, transfers, leases, journal.
+//! Sync engine: scanning, snapshots, transfers, journal, state.
 //! Spec: docs/specs/architecture.md (Engine internals), docs/specs/reliability.md.
+
+mod error;
+mod failpoints;
+pub mod fsx;
+mod local_config;
+mod locations;
+mod process;
+mod secrets;
+mod state;
+
+use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use leemusync_core::{DeviceId, VersionId};
+use leemusync_crypto::KdfParams;
+
+pub use error::EngineError;
+pub use failpoints::Failpoints;
+pub use local_config::{BackendConfig, DeviceSection, EmulatorOverride, LocalConfig};
+pub use locations::Locations;
+pub use process::{FakeProbe, ProcessProbe, SysinfoProbe};
+pub use secrets::{KeyringSecrets, MemorySecrets, SecretStore};
+pub use state::{JournalEntry, State, StreamRow};
+
+pub struct EngineEnv {
+    pub locations: Locations,
+    pub secrets: Arc<dyn SecretStore>,
+    pub processes: Arc<dyn ProcessProbe>,
+    /// Argon2id parameters for new repos (tests use the minimum).
+    pub kdf: KdfParams,
+}
+
+impl EngineEnv {
+    /// The real OS: XDG locations, the OS keystore, `sysinfo`, default Argon2id.
+    ///
+    /// # Errors
+    /// `Config` when there is no home directory.
+    pub fn system() -> Result<Self, EngineError> {
+        Ok(Self {
+            locations: Locations::from_os()?,
+            secrets: Arc::new(KeyringSecrets),
+            processes: Arc::new(SysinfoProbe),
+            kdf: KdfParams::DEFAULT,
+        })
+    }
+}
+
+#[allow(dead_code)] // read from Task 11
+pub struct Engine {
+    env: EngineEnv,
+    config: LocalConfig,
+    state: State,
+    failpoints: Failpoints,
+}
+
+impl Engine {
+    /// Loads or creates `config.toml` (a new device id on first run) and takes the state lock.
+    ///
+    /// # Errors
+    /// `Locked` if another engine runs; `Config`/`Io` for unreadable files.
+    pub fn open(env: EngineEnv) -> Result<Self, EngineError> {
+        std::fs::create_dir_all(&env.locations.config_dir)?;
+        let path = env.locations.config_dir.join("config.toml");
+        let config = if let Some(c) = LocalConfig::load(&path)? {
+            c
+        } else {
+            let name = sysinfo::System::host_name().unwrap_or_else(|| "device".into());
+            let c = LocalConfig::new(DeviceId(new_version_id()?), &name);
+            c.save(&path)?;
+            c
+        };
+        let state = State::open(&env.locations.data_dir)?;
+        Ok(Self {
+            env,
+            config,
+            state,
+            failpoints: Failpoints::default(),
+        })
+    }
+
+    #[must_use]
+    pub fn device_id(&self) -> DeviceId {
+        self.config.device.id
+    }
+
+    #[must_use]
+    pub fn local_config(&self) -> &LocalConfig {
+        &self.config
+    }
+
+    #[cfg(any(test, feature = "failpoints"))]
+    pub fn arm_failpoint(&self, name: &'static str) {
+        self.failpoints.arm(name);
+    }
+
+    #[allow(dead_code)] // read from Task 11
+    fn save_config(&self) -> Result<(), EngineError> {
+        self.config
+            .save(&self.env.locations.config_dir.join("config.toml"))
+    }
+}
+
+pub(crate) fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
+}
+
+pub(crate) fn new_version_id() -> Result<VersionId, EngineError> {
+    Ok(VersionId::from_parts(
+        now_ms(),
+        leemusync_crypto::random_bytes::<10>()?,
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    pub(crate) fn test_env(root: &std::path::Path) -> EngineEnv {
+        EngineEnv {
+            locations: Locations::under(root),
+            secrets: Arc::new(MemorySecrets::default()),
+            processes: Arc::new(FakeProbe::default()),
+            kdf: leemusync_crypto::KdfParams {
+                m_kib: 19_456,
+                t: 1,
+                p: 1,
+            },
+        }
+    }
+
+    #[test]
+    fn the_device_id_survives_a_restart() {
+        let dir = tempfile::tempdir().unwrap();
+        let first = Engine::open(test_env(dir.path())).unwrap().device_id();
+        let second = Engine::open(test_env(dir.path())).unwrap().device_id();
+        assert_eq!(first, second);
+        let text =
+            std::fs::read_to_string(Locations::under(dir.path()).config_dir.join("config.toml"))
+                .unwrap();
+        assert!(text.contains("config_version = 1"));
+    }
+
+    #[test]
+    fn exit_codes_follow_the_cli_spec() {
+        assert_eq!(EngineError::Usage("x".into()).exit_code(), 2);
+        assert_eq!(EngineError::Config("x".into()).exit_code(), 3);
+        let auth = leemusync_store::StoreError::new(leemusync_store::ErrorClass::Auth, "x");
+        assert_eq!(EngineError::Store(auth).exit_code(), 6);
+        assert_eq!(EngineError::Unlock.exit_code(), 1);
+    }
+}

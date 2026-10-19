@@ -30,6 +30,9 @@ url = "2.5.8"
 base64 = "0.22.1"
 sha2 = "0.10.9"
 keyring = { version = "3.6.3", default-features = false }
+rusqlite = { version = "0.37.0", features = ["bundled"] }
+directories = "6.0.0"
+sysinfo = { version = "0.37.2", default-features = false, features = ["system"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
