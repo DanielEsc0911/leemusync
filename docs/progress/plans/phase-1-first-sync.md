@@ -4292,7 +4292,7 @@ impl From<rusqlite::Error> for EngineError {
 - [x] **Step 4: Implement `locations.rs`:**
 
 ```rust
-//! Where LeemuSync keeps its files (config-and-cli §Locations).
+//! Where `LeemuSync` keeps its files (config-and-cli §Locations).
 
 use std::path::{Path, PathBuf};
 
@@ -4312,8 +4312,9 @@ impl Locations {
     /// `Config` when the OS reports no home directory.
     pub fn from_os() -> Result<Self, EngineError> {
         let project = directories::ProjectDirs::from("", "", "leemusync")
-            .ok_or_else(|| EngineError::Config("no home directory".into()))?;
-        let base = directories::BaseDirs::new().ok_or_else(|| EngineError::Config("no home directory".into()))?;
+            .ok_or_else(|| EngineError::Config("no_home_dir".into()))?;
+        let base = directories::BaseDirs::new()
+            .ok_or_else(|| EngineError::Config("no_home_dir".into()))?;
         Ok(Self {
             config_dir: project.config_dir().to_path_buf(),
             data_dir: project.data_dir().to_path_buf(),
@@ -4343,28 +4344,44 @@ impl Locations {
 ```rust
 //! File helpers that keep invariant I4 (atomic writes) and never follow symlinks.
 
-use std::fs::{self, File, Metadata, OpenOptions};
+use std::fmt::Write as _;
+use std::fs::{self, Metadata, OpenOptions};
 use std::io::{self, Write as _};
 use std::path::{Component, Path};
 use std::time::UNIX_EPOCH;
 
+const TEMP_PREFIX: &str = ".leemusync-";
+const TEMP_SUFFIX: &str = ".tmp";
+
+/// `write_atomic`'s temp names. A crash can orphan one; it is never snapshotted or restored.
+fn is_temp_name(name: &str) -> bool {
+    name.len() > TEMP_PREFIX.len() + TEMP_SUFFIX.len()
+        && name.starts_with(TEMP_PREFIX)
+        && name.ends_with(TEMP_SUFFIX)
+}
+
 /// Temp file in the same folder (`create_new`, so an existing name or symlink is never opened),
-/// write, fsync, rename over the target (replaces the name, never follows it), fsync the folder.
+/// write, fsync, rename over the target (replaces the name, never follows it), fsync the folder (unix).
 ///
 /// # Errors
 /// Any I/O error; the target is then unchanged.
 pub fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
-    let parent = path.parent().ok_or_else(|| io::Error::other("path has no parent"))?;
+    let parent = path
+        .parent()
+        .ok_or_else(|| io::Error::other("path has no parent"))?;
     fs::create_dir_all(parent)?;
     let random = leemusync_crypto::random_bytes::<8>().map_err(io::Error::other)?;
-    let name: String = random.iter().map(|b| format!("{b:02x}")).collect();
-    let tmp = parent.join(format!(".leemusync-{name}.tmp"));
+    let name = random.iter().fold(String::new(), |mut acc, b| {
+        let _ = write!(acc, "{b:02x}");
+        acc
+    });
+    let tmp = parent.join(format!("{TEMP_PREFIX}{name}{TEMP_SUFFIX}"));
     let result = (|| {
         let mut file = OpenOptions::new().write(true).create_new(true).open(&tmp)?;
         file.write_all(bytes)?;
         file.sync_all()?;
         fs::rename(&tmp, path)?;
-        File::open(parent)?.sync_all()
+        sync_dir(parent)
     })();
     if result.is_err() {
         let _ = fs::remove_file(&tmp);
@@ -4372,23 +4389,49 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
     result
 }
 
+/// Makes the rename durable. Not done on Windows; see reliability V-REL-6.
+#[cfg(unix)]
+fn sync_dir(dir: &Path) -> io::Result<()> {
+    fs::File::open(dir)?.sync_all()
+}
+
+#[cfg(not(unix))]
+#[allow(clippy::unnecessary_wraps)] // same signature as the unix version
+fn sync_dir(_dir: &Path) -> io::Result<()> {
+    Ok(())
+}
+
 /// Fails if `path` is outside `root` or any existing component between them is a symlink.
+///
+/// The root is matched against `path`'s ancestors (shortest first) lexically or by canonical
+/// form, so `/var` → `/private/var` (macOS) and `\\?\` prefixes (Windows) aren't false
+/// rejections. Below the matched ancestor every component is checked with `symlink_metadata`,
+/// never followed.
 ///
 /// # Errors
 /// `PermissionDenied` naming the problem.
 pub fn ensure_no_symlinks(root: &Path, path: &Path) -> io::Result<()> {
+    let base = matching_ancestor(root, path).ok_or_else(|| {
+        io::Error::new(io::ErrorKind::PermissionDenied, "path is outside its root")
+    })?;
     let rel = path
-        .strip_prefix(root)
+        .strip_prefix(base)
         .map_err(|_| io::Error::new(io::ErrorKind::PermissionDenied, "path is outside its root"))?;
-    let mut current = root.to_path_buf();
+    let mut current = base.to_path_buf();
     for c in rel.components() {
         let Component::Normal(part) = c else {
-            return Err(io::Error::new(io::ErrorKind::PermissionDenied, "path has `..` or a prefix"));
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "path has `..` or a prefix",
+            ));
         };
         current.push(part);
         match fs::symlink_metadata(&current) {
             Ok(meta) if meta.file_type().is_symlink() => {
-                return Err(io::Error::new(io::ErrorKind::PermissionDenied, "symlink inside a save folder"));
+                return Err(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    "symlink inside a save folder",
+                ));
             }
             Ok(_) => {}
             Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
@@ -4398,7 +4441,21 @@ pub fn ensure_no_symlinks(root: &Path, path: &Path) -> io::Result<()> {
     Ok(())
 }
 
+/// The shortest ancestor of `path` (itself included) that is `root`, lexically or canonically.
+fn matching_ancestor<'a>(root: &Path, path: &'a Path) -> Option<&'a Path> {
+    let mut ancestors: Vec<&Path> = path.ancestors().collect();
+    ancestors.reverse();
+    if let Some(found) = ancestors.iter().find(|a| **a == root) {
+        return Some(found);
+    }
+    let canonical_root = fs::canonicalize(root).ok()?;
+    ancestors
+        .into_iter()
+        .find(|a| fs::canonicalize(a).is_ok_and(|c| c == canonical_root))
+}
+
 /// Every regular file under `dir`, as `/`-separated relative paths, sorted. Refuses symlinks.
+/// Skips (never deletes) `write_atomic` temp files.
 ///
 /// # Errors
 /// I/O errors, or `PermissionDenied` for a symlink or a non-UTF-8 name.
@@ -4417,9 +4474,19 @@ fn walk(dir: &Path, prefix: &str, out: &mut Vec<(String, Metadata)>) -> io::Resu
             .file_name()
             .into_string()
             .map_err(|_| io::Error::new(io::ErrorKind::PermissionDenied, "non-UTF-8 file name"))?;
-        let rel = if prefix.is_empty() { name } else { format!("{prefix}/{name}") };
+        if is_temp_name(&name) {
+            continue;
+        }
+        let rel = if prefix.is_empty() {
+            name
+        } else {
+            format!("{prefix}/{name}")
+        };
         if meta.file_type().is_symlink() {
-            return Err(io::Error::new(io::ErrorKind::PermissionDenied, format!("symlink at {rel}")));
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                format!("symlink at {rel}"),
+            ));
         } else if meta.is_dir() {
             walk(&entry.path(), &rel, out)?;
         } else if meta.is_file() {
@@ -4486,7 +4553,7 @@ pub struct DeviceSection {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum BackendConfig {
     Gdrive { root: String, client_id: String },
     Fs { path: PathBuf },
@@ -4498,12 +4565,27 @@ pub struct EmulatorOverride {
     pub root: Option<PathBuf>,
 }
 
+/// `toml`'s `Display` quotes the offending source line, which can hold a secret pasted by
+/// mistake. Keep only its message and the position.
+fn parse_error(text: &str, e: &toml::de::Error) -> EngineError {
+    let Some(span) = e.span() else {
+        return EngineError::Config(e.message().to_owned());
+    };
+    let before = text.get(..span.start).unwrap_or(text);
+    let line = before.matches('\n').count() + 1;
+    let column = before.rsplit('\n').next().map_or(0, |l| l.chars().count()) + 1;
+    EngineError::Config(format!("line {line}, column {column}: {}", e.message()))
+}
+
 impl LocalConfig {
     #[must_use]
     pub fn new(id: DeviceId, name: &str) -> Self {
         Self {
             config_version: CONFIG_VERSION,
-            device: DeviceSection { id, name: name.to_owned() },
+            device: DeviceSection {
+                id,
+                name: name.to_owned(),
+            },
             repo: None,
             backend: None,
             grants: Vec::new(),
@@ -4519,9 +4601,12 @@ impl LocalConfig {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
             Err(e) => return Err(e.into()),
         };
-        let config: Self = toml::from_str(&text).map_err(|e| EngineError::Config(e.to_string()))?;
+        let config: Self = toml::from_str(&text).map_err(|e| parse_error(&text, &e))?;
         if config.config_version != CONFIG_VERSION {
-            return Err(EngineError::Config(format!("unsupported config_version {}", config.config_version)));
+            return Err(EngineError::Config(format!(
+                "unsupported config_version {}",
+                config.config_version
+            )));
         }
         Ok(Some(config))
     }
@@ -4566,19 +4651,22 @@ pub trait SecretStore: Send + Sync {
 }
 
 #[must_use]
+#[allow(dead_code)] // used by Task 11
 pub fn secret_master(repo: &str) -> String {
     format!("repo-{repo}-master-key")
 }
 #[must_use]
+#[allow(dead_code)] // used by Task 11
 pub fn secret_gdrive_refresh(device: DeviceId) -> String {
     format!("device-{device}-gdrive-refresh-token")
 }
 #[must_use]
+#[allow(dead_code)] // used by Task 11
 pub fn secret_gdrive_client(device: DeviceId) -> String {
     format!("device-{device}-gdrive-client-secret")
 }
 
-/// Secret Service on Linux (KWallet or GNOME Keyring), Keychain, Credential Manager.
+/// Secret Service on Linux (`KWallet` or GNOME Keyring), Keychain, Credential Manager.
 pub struct KeyringSecrets;
 
 fn keyring_err(e: &keyring::Error) -> EngineError {
@@ -4616,18 +4704,27 @@ pub struct MemorySecrets(Mutex<BTreeMap<String, String>>);
 
 impl SecretStore for MemorySecrets {
     fn get(&self, name: &str) -> Result<Option<Zeroizing<String>>, EngineError> {
-        let map = self.0.lock().map_err(|_| EngineError::Secrets("poisoned".into()))?;
+        let map = self
+            .0
+            .lock()
+            .map_err(|_| EngineError::Secrets("poisoned".into()))?;
         Ok(map.get(name).map(|v| Zeroizing::new(v.clone())))
     }
 
     fn set(&self, name: &str, value: &str) -> Result<(), EngineError> {
-        let mut map = self.0.lock().map_err(|_| EngineError::Secrets("poisoned".into()))?;
+        let mut map = self
+            .0
+            .lock()
+            .map_err(|_| EngineError::Secrets("poisoned".into()))?;
         map.insert(name.to_owned(), value.to_owned());
         Ok(())
     }
 
     fn delete(&self, name: &str) -> Result<(), EngineError> {
-        let mut map = self.0.lock().map_err(|_| EngineError::Secrets("poisoned".into()))?;
+        let mut map = self
+            .0
+            .lock()
+            .map_err(|_| EngineError::Secrets("poisoned".into()))?;
         map.remove(name);
         Ok(())
     }
@@ -4649,8 +4746,8 @@ use rusqlite::{Connection, OptionalExtension, params};
 use crate::EngineError;
 
 const SCHEMA: &str = "
-CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS streams (
+CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE streams (
   stream_id TEXT PRIMARY KEY,
   player_id TEXT NOT NULL,
   emulator TEXT NOT NULL,
@@ -4660,13 +4757,16 @@ CREATE TABLE IF NOT EXISTS streams (
   highest_seen TEXT,
   replace_local INTEGER NOT NULL
 );
-CREATE TABLE IF NOT EXISTS manifests (stream_id TEXT NOT NULL, version_id TEXT NOT NULL, body BLOB NOT NULL,
+CREATE TABLE manifests (stream_id TEXT NOT NULL, version_id TEXT NOT NULL, body BLOB NOT NULL,
   PRIMARY KEY (stream_id, version_id));
-CREATE TABLE IF NOT EXISTS config_versions (version_id TEXT PRIMARY KEY, body BLOB NOT NULL);
-CREATE TABLE IF NOT EXISTS journal (op_id TEXT PRIMARY KEY, stream_id TEXT NOT NULL, kind TEXT NOT NULL,
+CREATE TABLE config_versions (version_id TEXT PRIMARY KEY, body BLOB NOT NULL);
+CREATE TABLE journal (op_id TEXT PRIMARY KEY, stream_id TEXT NOT NULL, kind TEXT NOT NULL,
   step TEXT NOT NULL, data TEXT NOT NULL);
 PRAGMA user_version = 1;
 ";
+
+/// The `PRAGMA user_version` this build writes and reads.
+const SCHEMA_VERSION: u32 = 1;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StreamRow {
@@ -4695,7 +4795,23 @@ pub struct State {
 }
 
 fn parse<T: std::str::FromStr>(text: &str) -> Result<T, EngineError> {
-    text.parse().map_err(|_| EngineError::Io("state database holds an invalid id".into()))
+    text.parse()
+        .map_err(|_| EngineError::Io("state database holds an invalid id".into()))
+}
+
+/// 0 → create the schema and stamp 1 in one transaction; 1 → as is; newer → refuse.
+fn migrate(conn: &mut Connection) -> Result<(), EngineError> {
+    let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+    let version: u32 = tx.query_row("PRAGMA user_version", [], |r| r.get(0))?;
+    match version {
+        0 => {
+            tx.execute_batch(SCHEMA)?;
+            tx.commit()?;
+            Ok(())
+        }
+        SCHEMA_VERSION => Ok(()),
+        newer => Err(EngineError::Data(format!("state.db user_version {newer}"))),
+    }
 }
 
 impl State {
@@ -4710,13 +4826,21 @@ impl State {
             use std::os::unix::fs::PermissionsExt as _;
             std::fs::set_permissions(data_dir, std::fs::Permissions::from_mode(0o700))?;
         }
-        let lock = File::options().create(true).truncate(false).write(true).open(data_dir.join("lock"))?;
-        if lock.try_lock().is_err() {
-            return Err(EngineError::Locked(data_dir.display().to_string()));
+        let lock = File::options()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(data_dir.join("lock"))?;
+        match lock.try_lock() {
+            Ok(()) => {}
+            Err(std::fs::TryLockError::WouldBlock) => {
+                return Err(EngineError::Locked(data_dir.display().to_string()));
+            }
+            Err(std::fs::TryLockError::Error(e)) => return Err(e.into()),
         }
-        let conn = Connection::open(data_dir.join("state.db"))?;
+        let mut conn = Connection::open(data_dir.join("state.db"))?;
         conn.execute_batch("PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL;")?;
-        conn.execute_batch(SCHEMA)?;
+        migrate(&mut conn)?;
         Ok(Self { conn, _lock: lock })
     }
 
@@ -4760,7 +4884,8 @@ impl State {
     /// # Errors
     /// `Io` for database errors.
     pub fn put_stream(&self, row: &StreamRow) -> Result<(), EngineError> {
-        let files = serde_json::to_string(&row.base_files).map_err(|e| EngineError::Io(e.to_string()))?;
+        let files =
+            serde_json::to_string(&row.base_files).map_err(|e| EngineError::Io(e.to_string()))?;
         self.conn.execute(
             "INSERT INTO streams (stream_id, player_id, emulator, game, base_version, base_files, highest_seen, replace_local)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
@@ -4782,7 +4907,11 @@ impl State {
 
     /// # Errors
     /// `Io` for database errors.
-    pub fn cached_manifest(&self, stream: &StreamId, id: &VersionId) -> Result<Option<Vec<u8>>, EngineError> {
+    pub fn cached_manifest(
+        &self,
+        stream: &StreamId,
+        id: &VersionId,
+    ) -> Result<Option<Vec<u8>>, EngineError> {
         Ok(self
             .conn
             .query_row(
@@ -4795,7 +4924,12 @@ impl State {
 
     /// # Errors
     /// `Io` for database errors.
-    pub fn cache_manifest(&self, stream: &StreamId, id: &VersionId, json: &[u8]) -> Result<(), EngineError> {
+    pub fn cache_manifest(
+        &self,
+        stream: &StreamId,
+        id: &VersionId,
+        json: &[u8],
+    ) -> Result<(), EngineError> {
         self.conn.execute(
             "INSERT OR IGNORE INTO manifests (stream_id, version_id, body) VALUES (?1, ?2, ?3)",
             params![stream.to_string(), id.to_string(), json],
@@ -4808,7 +4942,11 @@ impl State {
     pub fn cached_config(&self, id: &VersionId) -> Result<Option<Vec<u8>>, EngineError> {
         Ok(self
             .conn
-            .query_row("SELECT body FROM config_versions WHERE version_id = ?1", params![id.to_string()], |r| r.get(0))
+            .query_row(
+                "SELECT body FROM config_versions WHERE version_id = ?1",
+                params![id.to_string()],
+                |r| r.get(0),
+            )
             .optional()?)
     }
 
@@ -4836,14 +4974,29 @@ impl State {
     /// # Errors
     /// `Io` for database errors or corrupt rows.
     pub fn journal_all(&self) -> Result<Vec<JournalEntry>, EngineError> {
-        let mut stmt = self.conn.prepare("SELECT op_id, stream_id, kind, step, data FROM journal ORDER BY op_id")?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT op_id, stream_id, kind, step, data FROM journal ORDER BY op_id")?;
         let rows = stmt.query_map([], |r| {
-            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get(2)?, r.get(3)?, r.get(4)?))
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, String>(1)?,
+                r.get(2)?,
+                r.get(3)?,
+                r.get(4)?,
+            ))
         })?;
         rows.map(|row| {
             let (op, stream, kind, step, data) = row?;
-            let hash = leemusync_core::Hash32::from_hex(&stream).map_err(|e| EngineError::Io(e.to_string()))?;
-            Ok(JournalEntry { op, stream: StreamId(hash), kind, step, data })
+            let hash = leemusync_core::Hash32::from_hex(&stream)
+                .map_err(|e| EngineError::Io(e.to_string()))?;
+            Ok(JournalEntry {
+                op,
+                stream: StreamId(hash),
+                kind,
+                step,
+                data,
+            })
         })
         .collect()
     }
@@ -4851,14 +5004,20 @@ impl State {
     /// # Errors
     /// `Io` for database errors.
     pub fn journal_delete(&self, op: &str) -> Result<(), EngineError> {
-        self.conn.execute("DELETE FROM journal WHERE op_id = ?1", params![op])?;
+        self.conn
+            .execute("DELETE FROM journal WHERE op_id = ?1", params![op])?;
         Ok(())
     }
 
     /// # Errors
     /// `Io` for database errors.
     pub fn meta(&self, key: &str) -> Result<Option<String>, EngineError> {
-        Ok(self.conn.query_row("SELECT value FROM meta WHERE key = ?1", params![key], |r| r.get(0)).optional()?)
+        Ok(self
+            .conn
+            .query_row("SELECT value FROM meta WHERE key = ?1", params![key], |r| {
+                r.get(0)
+            })
+            .optional()?)
     }
 
     /// # Errors
@@ -4899,9 +5058,11 @@ impl Failpoints {
     /// # Errors
     /// `Injected(name)` once, if `name` was armed.
     pub fn hit(&self, name: &'static str) -> Result<(), EngineError> {
-        match self.armed.lock() {
-            Ok(mut armed) if armed.remove(name) => Err(EngineError::Injected(name)),
-            _ => Ok(()),
+        let fired = self.armed.lock().is_ok_and(|mut armed| armed.remove(name));
+        if fired {
+            Err(EngineError::Injected(name))
+        } else {
+            Ok(())
         }
     }
 }
@@ -4923,9 +5084,14 @@ impl ProcessProbe for SysinfoProbe {
         let mut sys = sysinfo::System::new();
         sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
         sys.processes().values().any(|p| {
-            let exe = p.exe().and_then(|e| e.file_name()).map(|n| n.to_string_lossy().into_owned());
+            let exe = p
+                .exe()
+                .and_then(|e| e.file_name())
+                .map(|n| n.to_string_lossy().into_owned());
             let comm = p.name().to_string_lossy().into_owned();
-            names.iter().any(|n| exe.as_deref() == Some(n.as_str()) || comm == *n)
+            names
+                .iter()
+                .any(|n| exe.as_deref() == Some(n.as_str()) || comm == *n)
         })
     }
 }
@@ -4999,6 +5165,7 @@ impl EngineEnv {
     }
 }
 
+#[allow(dead_code)] // read from Task 11
 pub struct Engine {
     env: EngineEnv,
     config: LocalConfig,
@@ -5007,24 +5174,29 @@ pub struct Engine {
 }
 
 impl Engine {
-    /// Loads or creates `config.toml` (a new device id on first run) and takes the state lock.
+    /// Takes the state lock, then loads or creates `config.toml` (a new device id on first run).
     ///
     /// # Errors
     /// `Locked` if another engine runs; `Config`/`Io` for unreadable files.
     pub fn open(env: EngineEnv) -> Result<Self, EngineError> {
+        // The lock comes first: config.toml is only read or written while holding it.
+        let state = State::open(&env.locations.data_dir)?;
         std::fs::create_dir_all(&env.locations.config_dir)?;
         let path = env.locations.config_dir.join("config.toml");
-        let config = match LocalConfig::load(&path)? {
-            Some(c) => c,
-            None => {
-                let name = sysinfo::System::host_name().unwrap_or_else(|| "device".into());
-                let c = LocalConfig::new(DeviceId(new_version_id()?), &name);
-                c.save(&path)?;
-                c
-            }
+        let config = if let Some(c) = LocalConfig::load(&path)? {
+            c
+        } else {
+            let name = sysinfo::System::host_name().unwrap_or_else(|| "device".into());
+            let c = LocalConfig::new(DeviceId(new_version_id()?), &name);
+            c.save(&path)?;
+            c
         };
-        let state = State::open(&env.locations.data_dir)?;
-        Ok(Self { env, config, state, failpoints: Failpoints::default() })
+        Ok(Self {
+            env,
+            config,
+            state,
+            failpoints: Failpoints::default(),
+        })
     }
 
     #[must_use]
@@ -5042,17 +5214,24 @@ impl Engine {
         self.failpoints.arm(name);
     }
 
+    #[allow(dead_code)] // read from Task 11
     fn save_config(&self) -> Result<(), EngineError> {
-        self.config.save(&self.env.locations.config_dir.join("config.toml"))
+        self.config
+            .save(&self.env.locations.config_dir.join("config.toml"))
     }
 }
 
 pub(crate) fn now_ms() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
 }
 
 pub(crate) fn new_version_id() -> Result<VersionId, EngineError> {
-    Ok(VersionId::from_parts(now_ms(), leemusync_crypto::random_bytes::<10>()?))
+    Ok(VersionId::from_parts(
+        now_ms(),
+        leemusync_crypto::random_bytes::<10>()?,
+    ))
 }
 ```
 

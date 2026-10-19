@@ -56,11 +56,13 @@ pub struct Engine {
 }
 
 impl Engine {
-    /// Loads or creates `config.toml` (a new device id on first run) and takes the state lock.
+    /// Takes the state lock, then loads or creates `config.toml` (a new device id on first run).
     ///
     /// # Errors
     /// `Locked` if another engine runs; `Config`/`Io` for unreadable files.
     pub fn open(env: EngineEnv) -> Result<Self, EngineError> {
+        // The lock comes first: config.toml is only read or written while holding it.
+        let state = State::open(&env.locations.data_dir)?;
         std::fs::create_dir_all(&env.locations.config_dir)?;
         let path = env.locations.config_dir.join("config.toml");
         let config = if let Some(c) = LocalConfig::load(&path)? {
@@ -71,7 +73,6 @@ impl Engine {
             c.save(&path)?;
             c
         };
-        let state = State::open(&env.locations.data_dir)?;
         Ok(Self {
             env,
             config,
@@ -151,5 +152,35 @@ mod tests {
         let auth = leemusync_store::StoreError::new(leemusync_store::ErrorClass::Auth, "x");
         assert_eq!(EngineError::Store(auth).exit_code(), 6);
         assert_eq!(EngineError::Unlock.exit_code(), 1);
+    }
+
+    #[test]
+    fn a_second_engine_is_refused_and_keeps_the_first_device_id() {
+        let dir = tempfile::tempdir().unwrap();
+        let first = Engine::open(test_env(dir.path())).unwrap();
+        let path = Locations::under(dir.path()).config_dir.join("config.toml");
+        let before = std::fs::read_to_string(&path).unwrap();
+        assert!(matches!(
+            Engine::open(test_env(dir.path())),
+            Err(EngineError::Locked(_))
+        ));
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), before);
+        assert!(before.contains(&first.device_id().to_string()));
+    }
+
+    #[test]
+    fn a_locked_data_dir_stops_the_first_run_before_config_is_written() {
+        let dir = tempfile::tempdir().unwrap();
+        let _held = State::open(&Locations::under(dir.path()).data_dir).unwrap();
+        assert!(matches!(
+            Engine::open(test_env(dir.path())),
+            Err(EngineError::Locked(_))
+        ));
+        assert!(
+            !Locations::under(dir.path())
+                .config_dir
+                .join("config.toml")
+                .exists()
+        );
     }
 }

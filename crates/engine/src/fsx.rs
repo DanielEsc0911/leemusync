@@ -6,6 +6,16 @@ use std::io::{self, Write as _};
 use std::path::{Component, Path};
 use std::time::UNIX_EPOCH;
 
+const TEMP_PREFIX: &str = ".leemusync-";
+const TEMP_SUFFIX: &str = ".tmp";
+
+/// `write_atomic`'s temp names. A crash can orphan one; it is never snapshotted or restored.
+fn is_temp_name(name: &str) -> bool {
+    name.len() > TEMP_PREFIX.len() + TEMP_SUFFIX.len()
+        && name.starts_with(TEMP_PREFIX)
+        && name.ends_with(TEMP_SUFFIX)
+}
+
 /// Temp file in the same folder (`create_new`, so an existing name or symlink is never opened),
 /// write, fsync, rename over the target (replaces the name, never follows it), fsync the folder (unix).
 ///
@@ -21,7 +31,7 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
         let _ = write!(acc, "{b:02x}");
         acc
     });
-    let tmp = parent.join(format!(".leemusync-{name}.tmp"));
+    let tmp = parent.join(format!("{TEMP_PREFIX}{name}{TEMP_SUFFIX}"));
     let result = (|| {
         let mut file = OpenOptions::new().write(true).create_new(true).open(&tmp)?;
         file.write_all(bytes)?;
@@ -35,8 +45,7 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
     result
 }
 
-/// Makes the rename durable. `std` can't open a folder as a file on Windows, so this is
-/// skipped there (reliability V-REL-6).
+/// Makes the rename durable. Not done on Windows; see reliability V-REL-6.
 #[cfg(unix)]
 fn sync_dir(dir: &Path) -> io::Result<()> {
     fs::File::open(dir)?.sync_all()
@@ -102,6 +111,7 @@ fn matching_ancestor<'a>(root: &Path, path: &'a Path) -> Option<&'a Path> {
 }
 
 /// Every regular file under `dir`, as `/`-separated relative paths, sorted. Refuses symlinks.
+/// Skips (never deletes) `write_atomic` temp files.
 ///
 /// # Errors
 /// I/O errors, or `PermissionDenied` for a symlink or a non-UTF-8 name.
@@ -120,6 +130,9 @@ fn walk(dir: &Path, prefix: &str, out: &mut Vec<(String, Metadata)>) -> io::Resu
             .file_name()
             .into_string()
             .map_err(|_| io::Error::new(io::ErrorKind::PermissionDenied, "non-UTF-8 file name"))?;
+        if is_temp_name(&name) {
+            continue;
+        }
         let rel = if prefix.is_empty() {
             name
         } else {
@@ -233,6 +246,31 @@ mod tests {
         assert!(
             ensure_no_symlinks(&real, &real.join("inner/x.sav")).is_err(),
             "even pointing inside"
+        );
+    }
+
+    #[test]
+    fn list_files_skips_orphaned_temp_files_without_deleting_them() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("0")).unwrap();
+        std::fs::write(
+            dir.path().join("0/.leemusync-0011223344556677.tmp"),
+            b"half",
+        )
+        .unwrap();
+        std::fs::write(dir.path().join(".leemusync-aa.tmp"), b"half").unwrap();
+        std::fs::write(dir.path().join("0/a.sav"), b"a").unwrap();
+        std::fs::write(dir.path().join(".leemusync-notes.txt"), b"kept").unwrap();
+        let names: Vec<String> = list_files(dir.path())
+            .unwrap()
+            .into_iter()
+            .map(|(n, _)| n)
+            .collect();
+        assert_eq!(names, [".leemusync-notes.txt", "0/a.sav"]);
+        assert!(
+            dir.path()
+                .join("0/.leemusync-0011223344556677.tmp")
+                .exists()
         );
     }
 }

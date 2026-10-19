@@ -10,8 +10,8 @@ use rusqlite::{Connection, OptionalExtension, params};
 use crate::EngineError;
 
 const SCHEMA: &str = "
-CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS streams (
+CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE streams (
   stream_id TEXT PRIMARY KEY,
   player_id TEXT NOT NULL,
   emulator TEXT NOT NULL,
@@ -21,13 +21,16 @@ CREATE TABLE IF NOT EXISTS streams (
   highest_seen TEXT,
   replace_local INTEGER NOT NULL
 );
-CREATE TABLE IF NOT EXISTS manifests (stream_id TEXT NOT NULL, version_id TEXT NOT NULL, body BLOB NOT NULL,
+CREATE TABLE manifests (stream_id TEXT NOT NULL, version_id TEXT NOT NULL, body BLOB NOT NULL,
   PRIMARY KEY (stream_id, version_id));
-CREATE TABLE IF NOT EXISTS config_versions (version_id TEXT PRIMARY KEY, body BLOB NOT NULL);
-CREATE TABLE IF NOT EXISTS journal (op_id TEXT PRIMARY KEY, stream_id TEXT NOT NULL, kind TEXT NOT NULL,
+CREATE TABLE config_versions (version_id TEXT PRIMARY KEY, body BLOB NOT NULL);
+CREATE TABLE journal (op_id TEXT PRIMARY KEY, stream_id TEXT NOT NULL, kind TEXT NOT NULL,
   step TEXT NOT NULL, data TEXT NOT NULL);
 PRAGMA user_version = 1;
 ";
+
+/// The `PRAGMA user_version` this build writes and reads.
+const SCHEMA_VERSION: u32 = 1;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StreamRow {
@@ -60,6 +63,21 @@ fn parse<T: std::str::FromStr>(text: &str) -> Result<T, EngineError> {
         .map_err(|_| EngineError::Io("state database holds an invalid id".into()))
 }
 
+/// 0 → create the schema and stamp 1 in one transaction; 1 → as is; newer → refuse.
+fn migrate(conn: &mut Connection) -> Result<(), EngineError> {
+    let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+    let version: u32 = tx.query_row("PRAGMA user_version", [], |r| r.get(0))?;
+    match version {
+        0 => {
+            tx.execute_batch(SCHEMA)?;
+            tx.commit()?;
+            Ok(())
+        }
+        SCHEMA_VERSION => Ok(()),
+        newer => Err(EngineError::Data(format!("state.db user_version {newer}"))),
+    }
+}
+
 impl State {
     /// Opens (and creates) `<data_dir>/state.db` and holds `<data_dir>/lock` until dropped.
     ///
@@ -77,12 +95,16 @@ impl State {
             .truncate(false)
             .write(true)
             .open(data_dir.join("lock"))?;
-        if lock.try_lock().is_err() {
-            return Err(EngineError::Locked(data_dir.display().to_string()));
+        match lock.try_lock() {
+            Ok(()) => {}
+            Err(std::fs::TryLockError::WouldBlock) => {
+                return Err(EngineError::Locked(data_dir.display().to_string()));
+            }
+            Err(std::fs::TryLockError::Error(e)) => return Err(e.into()),
         }
-        let conn = Connection::open(data_dir.join("state.db"))?;
+        let mut conn = Connection::open(data_dir.join("state.db"))?;
         conn.execute_batch("PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL;")?;
-        conn.execute_batch(SCHEMA)?;
+        migrate(&mut conn)?;
         Ok(Self { conn, _lock: lock })
     }
 
@@ -320,5 +342,36 @@ mod tests {
             State::open(dir.path()),
             Err(EngineError::Locked(_))
         ));
+    }
+
+    #[test]
+    fn a_newer_state_db_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        {
+            let state = State::open(dir.path()).unwrap();
+            assert_eq!(state.meta("x").unwrap(), None);
+        }
+        {
+            let conn = Connection::open(dir.path().join("state.db")).unwrap();
+            conn.execute_batch("PRAGMA user_version = 2;").unwrap();
+        }
+        match State::open(dir.path()) {
+            Err(EngineError::Data(v)) => assert!(v.contains('2'), "{v}"),
+            Err(e) => panic!("wrong error {e}"),
+            Ok(_) => panic!("opened a newer state DB"),
+        }
+    }
+
+    #[test]
+    fn reopening_keeps_rows_and_version_1() {
+        let dir = tempfile::tempdir().unwrap();
+        State::open(dir.path()).unwrap().set_meta("k", "v").unwrap();
+        let state = State::open(dir.path()).unwrap();
+        assert_eq!(state.meta("k").unwrap().as_deref(), Some("v"));
+        let v: u32 = state
+            .conn
+            .query_row("PRAGMA user_version", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(v, 1);
     }
 }

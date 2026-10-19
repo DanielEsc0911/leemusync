@@ -43,6 +43,18 @@ pub struct EmulatorOverride {
     pub root: Option<PathBuf>,
 }
 
+/// `toml`'s `Display` quotes the offending source line, which can hold a secret pasted by
+/// mistake. Keep only its message and the position.
+fn parse_error(text: &str, e: &toml::de::Error) -> EngineError {
+    let Some(span) = e.span() else {
+        return EngineError::Config(e.message().to_owned());
+    };
+    let before = text.get(..span.start).unwrap_or(text);
+    let line = before.matches('\n').count() + 1;
+    let column = before.rsplit('\n').next().map_or(0, |l| l.chars().count()) + 1;
+    EngineError::Config(format!("line {line}, column {column}: {}", e.message()))
+}
+
 impl LocalConfig {
     #[must_use]
     pub fn new(id: DeviceId, name: &str) -> Self {
@@ -67,7 +79,7 @@ impl LocalConfig {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
             Err(e) => return Err(e.into()),
         };
-        let config: Self = toml::from_str(&text).map_err(|e| EngineError::Config(e.to_string()))?;
+        let config: Self = toml::from_str(&text).map_err(|e| parse_error(&text, &e))?;
         if config.config_version != CONFIG_VERSION {
             return Err(EngineError::Config(format!(
                 "unsupported config_version {}",
@@ -147,5 +159,31 @@ mod tests {
             matches!(LocalConfig::load(&path), Err(EngineError::Config(_))),
             "no secrets in config.toml"
         );
+    }
+
+    #[test]
+    fn errors_never_echo_the_file_contents() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        let good = toml::to_string(&sample()).unwrap();
+        let cases = [
+            good.replace(
+                "client_id = ",
+                "client_secret = \"SUPERSECRET\"\nclient_id = ",
+            ),
+            good.replace(
+                "client_id = ",
+                "client_secret = \"SUPERSECRET\nclient_id = ",
+            ),
+            good.replace("client_id = ", "client_secret = SUPERSECRET\nclient_id = "),
+        ];
+        for text in cases {
+            std::fs::write(&path, &text).unwrap();
+            let err = LocalConfig::load(&path).unwrap_err();
+            assert!(matches!(err, EngineError::Config(_)));
+            let shown = format!("{err} {err:?}");
+            assert!(!shown.contains("SUPERSECRET"), "{shown}");
+            assert!(shown.contains("line "), "{shown}");
+        }
     }
 }
