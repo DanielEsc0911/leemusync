@@ -304,16 +304,29 @@ mod tests {
         let mut a = RepoConfig::default();
         a.add_player(p(1), "A").unwrap();
         a.map_account(d(1), p(1), "cemu", "80000001").unwrap();
-        let mut b = RepoConfig::default();
-        b.add_player(p(3), "a").unwrap();
-        b.map_account(d(2), p(3), "cemu", "80000001").unwrap();
-        let (m, renamed) = RepoConfig::merge(&[&a, &b]);
-        assert_eq!(m.players.len(), 2);
+        let mut b = a.clone();
+        b.map_account(d(2), p(1), "cemu", "80000002").unwrap();
+        let mut c = RepoConfig::default();
+        c.add_player(p(3), "a").unwrap();
+        c.map_account(d(3), p(3), "cemu", "80000001").unwrap();
+        let (m, renamed) = RepoConfig::merge(&[&a, &b, &c]);
+        assert_eq!(m.players.len(), 2, "p1 is in two configs but counts once");
+        assert_eq!(m.players[&p(1)].name, "A", "a shared id keeps its name");
         assert_eq!(m.players[&p(3)].name, "a (2)");
         assert_eq!(renamed, vec!["a (2)".to_string()]);
         assert_eq!(m.account_of(d(1), p(1), "cemu"), Some("80000001"));
-        assert_eq!(m.account_of(d(2), p(3), "cemu"), Some("80000001"));
-        assert_eq!(RepoConfig::merge(&[&b, &a]).0, m, "order doesn't matter");
+        assert_eq!(m.account_of(d(2), p(1), "cemu"), Some("80000002"));
+        assert_eq!(m.account_of(d(3), p(3), "cemu"), Some("80000001"));
+        assert_eq!(
+            RepoConfig::merge(&[&c, &b, &a]).0,
+            m,
+            "order doesn't matter"
+        );
+        assert_eq!(
+            RepoConfig::merge(&[&b, &c, &a]).0,
+            m,
+            "order doesn't matter"
+        );
     }
 
     #[test]
