@@ -2620,7 +2620,7 @@ tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
   - `redact(text: &str) -> String`.
 - Object paths are validated: ASCII `[a-z0-9._/-]`, no leading `/`, no `..`, ≤ 512 bytes. Anything else is `Permanent` before any I/O.
 
-- [ ] **Step 1: Failing unit tests.** `crates/store/src/redact.rs`:
+- [x] **Step 1: Failing unit tests.** `crates/store/src/redact.rs`:
 
 ```rust
 //! Scrubs OAuth secrets out of any text before it can reach output or logs (V-SEC-4).
@@ -2688,8 +2688,8 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Run** `cargo test -p leemusync-store` → compile errors.
-- [ ] **Step 3: Implement `redact.rs`** (above its tests):
+- [x] **Step 2: Run** `cargo test -p leemusync-store` → compile errors.
+- [x] **Step 3: Implement `redact.rs`** (above its tests):
 
 ```rust
 const SECRET_PARAMS: [&str; 6] = ["access_token", "refresh_token", "client_secret", "code", "code_verifier", "id_token"];
@@ -2769,7 +2769,7 @@ fn redact_bearer(text: &str) -> String {
 }
 ```
 
-- [ ] **Step 4: Implement `error.rs`** (above its tests):
+- [x] **Step 4: Implement `error.rs`** (above its tests):
 
 ```rust
 use std::fmt;
@@ -2843,7 +2843,7 @@ pub(crate) fn classify(kind: ErrorKind, temporary: bool, text: &str) -> ErrorCla
 }
 ```
 
-- [ ] **Step 5: Failing conformance suite** `crates/store/tests/conformance.rs`:
+- [x] **Step 5: Failing conformance suite** `crates/store/tests/conformance.rs`:
 
 ```rust
 //! One suite for every adapter (storage-backends §Conformance suite).
@@ -2883,8 +2883,8 @@ async fn fs_conformance() {
 }
 ```
 
-- [ ] **Step 6: Run** `cargo test -p leemusync-store --test conformance` → compile errors.
-- [ ] **Step 7: Implement `lib.rs`:**
+- [x] **Step 6: Run** `cargo test -p leemusync-store --test conformance` → compile errors.
+- [x] **Step 7: Implement `lib.rs`:**
 
 ```rust
 //! Storage backend interface and adapters. Moves opaque encrypted objects.
@@ -3037,8 +3037,8 @@ fn check_path(path: &str) -> Result<(), StoreError> {
 
 Version ids are uppercase Crockford. Object paths must stay lowercase-only, so the engine writes version ids lowercased in paths and parses them case-insensitively (`VersionId::from_str` accepts lowercase, Task 2).
 
-- [ ] **Step 8: Run** `cargo test -p leemusync-store && cargo clippy -p leemusync-store --all-targets -- -D warnings` → PASS. If OpenDAL's `delete` on a missing path returns `NotFound` instead of `Ok`, map `NotFound` to `Ok(())` in `delete` and re-run.
-- [ ] **Step 9: Commit.** `docs/specs/storage-backends.md`: **Code:** `` `crates/store/src/` ``, and §Conformance suite: "`crates/store/tests/conformance.rs`: `fs` runs in CI." `just check`, then:
+- [x] **Step 8: Run** `cargo test -p leemusync-store && cargo clippy -p leemusync-store --all-targets -- -D warnings` → PASS. If OpenDAL's `delete` on a missing path returns `NotFound` instead of `Ok`, map `NotFound` to `Ok(())` in `delete` and re-run.
+- [x] **Step 9: Commit.** `docs/specs/storage-backends.md`: **Code:** `` `crates/store/src/` ``, and §Conformance suite: "`crates/store/tests/conformance.rs`: `fs` runs in CI." `just check`, then:
 
 ```bash
 git add Cargo.toml Cargo.lock crates/store docs/specs/storage-backends.md

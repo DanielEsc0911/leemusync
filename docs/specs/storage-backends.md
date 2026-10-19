@@ -1,6 +1,6 @@
 # Storage backends
 
-> **Status:** Draft · **Related:** [rules](../rules.md) (P2, B2, B3), [decisions](../decisions.md) (D5, D10), [sync-model](sync-model.md#remote-layout), [security](security.md#credentials), [testing](testing.md) · **Code:** `crates/store` (planned)
+> **Status:** Draft · **Related:** [rules](../rules.md) (P2, B2, B3), [decisions](../decisions.md) (D5, D10), [sync-model](sync-model.md#remote-layout), [security](security.md#credentials), [testing](testing.md) · **Code:** `crates/store/src/`
 
 ## Purpose
 Let users keep their repo on storage they already own. The store layer moves opaque encrypted objects and knows nothing about saves.
@@ -113,7 +113,7 @@ OpenDAL's `fs` gets an atomic `if_not_exists` only without `atomic_write_dir`: i
 3. Store the credentials ([security §Credentials](security.md#credentials)).
 
 ## Conformance suite
-Every adapter must pass the shared suite in `crates/store/tests/conformance.rs`: round-trip, `create_only` refuses to overwrite, list after write (within the documented delay), delete is idempotent, 0-byte and 64 MiB objects, server mtime if claimed. It runs in CI against MinIO, a WebDAV server and an SFTP server in Docker. Cloud providers are tested manually before each release ([testing](testing.md)).
+Every adapter must pass the shared suite in `crates/store/tests/conformance.rs` (in Phase 1 only `fs` runs in CI): round-trip, `create_only` refuses to overwrite, list after write (within the documented delay), delete is idempotent, 0-byte and 64 MiB objects, server mtime if claimed. It runs in CI against MinIO, a WebDAV server and an SFTP server in Docker. Cloud providers are tested manually before each release ([testing](testing.md)).
 
 ## Verify
 Local services are answered in [Tested capabilities](#tested-capabilities-sp6). The rest is pending accounts (deferred by the maintainer).

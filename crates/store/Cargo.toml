@@ -10,3 +10,12 @@ publish = false
 
 [lints]
 workspace = true
+
+[dependencies]
+opendal = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["sync", "time", "net", "io-util"] }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
