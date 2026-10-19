@@ -44,7 +44,7 @@ desktop = "80000002"
 ```
 
 ### Discovery
-A scan lists the accounts it finds (id, plus the display name if the profile says how to read it). LeemuSync proposes mappings by matching names and the player confirms. Unmatched accounts → ask. Two players can't map to the same id on one device.
+A scan lists the accounts it finds (id, plus the display name if the profile says how to read it). LeemuSync proposes mappings by matching names and the player confirms. Unmatched accounts → ask. Two players can't map to the same id on one device. Scan: `crates/engine/src/scan.rs`.
 
 **Orphaned saves.** A scan also lists save folders whose account no longer exists (for Cemu, `user/<id>/` with no `system/act/<id>/`). Deleting an account in Cemu leaves them behind ([above](#cemu-accounts-sp7)). The scan never ignores or deletes them. It offers to recover one: the player picks who it belongs to, and LeemuSync syncs it into that player's stream. The folder is only read; LeemuSync writes it to a live account only through a normal restore. Seen on the maintainer's CachyOS laptop (2026-10-18).
 

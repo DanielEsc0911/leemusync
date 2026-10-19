@@ -33,6 +33,8 @@ keyring = { version = "3.6.3", default-features = false }
 rusqlite = { version = "0.37.0", features = ["bundled"] }
 directories = "6.0.0"
 sysinfo = { version = "0.37.2", default-features = false, features = ["system"] }
+regex = { version = "1.13.1", default-features = false, features = ["std", "unicode-perl"] }
+roxmltree = "0.21.1"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

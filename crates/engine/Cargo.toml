@@ -21,6 +21,8 @@ leemusync-core = { path = "../core" }
 leemusync-crypto = { path = "../crypto" }
 leemusync-store = { path = "../store" }
 directories = { workspace = true }
+regex = { workspace = true }
+roxmltree = { workspace = true }
 rusqlite = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

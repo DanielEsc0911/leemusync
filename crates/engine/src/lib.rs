@@ -1,14 +1,18 @@
 //! Sync engine: scanning, snapshots, transfers, journal, state.
 //! Spec: docs/specs/architecture.md (Engine internals), docs/specs/reliability.md.
 
+mod discover;
 mod error;
 mod failpoints;
 pub mod fsx;
+mod grants;
 mod local_config;
 mod locations;
 mod process;
+mod profiles;
 mod repo;
 mod repo_config;
+mod scan;
 mod secrets;
 mod setup;
 mod state;

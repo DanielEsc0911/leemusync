@@ -110,6 +110,8 @@ Rejected at load time, with a clear error. Enforced in `core` and fuzzed:
 4. Propose grants for the resolved folders. Nothing is read until the user grants it ([security](security.md#file-system-confinement)).
 5. Enumerate streams from `saves.pattern` and accounts.
 
+Implemented for `per_game_user_dir` in `crates/engine/src/{profiles,discover}.rs`; fixture test `crates/engine/tests/discovery.rs`. Account ids must match `id_regex` against the whole folder name. `saves.pattern` supports the captures `title_id` and `account` only; any other capture is a config error. A path read from the emulator's own config (`mlc_path`) is not trusted as granted: it goes through the grants and the symlink check like any other.
+
 ## Overrides
 Per device: base path, extra roots, include/exclude tweaks, disable a profile. **Local custom profiles** (same schema) live in `<config dir>/profiles/` and are trusted because the user created them. Both are editable in UI → Settings → Emulators → Advanced, in the CLI, and in the config file ([config-and-cli](config-and-cli.md)).
 

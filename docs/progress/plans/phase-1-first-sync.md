@@ -5984,7 +5984,7 @@ Spec: [emulator-profiles §Discovery, §Linux paths](../../specs/emulator-profil
   - `grants::{is_granted(grants: &[PathBuf], path: &Path) -> bool, require(grants: &[PathBuf], path: &Path) -> Result<PathBuf, EngineError>}` (returns the grant root that covers `path`).
   - `Engine::grant_add(&mut self, path: &Path) -> Result<PathBuf, EngineError>` (canonical path; refuses `/`, the home folder itself and non-folders), `Engine::grant_list(&self) -> Vec<PathBuf>`, `Engine::scan(&mut self) -> Result<ScanReport, EngineError>` (async; works without a repo, then `player` stays `None`), crate-private `Engine::installs(&self) -> Result<Vec<(Profile, Install, Option<Discovery>)>, EngineError>` (`None` when the folders aren't granted).
 
-- [ ] **Step 1: Failing integration test.** First the shared helpers, `crates/engine/tests/common/mod.rs` (Tasks 15 and 16 add to this file):
+- [x] **Step 1: Failing integration test.** First the shared helpers, `crates/engine/tests/common/mod.rs` (Tasks 15 and 16 add to this file):
 
 ```rust
 //! Shared helpers for engine integration tests. Fake data only.
@@ -6104,8 +6104,8 @@ async fn grants_refuse_home_and_root() {
 
 Add `toml = { workspace = true }` and `leemusync-crypto = { path = "../crypto" }` to engine `[dev-dependencies]`.
 
-- [ ] **Step 2: Run** `cargo test -p leemusync-engine --test discovery` → compile errors.
-- [ ] **Step 3: Implement `grants.rs`:**
+- [x] **Step 2: Run** `cargo test -p leemusync-engine --test discovery` → compile errors.
+- [x] **Step 3: Implement `grants.rs`:**
 
 ```rust
 //! The engine reads and writes only inside folders the user granted (security §File-system confinement).
@@ -6143,7 +6143,7 @@ pub fn require(grants: &[PathBuf], path: &Path) -> Result<PathBuf, EngineError> 
 }
 ```
 
-- [ ] **Step 4: Implement `profiles.rs`:**
+- [x] **Step 4: Implement `profiles.rs`:**
 
 ```rust
 //! Bundled profiles (D8) and where an emulator is installed on this machine.
@@ -6266,7 +6266,7 @@ fn read_xml_key(file: &Path, key: &str) -> Option<String> {
 }
 ```
 
-- [ ] **Step 5: Implement `discover.rs`:**
+- [x] **Step 5: Implement `discover.rs`:**
 
 ```rust
 //! Accounts, save folders and orphaned saves of one install (players-and-accounts §Discovery).
@@ -6403,7 +6403,7 @@ pub fn save_folder(profile: &Profile, install: &Install, game: &str, account: &s
 
 Note: the fixture's `user/common/.keep` makes `user/common` non-empty. In the Flatpak fixture test, the scan reports it as `shared_not_empty`, so it shows up as a `SharedFolderNotEmpty` warning. The test doesn't assert on warnings. This is expected: M1a doesn't sync shared folders, and the warning tells the user.
 
-- [ ] **Step 6: Implement `scan.rs`:**
+- [x] **Step 6: Implement `scan.rs`:**
 
 ```rust
 //! `leemusync grant` and `leemusync scan`.
@@ -6528,8 +6528,8 @@ impl Engine {
 
 `lib.rs`: add `mod discover; mod grants; mod profiles; mod scan;`. Because `fsx` is `pub`, the integration test can call `fsx::copy_tree`.
 
-- [ ] **Step 7: Run** `cargo test -p leemusync-engine && cargo clippy -p leemusync-engine --all-targets -- -D warnings` → PASS.
-- [ ] **Step 8: Commit.** In `docs/specs/emulator-profiles.md` §Discovery add "Implemented for `per_game_user_dir` in `crates/engine/src/{profiles,discover}.rs`; fixture test `crates/engine/tests/discovery.rs`." In `players-and-accounts.md` §Discovery add "Scan: `crates/engine/src/scan.rs`." `just check`, then:
+- [x] **Step 7: Run** `cargo test -p leemusync-engine && cargo clippy -p leemusync-engine --all-targets -- -D warnings` → PASS.
+- [x] **Step 8: Commit.** In `docs/specs/emulator-profiles.md` §Discovery add "Implemented for `per_game_user_dir` in `crates/engine/src/{profiles,discover}.rs`; fixture test `crates/engine/tests/discovery.rs`." In `players-and-accounts.md` §Discovery add "Scan: `crates/engine/src/scan.rs`." `just check`, then:
 
 ```bash
 git add Cargo.toml Cargo.lock crates/engine profiles docs/specs
