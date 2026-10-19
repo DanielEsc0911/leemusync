@@ -1,8 +1,11 @@
 //! Domain model and pure sync logic. No I/O, no async.
 //! Spec: docs/specs/architecture.md (Layers), docs/specs/sync-model.md.
 
+pub mod heads;
 pub mod id;
+pub mod manifest;
 pub mod path;
+pub mod reconcile;
 
 pub use id::{BlobId, DeviceId, Hash32, IdError, PlayerId, StreamId, VersionId};
 pub use path::{PathError, RelPath};

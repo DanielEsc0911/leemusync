@@ -706,7 +706,7 @@ Spec: [sync-model §Versions, §Heads and divergence, §Reconciliation](../../sp
   - `heads::{Graph, heads, descends_from}`: `type Graph = BTreeMap<VersionId, Vec<VersionId>>` (version → parents); `heads(&Graph) -> Vec<VersionId>` (sorted); `descends_from(&Graph, child: VersionId, ancestor: VersionId) -> bool` (true when equal).
   - `reconcile::{Local, Action, Input, reconcile}`: `reconcile(&Input) -> Action`.
 
-- [ ] **Step 1: Failing manifest tests** in `crates/core/src/manifest.rs`:
+- [x] **Step 1: Failing manifest tests** in `crates/core/src/manifest.rs`:
 
 ```rust
 //! Version manifest, format 1. Spec: docs/specs/sync-model.md (Versions).
@@ -796,8 +796,8 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Run** `cargo test -p leemusync-core manifest` → compile errors.
-- [ ] **Step 3: Implement** (above the tests):
+- [x] **Step 2: Run** `cargo test -p leemusync-core manifest` → compile errors.
+- [x] **Step 3: Implement** (above the tests):
 
 ```rust
 use serde::{Deserialize, Serialize};
@@ -922,9 +922,9 @@ impl Version {
 }
 ```
 
-- [ ] **Step 4: Create the golden file.** Create `crates/core/src/golden/manifest-v1.json` empty, run `cargo test -p leemusync-core print_golden -- --ignored --nocapture`, copy the printed line into the file, and check it by eye: fields in struct order, `"files":[{"path":"option.sav",...}]`, ids as strings. This file freezes format 1. Changing it later means a new format number.
-- [ ] **Step 5: Run** `cargo test -p leemusync-core manifest` → PASS.
-- [ ] **Step 6: Failing heads and reconcile tests.** `crates/core/src/heads.rs`:
+- [x] **Step 4: Create the golden file.** Create `crates/core/src/golden/manifest-v1.json` empty, run `cargo test -p leemusync-core print_golden -- --ignored --nocapture`, copy the printed line into the file, and check it by eye: fields in struct order, `"files":[{"path":"option.sav",...}]`, ids as strings. This file freezes format 1. Changing it later means a new format number.
+- [x] **Step 5: Run** `cargo test -p leemusync-core manifest` → PASS.
+- [x] **Step 6: Failing heads and reconcile tests.** `crates/core/src/heads.rs`:
 
 ```rust
 //! Version graph. Spec: docs/specs/sync-model.md (Heads and divergence).
@@ -1038,8 +1038,8 @@ mod tests {
 }
 ```
 
-- [ ] **Step 7: Run** `cargo test -p leemusync-core` → compile errors for `heads` and `reconcile`.
-- [ ] **Step 8: Implement `heads.rs`** (above its tests):
+- [x] **Step 7: Run** `cargo test -p leemusync-core` → compile errors for `heads` and `reconcile`.
+- [x] **Step 8: Implement `heads.rs`** (above its tests):
 
 ```rust
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
@@ -1073,7 +1073,7 @@ pub fn descends_from(graph: &Graph, child: VersionId, ancestor: VersionId) -> bo
 }
 ```
 
-- [ ] **Step 9: Implement `reconcile.rs`** (above its tests):
+- [x] **Step 9: Implement `reconcile.rs`** (above its tests):
 
 ```rust
 use crate::VersionId;
@@ -1159,8 +1159,8 @@ fn one_head(input: &Input<'_>, head: VersionId) -> Action {
 }
 ```
 
-- [ ] **Step 10: Wire and run.** Add to `lib.rs`: `pub mod heads; pub mod manifest; pub mod reconcile;`. Run `cargo test -p leemusync-core && cargo clippy -p leemusync-core --all-targets -- -D warnings` → PASS.
-- [ ] **Step 11: Commit.** Set `docs/specs/sync-model.md` **Code:** to `` `crates/core/src/{manifest,heads,reconcile}.rs` ``, then `just check` and:
+- [x] **Step 10: Wire and run.** Add to `lib.rs`: `pub mod heads; pub mod manifest; pub mod reconcile;`. Run `cargo test -p leemusync-core && cargo clippy -p leemusync-core --all-targets -- -D warnings` → PASS.
+- [x] **Step 11: Commit.** Set `docs/specs/sync-model.md` **Code:** to `` `crates/core/src/{manifest,heads,reconcile}.rs` ``, then `just check` and:
 
 ```bash
 git add Cargo.toml Cargo.lock crates/core docs/specs/sync-model.md
