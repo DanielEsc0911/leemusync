@@ -1,6 +1,6 @@
 # Security
 
-> **Status:** Draft · **Related:** [rules](../rules.md) (B2 is the rule this spec implements; also P2, P7, W3), [architecture](architecture.md#ipc), [sync-model](sync-model.md), [storage-backends](storage-backends.md), [emulator-profiles](emulator-profiles.md#validation), [release](release.md), [skill: leemusync-security](../../.claude/skills/leemusync-security/SKILL.md) · **Code:** `crates/crypto`, `crates/core` (validation), `crates/ipc` (planned)
+> **Status:** Draft · **Related:** [rules](../rules.md) (B2 is the rule this spec implements; also P2, P7, W3), [architecture](architecture.md#ipc), [sync-model](sync-model.md), [storage-backends](storage-backends.md), [emulator-profiles](emulator-profiles.md#validation), [release](release.md), [skill: leemusync-security](../../.claude/skills/leemusync-security/SKILL.md) · **Code:** `crates/crypto/src/lib.rs`, `crates/core` (validation), `crates/ipc` (planned)
 
 ## Purpose
 LeemuSync handles people's data, credentials and file systems on millions of possible machines. It must never become a way to attack those machines. This spec is the threat model and the required controls. [rules.md](../rules.md) B2 is the non-negotiable summary.

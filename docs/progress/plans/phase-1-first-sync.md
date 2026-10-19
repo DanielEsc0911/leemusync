@@ -2037,7 +2037,7 @@ Spec: [security §Cryptography, §Keys](../../specs/security.md#cryptography) (w
   - `CryptoError::{Random, Encrypt, Decrypt, Malformed, KdfParams, Kdf, RecoveryKey}`.
   - Constants `OBJECT_CONTEXT = "leemusync v1 object"`, `BLOB_ID_CONTEXT = "leemusync v1 blob-id"`, `STREAM_ID_CONTEXT = "leemusync v1 stream-id"`, `RECOVERY_CONTEXT = "leemusync v1 recovery-kek"`.
 
-- [ ] **Step 1: Failing tests** at the bottom of `crates/crypto/src/lib.rs`:
+- [x] **Step 1: Failing tests** at the bottom of `crates/crypto/src/lib.rs`:
 
 ```rust
 #[cfg(test)]
@@ -2150,8 +2150,8 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Run** `cargo test -p leemusync-crypto` → compile errors.
-- [ ] **Step 3: Implement** (top of `lib.rs`, replacing the stub body but keeping the module doc comment):
+- [x] **Step 2: Run** `cargo test -p leemusync-crypto` → compile errors.
+- [x] **Step 3: Implement** (top of `lib.rs`, replacing the stub body but keeping the module doc comment):
 
 ```rust
 //! Encryption, key derivation and keyed hashing. Pure, no I/O except the OS CSPRNG.
@@ -2409,8 +2409,8 @@ impl RecoveryKey {
 
 Note: the last recovery test replaces one character with `U`, which isn't in the Crockford alphabet, so `parse` fails. That's how a mistyped key is caught.
 
-- [ ] **Step 4: Run** `cargo test -p leemusync-crypto && cargo clippy -p leemusync-crypto --all-targets -- -D warnings` → PASS. (The `argon2id_matches_rfc_9106` vector was checked against `argon2` 0.5.3 on 2026-10-18.)
-- [ ] **Step 5: Commit.** `docs/specs/security.md` **Code:** `` `crates/crypto/src/lib.rs` ``; `just check`; then:
+- [x] **Step 4: Run** `cargo test -p leemusync-crypto && cargo clippy -p leemusync-crypto --all-targets -- -D warnings` → PASS. (The `argon2id_matches_rfc_9106` vector was checked against `argon2` 0.5.3 on 2026-10-18.)
+- [x] **Step 5: Commit.** `docs/specs/security.md` **Code:** `` `crates/crypto/src/lib.rs` ``; `just check`; then:
 
 ```bash
 git add Cargo.toml Cargo.lock crates/crypto docs/specs/security.md

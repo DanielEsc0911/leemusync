@@ -14,6 +14,11 @@ serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 toml = "1.1.8"
 thiserror = "2.0.21"
+chacha20poly1305 = "0.10.1"
+argon2 = "0.5.3"
+blake3 = "1.8.7"
+zeroize = { version = "1.9.1", features = ["derive"] }
+getrandom = "0.4.3"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
