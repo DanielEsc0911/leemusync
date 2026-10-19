@@ -1,4 +1,4 @@
-# Fake tree mirroring Cemu 2.6 Flatpak (~/.var/app/info.cemu.Cemu). Dummy files only. Not tested yet (no loader).
+# Fake tree mirroring Cemu 2.6 Flatpak (~/.var/app/info.cemu.Cemu). Dummy files only.
 # Names in account.dat are hex UTF-16 for "PlayerA" / "PlayerB".
 [[stream]]
 title_id = "101c9400"

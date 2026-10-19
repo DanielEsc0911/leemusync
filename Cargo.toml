@@ -12,6 +12,7 @@ rust-version = "1.99" # same as rust-toolchain.toml
 [workspace.dependencies]
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
+toml = "1.1.8"
 thiserror = "2.0.21"
 
 [workspace.lints.rust]

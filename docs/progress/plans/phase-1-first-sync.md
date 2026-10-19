@@ -1554,7 +1554,7 @@ Spec: [emulator-profiles §Schema, §Validation](../../specs/emulator-profiles.m
   - `profile::{Profile, Platform, ConfigKey, Saves, Accounts, GameKey, ProfileError, PatternPart, ALLOWED_VARS}`; `Profile::from_toml(text: &str) -> Result<Profile, ProfileError>` (parses and validates); `profile::expand(template: &str, vars: &BTreeMap<String, String>) -> Result<String, ProfileError>`; `profile::parse_pattern(pattern: &str) -> Result<Vec<PatternPart>, ProfileError>` with `PatternPart::{Literal(String), Var(String)}`; `Profile::max_file_bytes(&self) -> u64`.
   - `account::key_value(text: &str, key: &str) -> Option<&str>`; `account::decode_mii_name(hex: &str) -> Option<String>`.
 
-- [ ] **Step 1: Update `profiles/cemu.toml`** (data change, evidence in [emulator-profiles §Linux paths](../../specs/emulator-profiles.md#linux-paths-sp7)). Replace the "Schema gap (SP7)" comment and `[[config_keys]]` block, and add the two new fields, so the file reads:
+- [x] **Step 1: Update `profiles/cemu.toml`** (data change, evidence in [emulator-profiles §Linux paths](../../specs/emulator-profiles.md#linux-paths-sp7)). Replace the "Schema gap (SP7)" comment and `[[config_keys]]` block, and add the two new fields, so the file reads:
 
 ```toml
 # DRAFT from spike SP7. Verified: Cemu 2.6, Linux (Flatpak info.cemu.Cemu + source tag v2.6), 2026-10-08;
@@ -1567,7 +1567,6 @@ name = "Cemu"
 systems = ["wiiu"]
 layout = "per_game_user_dir"
 requires_closed = true
-max_file_mb = 64
 
 [platforms.linux]
 # Portable: a folder named "portable" next to the executable (or next to the AppImage) holds data and config.
@@ -1587,6 +1586,7 @@ default = "{base}/mlc01"           # used when the key is missing or empty
 
 [saves]
 root = "{mlc}/usr/save"
+max_file_mb = 64
 pattern = "00050000/{title_id}/user/{account}"
 shared = ["00050000/{title_id}/user/common"]
 
@@ -1603,10 +1603,10 @@ normalize = ["lowercase"]
 
 Mirror the `config_roots`, `max_file_mb` and `default` lines in the Cemu example of `docs/specs/emulator-profiles.md` §Example.
 
-- [ ] **Step 2: Failing tests.** `crates/core/src/account.rs`:
+- [x] **Step 2: Failing tests.** `crates/core/src/account.rs`:
 
 ```rust
-//! Line-based `key=value` account files and Cemu's MiiName encoding.
+//! Line-based `key=value` account files and Cemu's `MiiName` encoding.
 //! Spec: docs/specs/players-and-accounts.md (Cemu accounts).
 
 #[cfg(test)]
@@ -1676,8 +1676,24 @@ mod tests {
             "/home/u/.var/app/info.cemu.Cemu/data/Cemu"
         );
         assert_eq!(expand("{exe_dir}/portable", &v), Err(ProfileError::MissingVar("exe_dir".into())));
-        assert_eq!(expand("{home}/x", &v), Err(ProfileError::UnknownVar("home".into())));
+        assert_eq!(expand("{nope}/x", &v), Err(ProfileError::UnknownVar("nope".into())));
         assert!(expand("{xdg_data", &v).is_err());
+    }
+
+    #[test]
+    fn expands_home_when_supplied() {
+        let v = vars(&[("home", "/home/u")]);
+        assert_eq!(expand("{home}/x", &v).unwrap(), "/home/u/x");
+    }
+
+    #[test]
+    fn rejects_a_bad_size_limit() {
+        for bad in ["0", "4097"] {
+            let text = CEMU.replace("max_file_mb = 64", &format!("max_file_mb = {bad}"));
+            assert_eq!(Profile::from_toml(&text).unwrap_err(), ProfileError::Field("saves.max_file_mb"));
+        }
+        let none = CEMU.replace("max_file_mb = 64\n", "");
+        assert_eq!(Profile::from_toml(&none).unwrap().max_file_bytes(), 64 * 1024 * 1024);
     }
 
     #[test]
@@ -1700,7 +1716,7 @@ mod tests {
     fn rejects_profiles_that_break_the_rules() {
         let bad_layout = CEMU.replace("per_game_user_dir", "container");
         assert!(matches!(Profile::from_toml(&bad_layout), Err(ProfileError::Unsupported(_))));
-        let bad_var = CEMU.replace("{xdg_data}/Cemu", "{home}/Cemu");
+        let bad_var = CEMU.replace("{xdg_data}/Cemu", "{nope}/Cemu");
         assert!(matches!(Profile::from_toml(&bad_var), Err(ProfileError::UnknownVar(_))));
         let extra = format!("{CEMU}\nrun = \"/bin/sh\"\n");
         assert!(matches!(Profile::from_toml(&extra), Err(ProfileError::Toml(_))), "no unknown fields");
@@ -1710,8 +1726,8 @@ mod tests {
 }
 ```
 
-- [ ] **Step 3: Run** `cargo test -p leemusync-core` → compile errors.
-- [ ] **Step 4: Implement `account.rs`** (above its tests):
+- [x] **Step 3: Run** `cargo test -p leemusync-core` → compile errors.
+- [x] **Step 4: Implement `account.rs`** (above its tests):
 
 ```rust
 /// Value of the first `key=value` line whose key is exactly `key`.
@@ -1738,14 +1754,14 @@ pub fn decode_mii_name(hex: &str) -> Option<String> {
 }
 ```
 
-- [ ] **Step 5: Implement `profile.rs`** (above its tests):
+- [x] **Step 5: Implement `profile.rs`** (above its tests):
 
 ```rust
 use std::collections::BTreeMap;
 
 use serde::Deserialize;
 
-pub const ALLOWED_VARS: [&str; 7] = ["base", "mlc", "title_id", "account", "xdg_data", "xdg_config", "exe_dir"];
+pub const ALLOWED_VARS: [&str; 8] = ["base", "mlc", "title_id", "account", "home", "xdg_data", "xdg_config", "exe_dir"];
 const DEFAULT_MAX_FILE_MB: u32 = 64;
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
@@ -1773,7 +1789,6 @@ pub struct Profile {
     pub systems: Vec<String>,
     pub layout: String,
     pub requires_closed: bool,
-    pub max_file_mb: Option<u32>,
     pub platforms: BTreeMap<String, Platform>,
     #[serde(default)]
     pub config_keys: Vec<ConfigKey>,
@@ -1807,6 +1822,7 @@ pub struct Saves {
     pub pattern: String,
     #[serde(default)]
     pub shared: Vec<String>,
+    pub max_file_mb: Option<u32>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -1842,7 +1858,7 @@ impl Profile {
 
     #[must_use]
     pub fn max_file_bytes(&self) -> u64 {
-        u64::from(self.max_file_mb.unwrap_or(DEFAULT_MAX_FILE_MB)) * 1024 * 1024
+        u64::from(self.saves.max_file_mb.unwrap_or(DEFAULT_MAX_FILE_MB)) * 1024 * 1024
     }
 
     fn validate(&self) -> Result<(), ProfileError> {
@@ -1855,8 +1871,8 @@ impl Profile {
         if self.layout != "per_game_user_dir" {
             return Err(ProfileError::Unsupported(self.layout.clone()));
         }
-        if self.max_file_mb.is_some_and(|mb| mb == 0 || mb > 4096) {
-            return Err(ProfileError::Field("max_file_mb"));
+        if self.saves.max_file_mb.is_some_and(|mb| mb == 0 || mb > 4096) {
+            return Err(ProfileError::Field("saves.max_file_mb"));
         }
         for platform in self.platforms.values() {
             for t in platform.roots.iter().chain(platform.config_roots.iter().flatten()) {
@@ -1969,8 +1985,8 @@ pub fn parse_pattern(pattern: &str) -> Result<Vec<PatternPart>, ProfileError> {
 }
 ```
 
-- [ ] **Step 6: Wire and run.** `lib.rs`: `pub mod account; pub mod profile;`. Run `cargo test -p leemusync-core && cargo clippy -p leemusync-core --all-targets -- -D warnings` → PASS.
-- [ ] **Step 7: Commit.** Update `docs/specs/emulator-profiles.md`: the Cemu row in §Linux paths now says the profile is loaded (no longer "not tested"); **Code:** `` `crates/core/src/profile.rs` ``. Remove "No loader exists yet" from `profiles/fixtures/cemu/flatpak-botw-two-accounts/expected.toml` (it gets loaded in Task 12). `just check`, then:
+- [x] **Step 6: Wire and run.** `lib.rs`: `pub mod account; pub mod profile;`. Run `cargo test -p leemusync-core && cargo clippy -p leemusync-core --all-targets -- -D warnings` → PASS.
+- [x] **Step 7: Commit.** Update `docs/specs/emulator-profiles.md`: the Cemu row in §Linux paths now says the profile is loaded (no longer "not tested"); **Code:** `` `crates/core/src/profile.rs` ``. Remove "No loader exists yet" from `profiles/fixtures/cemu/flatpak-botw-two-accounts/expected.toml` (it gets loaded in Task 12). `just check`, then:
 
 ```bash
 git add Cargo.toml Cargo.lock crates/core profiles docs/specs/emulator-profiles.md

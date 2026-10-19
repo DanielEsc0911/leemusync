@@ -1,6 +1,6 @@
 # Emulator profiles
 
-> **Status:** Draft · **Related:** [rules](../rules.md) (P3, B2), [decisions](../decisions.md) (D7, D8, D9), [players-and-accounts](players-and-accounts.md), [sync-model](sync-model.md), [security](security.md#file-system-confinement), [platforms](platforms/desktop.md) · **Code:** `profiles/` (planned)
+> **Status:** Draft · **Related:** [rules](../rules.md) (P3, B2), [decisions](../decisions.md) (D7, D8, D9), [players-and-accounts](players-and-accounts.md), [sync-model](sync-model.md), [security](security.md#file-system-confinement), [platforms](platforms/desktop.md) · **Code:** `profiles/`, `crates/core/src/profile.rs`
 
 ## Purpose
 Describe, as data, where each emulator keeps saves and how to recognise games, so the engine can sync any emulator safely. Profiles are TOML, ship inside releases, and never contain code ([D8](../decisions.md#d8-emulator-profiles-are-declarative-toml-shipped-inside-releases-2026-10-07)). Only save folders are synced, never an emulator's whole data folder (e.g. not Cemu's `mlc01` with its updates and DLC).
@@ -51,7 +51,7 @@ The engine derives the tier. Profiles don't declare it ([D9](../decisions.md#d9-
 | `launch.args` | [template] | Arguments to start a game. The executable is always chosen by the user |
 
 ### Templates
-Allowed variables: `{home}` `{xdg_data}` `{xdg_config}` `{appdata}` `{localappdata}` `{documents}` `{mac_app_support}` `{flatpak:<app-id>}` `{android_storage}` `{exe_dir}`, plus `config_keys` variables and pattern captures. Anything else is a validation error.
+Allowed variables: `{base}` `{home}` `{xdg_data}` `{xdg_config}` `{appdata}` `{localappdata}` `{documents}` `{mac_app_support}` `{flatpak:<app-id>}` `{android_storage}` `{exe_dir}`, plus `config_keys` variables and pattern captures. Anything else is a validation error.
 
 The M1a parser (`crates/core/src/profile.rs`) supports `{home}` `{xdg_data}` `{xdg_config}` `{exe_dir}` `{flatpak:<app-id>}` plus `{base}` `{mlc}` and captures; the other variables arrive with the platforms that need them.
 
@@ -72,14 +72,21 @@ process = ["Cemu_relwithdebinfo", "Cemu", "cemu"]
 roots = ["{exe_dir}", "{appdata}/Cemu"]
 process = ["Cemu.exe"]
 
+[platforms.linux]
+roots = ["{exe_dir}/portable", "{flatpak:info.cemu.Cemu}/data/Cemu", "{xdg_data}/Cemu"]
+config_roots = ["{exe_dir}/portable", "{flatpak:info.cemu.Cemu}/config/Cemu", "{xdg_config}/Cemu"]
+process = ["Cemu_relwithdebinfo", "Cemu", "cemu"]
+
 [[config_keys]]
-file = "settings.xml"
+file = "settings.xml"              # relative to the matching config root
 format = "xml"
 key = "content/mlc_path"
 var = "mlc"
+default = "{base}/mlc01"           # used when the key is missing or empty
 
 [saves]
-root = "{mlc}/usr/save"            # falls back to "{base}/mlc01/usr/save"
+root = "{mlc}/usr/save"
+max_file_mb = 64
 pattern = "00050000/{title_id}/user/{account}"
 shared = ["00050000/{title_id}/user/common"]
 
