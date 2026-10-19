@@ -25,17 +25,14 @@ pub trait SecretStore: Send + Sync {
 }
 
 #[must_use]
-#[allow(dead_code)] // used by Task 11
 pub fn secret_master(repo: &str) -> String {
     format!("repo-{repo}-master-key")
 }
 #[must_use]
-#[allow(dead_code)] // used by Task 11
 pub fn secret_gdrive_refresh(device: DeviceId) -> String {
     format!("device-{device}-gdrive-refresh-token")
 }
 #[must_use]
-#[allow(dead_code)] // used by Task 11
 pub fn secret_gdrive_client(device: DeviceId) -> String {
     format!("device-{device}-gdrive-client-secret")
 }

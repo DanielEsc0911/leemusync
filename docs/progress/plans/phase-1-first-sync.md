@@ -5265,7 +5265,7 @@ Spec: [sync-model §Remote layout, §Repo config](../../specs/sync-model.md#remo
   - Public `Engine` methods: `backend_add_fs(&mut self, path: &Path) -> Result<(), EngineError>`; `gdrive_login_start(&mut self, client_id: &str, client_secret: &str) -> Result<GdriveLogin, EngineError>` (async) with `GdriveLogin::url(&self) -> &str`; `gdrive_login_finish(&mut self, login: GdriveLogin) -> Result<(), EngineError>` (async); `init(&mut self, passphrase: &str) -> Result<(InitReport, Zeroizing<String>), EngineError>` (async; the `Zeroizing<String>` is the recovery key's display form, shown once); `join(&mut self, secret: JoinSecret) -> Result<InitReport, EngineError>` (async) with `JoinSecret::{Passphrase(String), Recovery(String)}`; `players_add(&mut self, name: &str) -> Result<(), EngineError>` (async); `players_list(&mut self) -> Result<Vec<String>, EngineError>` (async). Crate-private: `store(&self) -> Result<Store, EngineError>`, `ensure_repo(&mut self) -> Result<(), EngineError>` (async, opens the repo once with the cached master key) and `repo_ref(&self) -> Result<&Repo, EngineError>`. Call `ensure_repo().await?` first, then borrow `repo_ref()?` and `&self.state` side by side (two shared borrows).
   - `DeviceRecord { format: u32, id: DeviceId, name: String, created_at: u64 }` (serde, sealed like every object).
 
-- [ ] **Step 1: Failing tests.** At the bottom of `crates/engine/src/repo.rs`:
+- [x] **Step 1: Failing tests.** At the bottom of `crates/engine/src/repo.rs`:
 
 ```rust
 #[cfg(test)]
@@ -5419,8 +5419,8 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Run** `cargo test -p leemusync-engine` → compile errors.
-- [ ] **Step 3: Implement `repo.rs`** (above its tests):
+- [x] **Step 2: Run** `cargo test -p leemusync-engine` → compile errors.
+- [x] **Step 3: Implement `repo.rs`** (above its tests):
 
 ```rust
 //! The remote repo: `repo.json`, encrypted objects, names (sync-model §Remote layout).
@@ -5676,7 +5676,7 @@ impl Repo {
 }
 ```
 
-- [ ] **Step 4: Implement `repo_config.rs`** (above its tests):
+- [x] **Step 4: Implement `repo_config.rs`** (above its tests):
 
 ```rust
 //! The repo-config stream: load (merging several heads, D30), write, update.
@@ -5758,7 +5758,7 @@ pub(crate) async fn update(
 }
 ```
 
-- [ ] **Step 5: Implement `setup.rs`** (above its tests):
+- [x] **Step 5: Implement `setup.rs`** (above its tests):
 
 ```rust
 //! Backend login, repo creation and joining, players (config-and-cli §Commands).
@@ -5953,8 +5953,8 @@ Then in `lib.rs`: add `mod repo; mod repo_config; mod setup;`, `pub use setup::{
 
 Note: `players_list` returns names in player-id order, which is creation order because ids are time-ordered. The test relies on that.
 
-- [ ] **Step 6: Run** `cargo test -p leemusync-engine && cargo clippy -p leemusync-engine --all-targets -- -D warnings` → PASS.
-- [ ] **Step 7: Commit.** `docs/specs/sync-model.md` §Remote layout: add "AAD strings and lowercase object names: `crates/engine/src/repo.rs`." `just check`, then:
+- [x] **Step 6: Run** `cargo test -p leemusync-engine && cargo clippy -p leemusync-engine --all-targets -- -D warnings` → PASS.
+- [x] **Step 7: Commit.** `docs/specs/sync-model.md` §Remote layout: add "AAD strings and lowercase object names: `crates/engine/src/repo.rs`." `just check`, then:
 
 ```bash
 git add crates/engine docs/specs/sync-model.md
@@ -8110,6 +8110,8 @@ async fn both_saves_end_up_on_both_pcs() {
 ### Task 17: `cli`: commands, prompts, `--json`, exit codes, Fluent strings (en + es)
 
 Spec: [config-and-cli §Commands, §Exit codes, §Parity rule](../../specs/config-and-cli.md#commands), [i18n §Rust strings, §Rules, §Terminology, §Parity check](../../specs/i18n.md#rust-strings), D19. Skill: `leemusync-security` (secrets at prompts).
+
+Error keys from Task 11 (P6: engine payloads are keys or data, never prose): `NotSetUp` takes `backend`, `gdrive_login`, `repo`, `repo_key`; `Usage` takes `repo_exists`, `repo_race`, `already_joined`, `passphrase_too_short`, `player_name_invalid`, `player_name_taken`; `Config` takes `repo_mismatch`, `repo_config`; `Secrets` takes `bad_master_key`; `Data` carries the remote object name. Map each key to its own en + es Fluent message instead of printing it through `{ $detail }`.
 
 **Files:**
 - Modify: `Cargo.toml` (`clap`, `rpassword`, `fluent-bundle`, `unic-langid`), `crates/cli/Cargo.toml`:

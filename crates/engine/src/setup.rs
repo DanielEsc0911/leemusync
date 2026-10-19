@@ -1,0 +1,404 @@
+//! Backend login, repo creation and joining, players (config-and-cli §Commands).
+//!
+//! Error payloads are stable keys or data, never prose: the CLI turns them into Fluent text (P6).
+
+use std::fmt;
+use std::path::Path;
+
+use leemusync_api::{API_VERSION, InitReport};
+use leemusync_core::PlayerId;
+use leemusync_core::config::{ConfigError, RepoConfig};
+use leemusync_crypto::{Key, RecoveryKey};
+use leemusync_store::oauth::{self, OAuthClient, PendingLogin};
+use leemusync_store::{GdriveConfig, Store};
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
+
+use crate::repo::{DeviceRecord, Repo, Unlock, key_from_hex, key_to_hex};
+use crate::secrets::{secret_gdrive_client, secret_gdrive_refresh, secret_master};
+use crate::{BackendConfig, Engine, EngineError, new_version_id, now_ms, repo_config};
+
+const MIN_PASSPHRASE_CHARS: usize = 8;
+
+/// What the user typed to join. Wiped on drop; `Debug` never shows it.
+#[derive(Zeroize, ZeroizeOnDrop)]
+pub enum JoinSecret {
+    Passphrase(String),
+    Recovery(String),
+}
+
+impl fmt::Debug for JoinSecret {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Passphrase(_) => "JoinSecret::Passphrase(..)",
+            Self::Recovery(_) => "JoinSecret::Recovery(..)",
+        })
+    }
+}
+
+/// A Google login waiting for the browser redirect (D28).
+pub struct GdriveLogin {
+    pending: PendingLogin,
+    client: OAuthClient,
+}
+
+impl GdriveLogin {
+    /// The consent URL to open in the browser. It holds no secret.
+    #[must_use]
+    pub fn url(&self) -> &str {
+        self.pending.url()
+    }
+}
+
+impl fmt::Debug for GdriveLogin {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("GdriveLogin")
+            .field("client", &self.client)
+            .finish_non_exhaustive()
+    }
+}
+
+fn player_error(e: &ConfigError) -> EngineError {
+    match e {
+        ConfigError::BadName => EngineError::Usage("player_name_invalid".into()),
+        ConfigError::NameTaken(_) => EngineError::Usage("player_name_taken".into()),
+        _ => EngineError::Config("repo_config".into()),
+    }
+}
+
+impl Engine {
+    /// Uses a local folder as the storage (tests, and a synced folder the user manages).
+    ///
+    /// # Errors
+    /// `Io` if the config can't be saved.
+    pub fn backend_add_fs(&mut self, path: &Path) -> Result<(), EngineError> {
+        self.config.backend = Some(BackendConfig::Fs {
+            path: path.to_path_buf(),
+        });
+        self.repo = None;
+        self.save_config()
+    }
+
+    /// Starts the Google login (D28). Open `url()` in a browser, then call `gdrive_login_finish`.
+    ///
+    /// # Errors
+    /// `Store` if the loopback port can't be bound.
+    pub async fn gdrive_login_start(
+        &mut self,
+        client_id: &str,
+        client_secret: &str,
+    ) -> Result<GdriveLogin, EngineError> {
+        let secret = client_secret.trim();
+        let client = OAuthClient {
+            client_id: client_id.trim().to_owned(),
+            client_secret: (!secret.is_empty()).then(|| Zeroizing::new(secret.to_owned())),
+        };
+        let pending = oauth::start_login(&client).await?;
+        Ok(GdriveLogin { pending, client })
+    }
+
+    /// Waits for the redirect, then keeps the refresh token and client secret in the OS keystore.
+    ///
+    /// # Errors
+    /// `Store(Auth)` for a refused or timed-out login; `Secrets` if the keystore fails.
+    pub async fn gdrive_login_finish(&mut self, login: GdriveLogin) -> Result<(), EngineError> {
+        let http = leemusync_store::http::http_client()?;
+        let tokens = login.pending.finish(&login.client, &http).await?;
+        let device = self.device_id();
+        self.env
+            .secrets
+            .set(&secret_gdrive_refresh(device), &tokens.refresh_token)?;
+        match &login.client.client_secret {
+            Some(secret) => self
+                .env
+                .secrets
+                .set(&secret_gdrive_client(device), secret)?,
+            None => self.env.secrets.delete(&secret_gdrive_client(device))?,
+        }
+        self.config.backend = Some(BackendConfig::Gdrive {
+            root: "/".into(),
+            client_id: login.client.client_id.clone(),
+        });
+        self.repo = None;
+        self.save_config()
+    }
+
+    /// The configured storage. Drive credentials come from the keystore.
+    pub(crate) fn store(&self) -> Result<Store, EngineError> {
+        match &self.config.backend {
+            None => Err(EngineError::NotSetUp("backend")),
+            Some(BackendConfig::Fs { path }) => Ok(Store::fs(path)?),
+            Some(BackendConfig::Gdrive { root, client_id }) => {
+                let device = self.device_id();
+                let refresh = self
+                    .env
+                    .secrets
+                    .get(&secret_gdrive_refresh(device))?
+                    .ok_or(EngineError::NotSetUp("gdrive_login"))?;
+                let secret = self.env.secrets.get(&secret_gdrive_client(device))?;
+                Ok(Store::gdrive(GdriveConfig {
+                    root: root.clone(),
+                    client: OAuthClient {
+                        client_id: client_id.clone(),
+                        client_secret: secret,
+                    },
+                    refresh_token: refresh,
+                })?)
+            }
+        }
+    }
+
+    /// Opens the repo once per engine with the master key cached in the keystore.
+    pub(crate) async fn ensure_repo(&mut self) -> Result<(), EngineError> {
+        if self.repo.is_none() {
+            let repo_id = self
+                .config
+                .repo
+                .clone()
+                .ok_or(EngineError::NotSetUp("repo"))?;
+            let hex = self
+                .env
+                .secrets
+                .get(&secret_master(&repo_id))?
+                .ok_or(EngineError::NotSetUp("repo_key"))?;
+            let master =
+                key_from_hex(&hex).ok_or_else(|| EngineError::Secrets("bad_master_key".into()))?;
+            let (repo, _) = Repo::open(self.store()?, Unlock::Master(master)).await?;
+            if repo.id() != repo_id {
+                return Err(EngineError::Config("repo_mismatch".into()));
+            }
+            self.repo = Some(repo);
+        }
+        Ok(())
+    }
+
+    pub(crate) fn repo_ref(&self) -> Result<&Repo, EngineError> {
+        self.repo.as_ref().ok_or(EngineError::NotSetUp("repo"))
+    }
+
+    /// Caches the master key, records this device, and remembers the repo id in `config.toml`.
+    async fn adopt_repo(&mut self, repo: Repo, master: &Key) -> Result<InitReport, EngineError> {
+        self.env
+            .secrets
+            .set(&secret_master(repo.id()), &key_to_hex(master))?;
+        repo.put_device(&DeviceRecord {
+            format: 1,
+            id: self.device_id(),
+            name: self.config.device.name.clone(),
+            created_at: now_ms(),
+        })
+        .await?;
+        self.config.repo = Some(repo.id().to_owned());
+        self.save_config()?;
+        let report = InitReport {
+            api_version: API_VERSION,
+            repo: repo.id().to_owned(),
+            device: self.config.device.name.clone(),
+        };
+        self.repo = Some(repo);
+        Ok(report)
+    }
+
+    /// Creates the repo. Returns the recovery key's display form: show it once, never store it.
+    ///
+    /// # Errors
+    /// `Usage("already_joined")` if this device already has a repo, `Usage("passphrase_too_short")`,
+    /// `Usage("repo_exists")`/`Usage("repo_race")` if the storage already holds one.
+    pub async fn init(
+        &mut self,
+        passphrase: &str,
+    ) -> Result<(InitReport, Zeroizing<String>), EngineError> {
+        if self.config.repo.is_some() {
+            return Err(EngineError::Usage("already_joined".into()));
+        }
+        if passphrase.chars().count() < MIN_PASSPHRASE_CHARS {
+            return Err(EngineError::Usage("passphrase_too_short".into()));
+        }
+        let (repo, master, recovery) =
+            Repo::create(self.store()?, passphrase, self.env.kdf).await?;
+        let report = self.adopt_repo(repo, &master).await?;
+        let device = self.device_id();
+        repo_config::write(
+            self.repo_ref()?,
+            &self.state,
+            device,
+            vec![],
+            RepoConfig::default(),
+        )
+        .await?;
+        Ok((report, recovery.to_display()))
+    }
+
+    /// Joins the repo on the configured storage. Joining the same repo again is allowed (it
+    /// re-caches the master key); joining a different one is refused.
+    ///
+    /// # Errors
+    /// `Unlock` for a wrong passphrase or recovery key; `Usage("already_joined")` for another repo.
+    pub async fn join(&mut self, secret: JoinSecret) -> Result<InitReport, EngineError> {
+        let store = self.store()?;
+        let (repo, master) = match &secret {
+            JoinSecret::Passphrase(p) => Repo::open(store, Unlock::Passphrase(p)).await?,
+            JoinSecret::Recovery(text) => {
+                let key = RecoveryKey::parse(text).map_err(|_| EngineError::Unlock)?;
+                Repo::open(store, Unlock::Recovery(&key)).await?
+            }
+        };
+        drop(secret);
+        if self
+            .config
+            .repo
+            .as_deref()
+            .is_some_and(|id| id != repo.id())
+        {
+            return Err(EngineError::Usage("already_joined".into()));
+        }
+        self.adopt_repo(repo, &master).await
+    }
+
+    /// # Errors
+    /// `Usage("player_name_invalid")` or `Usage("player_name_taken")`; storage or repo errors.
+    pub async fn players_add(&mut self, name: &str) -> Result<(), EngineError> {
+        let id = PlayerId(new_version_id()?);
+        let device = self.device_id();
+        self.ensure_repo().await?;
+        let repo = self.repo_ref()?;
+        repo_config::update(repo, &self.state, device, |c| {
+            c.add_player(id, name).map_err(|e| player_error(&e))
+        })
+        .await?;
+        Ok(())
+    }
+
+    /// Player names in creation order (player ids are time-ordered).
+    ///
+    /// # Errors
+    /// Storage or repo errors.
+    pub async fn players_list(&mut self) -> Result<Vec<String>, EngineError> {
+        self.ensure_repo().await?;
+        let loaded = repo_config::load(self.repo_ref()?, &self.state).await?;
+        Ok(loaded
+            .config
+            .players
+            .values()
+            .map(|p| p.name.clone())
+            .collect())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::tests::test_env;
+    use crate::{Engine, EngineError, JoinSecret};
+
+    #[tokio::test]
+    async fn init_on_one_device_and_join_on_another() {
+        let root = tempfile::tempdir().unwrap();
+        let remote = root.path().join("remote");
+        let mut a = Engine::open(test_env(&root.path().join("a"))).unwrap();
+        a.backend_add_fs(&remote).unwrap();
+        let (report, recovery) = a.init("pass phrase").await.unwrap();
+        assert_eq!(recovery.split('-').count(), 13);
+        a.players_add("Ana").await.unwrap();
+
+        let mut b = Engine::open(test_env(&root.path().join("b"))).unwrap();
+        b.backend_add_fs(&remote).unwrap();
+        assert!(b.join(JoinSecret::Passphrase("nope".into())).await.is_err());
+        let joined = b
+            .join(JoinSecret::Passphrase("pass phrase".into()))
+            .await
+            .unwrap();
+        assert_eq!(joined.repo, report.repo);
+        b.players_add("Beto").await.unwrap();
+        assert!(b.players_add("ana").await.is_err(), "names are unique");
+        assert_eq!(
+            a.players_list().await.unwrap(),
+            vec!["Ana".to_string(), "Beto".to_string()]
+        );
+
+        let mut c = Engine::open(test_env(&root.path().join("c"))).unwrap();
+        c.backend_add_fs(&remote).unwrap();
+        c.join(JoinSecret::Recovery(recovery.to_lowercase()))
+            .await
+            .unwrap();
+        let config =
+            std::fs::read_to_string(root.path().join("c/config/leemusync/config.toml")).unwrap();
+        assert!(
+            !config.contains("pass phrase")
+                && !config.to_lowercase().contains(&recovery.to_lowercase())
+        );
+    }
+
+    #[tokio::test]
+    async fn setup_errors_are_keys_and_never_echo_secrets() {
+        let root = tempfile::tempdir().unwrap();
+        let remote = root.path().join("remote");
+        let mut a = Engine::open(test_env(&root.path().join("a"))).unwrap();
+        assert!(matches!(
+            a.init("pass phrase").await,
+            Err(EngineError::NotSetUp("backend"))
+        ));
+        assert!(matches!(
+            a.players_list().await,
+            Err(EngineError::NotSetUp("repo"))
+        ));
+        a.backend_add_fs(&remote).unwrap();
+        assert!(
+            matches!(a.init("short").await, Err(EngineError::Usage(k)) if k == "passphrase_too_short")
+        );
+        let (_, recovery) = a.init("pass phrase").await.unwrap();
+        assert!(
+            matches!(a.init("pass phrase").await, Err(EngineError::Usage(k)) if k == "already_joined")
+        );
+        assert!(
+            matches!(a.players_add("").await, Err(EngineError::Usage(k)) if k == "player_name_invalid")
+        );
+        a.players_add("Ana").await.unwrap();
+        assert!(
+            matches!(a.players_add("ANA").await, Err(EngineError::Usage(k)) if k == "player_name_taken")
+        );
+
+        let mut b = Engine::open(test_env(&root.path().join("b"))).unwrap();
+        b.backend_add_fs(&remote).unwrap();
+        assert!(
+            matches!(b.init("another pass").await, Err(EngineError::Usage(k)) if k == "repo_exists")
+        );
+        let wrong = b
+            .join(JoinSecret::Recovery("not a key".into()))
+            .await
+            .unwrap_err();
+        assert!(matches!(wrong, EngineError::Unlock));
+        let wrong = b
+            .join(JoinSecret::Passphrase("pass phrasE".into()))
+            .await
+            .unwrap_err();
+        assert!(!wrong.to_string().contains("pass phras"));
+        assert!(
+            b.local_config().repo.is_none(),
+            "a failed join changes nothing"
+        );
+        b.join(JoinSecret::Recovery(recovery.to_string()))
+            .await
+            .unwrap();
+        // A second join of the same repo is harmless (e.g. after the keystore lost the key).
+        b.join(JoinSecret::Passphrase("pass phrase".into()))
+            .await
+            .unwrap();
+        assert_eq!(b.players_list().await.unwrap(), vec!["Ana".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn a_device_keeps_working_after_a_restart() {
+        let root = tempfile::tempdir().unwrap();
+        let remote = root.path().join("remote");
+        let env = test_env(&root.path().join("a"));
+        let secrets = env.secrets.clone();
+        let mut a = Engine::open(env).unwrap();
+        a.backend_add_fs(&remote).unwrap();
+        a.init("pass phrase").await.unwrap();
+        a.players_add("Ana").await.unwrap();
+        drop(a);
+        let mut env = test_env(&root.path().join("a"));
+        env.secrets = secrets;
+        let mut a = Engine::open(env).unwrap();
+        assert_eq!(a.players_list().await.unwrap(), vec!["Ana".to_string()]);
+    }
+}

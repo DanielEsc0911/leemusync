@@ -7,7 +7,10 @@ pub mod fsx;
 mod local_config;
 mod locations;
 mod process;
+mod repo;
+mod repo_config;
 mod secrets;
+mod setup;
 mod state;
 
 use std::sync::Arc;
@@ -22,6 +25,7 @@ pub use local_config::{BackendConfig, DeviceSection, EmulatorOverride, LocalConf
 pub use locations::Locations;
 pub use process::{FakeProbe, ProcessProbe, SysinfoProbe};
 pub use secrets::{KeyringSecrets, MemorySecrets, SecretStore};
+pub use setup::{GdriveLogin, JoinSecret};
 pub use state::{JournalEntry, State, StreamRow};
 
 pub struct EngineEnv {
@@ -47,12 +51,14 @@ impl EngineEnv {
     }
 }
 
-#[allow(dead_code)] // read from Task 11
 pub struct Engine {
     env: EngineEnv,
     config: LocalConfig,
     state: State,
+    #[allow(dead_code)] // used by Task 15
     failpoints: Failpoints,
+    /// The unlocked repo, opened on first use (`ensure_repo`).
+    repo: Option<repo::Repo>,
 }
 
 impl Engine {
@@ -78,6 +84,7 @@ impl Engine {
             config,
             state,
             failpoints: Failpoints::default(),
+            repo: None,
         })
     }
 
@@ -96,7 +103,6 @@ impl Engine {
         self.failpoints.arm(name);
     }
 
-    #[allow(dead_code)] // read from Task 11
     fn save_config(&self) -> Result<(), EngineError> {
         self.config
             .save(&self.env.locations.config_dir.join("config.toml"))
