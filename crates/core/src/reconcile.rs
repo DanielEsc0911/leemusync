@@ -28,7 +28,7 @@ pub enum Action {
     Conflict(Vec<VersionId>),
     /// A mapped account's folder disappeared: ask the player.
     LocalMissing,
-    /// The remote lost versions this device saw: warn, change nothing.
+    /// The remote lost the base this device saw (rollback): warn, change nothing, even if local files changed.
     RemoteBehind,
 }
 
@@ -44,6 +44,12 @@ pub struct Input<'a> {
 
 #[must_use]
 pub fn reconcile(input: &Input<'_>) -> Action {
+    if let Some(base) = input.base
+        && input.local != Local::Missing
+        && !input.graph.contains_key(&base)
+    {
+        return Action::RemoteBehind;
+    }
     let heads = heads(input.graph);
     match heads.as_slice() {
         [] => match (input.base, input.local) {
@@ -76,7 +82,7 @@ fn one_head(input: &Input<'_>, head: VersionId) -> Action {
     if input.local == Local::Missing {
         return Action::LocalMissing;
     }
-    if !input.graph.contains_key(&base) || !descends_from(input.graph, head, base) {
+    if !descends_from(input.graph, head, base) {
         return match input.local {
             Local::Dirty => Action::UploadThenConflict {
                 parents: vec![base],
@@ -207,15 +213,17 @@ mod tests {
         );
         assert_eq!(
             run(Some(7), Local::Dirty, &one, None, false),
-            Action::UploadThenConflict {
-                parents: vec![v(7)]
-            }
+            Action::RemoteBehind,
+            "a base the remote no longer has is a rollback, even with local changes"
         );
         assert_eq!(
             run(Some(1), Local::Dirty, &empty, None, false),
-            Action::Upload {
-                parents: vec![v(1)]
-            }
+            Action::RemoteBehind
+        );
+        let fork: Graph = [(v(2), vec![]), (v(3), vec![])].into();
+        assert_eq!(
+            run(Some(1), Local::Dirty, &fork, None, false),
+            Action::RemoteBehind
         );
     }
 }
