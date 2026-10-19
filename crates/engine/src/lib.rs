@@ -15,7 +15,9 @@ mod repo_config;
 mod scan;
 mod secrets;
 mod setup;
+mod snapshot;
 mod state;
+mod upload;
 
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -123,6 +125,15 @@ pub(crate) fn new_version_id() -> Result<VersionId, EngineError> {
         now_ms(),
         leemusync_crypto::random_bytes::<10>()?,
     ))
+}
+
+/// Local history for one stream: `<data>/history/<stream id>` (reliability §Local history).
+#[allow(dead_code)] // used by Task 14
+pub(crate) fn history_dir(
+    data_dir: &std::path::Path,
+    stream: &leemusync_core::StreamId,
+) -> std::path::PathBuf {
+    data_dir.join("history").join(stream.to_string())
 }
 
 #[cfg(test)]

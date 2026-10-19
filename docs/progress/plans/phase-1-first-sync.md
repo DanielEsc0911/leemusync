@@ -6560,7 +6560,7 @@ Spec: [sync-model §Snapshot rules](../../specs/sync-model.md#snapshot-rules), [
   - `snapshot::same_files(a: &[FileEntry], b: &[FileEntry]) -> bool` (paths and blobs).
   - `upload::UploadMeta<'a> { stream: StreamId, parents: Vec<VersionId>, device: DeviceId, player: PlayerId, emulator: &'a str, base_files: &'a [FileEntry], note: Option<String> }`; `upload::upload(repo: &Repo, snap: &Snapshot, meta: UploadMeta<'_>, fp: &Failpoints) -> Result<Version, EngineError>` (async): blobs first (create-only, idempotent), then failpoint `upload.before_manifest`, then the manifest (the commit point), then failpoint `upload.after_manifest`.
 
-- [ ] **Step 1: Failing tests.** At the bottom of `crates/engine/src/snapshot.rs`:
+- [x] **Step 1: Failing tests.** At the bottom of `crates/engine/src/snapshot.rs`:
 
 ```rust
 #[cfg(test)]
@@ -6652,8 +6652,8 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Run** `cargo test -p leemusync-engine snapshot upload` → compile errors.
-- [ ] **Step 3: Implement `snapshot.rs`** (above its tests):
+- [x] **Step 2: Run** `cargo test -p leemusync-engine -- snapshot upload` → compile errors.
+- [x] **Step 3: Implement `snapshot.rs`** (above its tests):
 
 ```rust
 //! Consistent snapshots: read → hash → re-stat, copied into local history first
@@ -6711,9 +6711,9 @@ pub(crate) fn take(
     }
     let mut files = Vec::with_capacity(listed.len());
     for (rel, before) in listed {
-        let path = RelPath::parse(&rel).map_err(|e| EngineError::Usage(format!("{rel}: {e}")))?;
+        let path = RelPath::parse(&rel).map_err(|_| EngineError::Usage(format!("file_name_invalid:{rel}")))?;
         if before.len() > max_file_bytes {
-            return Err(EngineError::Usage(format!("{rel} is larger than this emulator's file limit")));
+            return Err(EngineError::Usage(format!("file_too_large:{rel}")));
         }
         let bytes = std::fs::read(src.join(&rel))?;
         let after = std::fs::symlink_metadata(src.join(&rel))?;
@@ -6730,7 +6730,7 @@ pub(crate) fn take(
 }
 ```
 
-- [ ] **Step 4: Implement `upload.rs`** (above its tests):
+- [x] **Step 4: Implement `upload.rs`** (above its tests):
 
 ```rust
 //! Upload procedure: blobs (create-only, idempotent) → manifest (commit point) (reliability §Upload procedure).
@@ -6756,7 +6756,7 @@ pub(crate) async fn upload(repo: &Repo, snap: &Snapshot, meta: UploadMeta<'_>, f
     for f in &snap.files {
         let data = std::fs::read(snap.dir.join(f.path.as_str()))?;
         if repo.put_blob(&data).await? != f.blob {
-            return Err(EngineError::Data(format!("local history copy of {} changed", f.path.as_str())));
+            return Err(EngineError::Data(format!("history_changed:{}", f.path.as_str())));
         }
     }
     fp.hit("upload.before_manifest")?;
@@ -6796,8 +6796,8 @@ pub(crate) fn history_dir(data_dir: &std::path::Path, stream: &leemusync_core::S
 }
 ```
 
-- [ ] **Step 5: Run** `cargo test -p leemusync-engine && cargo clippy -p leemusync-engine --all-targets -- -D warnings` → PASS.
-- [ ] **Step 6: Commit.** `docs/specs/reliability.md` §Upload procedure: add "Implemented in `crates/engine/src/{snapshot,upload}.rs`. Local history pruning is not in M1a: history grows until Phase 1's later plan adds pruning." `just check`, then `feat(engine): take consistent snapshots and upload blobs before the manifest` with the trailer.
+- [x] **Step 5: Run** `cargo test -p leemusync-engine && cargo clippy -p leemusync-engine --all-targets -- -D warnings` → PASS.
+- [x] **Step 6: Commit.** `docs/specs/reliability.md` §Upload procedure: add "Implemented in `crates/engine/src/{snapshot,upload}.rs`. Local history pruning is not in M1a: history grows until Phase 1's later plan adds pruning." `just check`, then `feat(engine): take consistent snapshots and upload blobs before the manifest` with the trailer.
 
 ---
 
@@ -8113,7 +8113,7 @@ async fn both_saves_end_up_on_both_pcs() {
 
 Spec: [config-and-cli §Commands, §Exit codes, §Parity rule](../../specs/config-and-cli.md#commands), [i18n §Rust strings, §Rules, §Terminology, §Parity check](../../specs/i18n.md#rust-strings), D19. Skill: `leemusync-security` (secrets at prompts).
 
-Error keys from Task 11 (P6: engine payloads are keys or data, never prose): `NotSetUp` takes `backend`, `gdrive_login`, `repo`, `repo_key`; `Usage` takes `repo_exists`, `repo_race`, `already_joined`, `passphrase_too_short`, `player_name_invalid`, `player_name_taken`; `Config` takes `repo_mismatch`, `repo_config`; `Secrets` takes `bad_master_key`; `Data` carries the remote object name, or `repo_format_newer` when `repo.json` is from a newer LeemuSync (tell the user to update). Map each key to its own en + es Fluent message instead of printing it through `{ $detail }`.
+Error keys from Task 11 (P6: engine payloads are keys or data, never prose): `NotSetUp` takes `backend`, `gdrive_login`, `repo`, `repo_key`; `Usage` takes `repo_exists`, `repo_race`, `already_joined`, `passphrase_too_short`, `player_name_invalid`, `player_name_taken`; `Config` takes `repo_mismatch`, `repo_config`; `Secrets` takes `bad_master_key`; `Data` carries the remote object name, or `repo_format_newer` when `repo.json` is from a newer LeemuSync (tell the user to update). From Task 13: `Usage` takes `file_too_large:<path>` and `file_name_invalid:<path>` (the key, a colon, then the save-relative path as data); `Data` takes `history_changed:<path>` and `manifest_invalid`; `Busy` carries the save-relative path. Map each key to its own en + es Fluent message instead of printing it through `{ $detail }`.
 
 **Files:**
 - Modify: `Cargo.toml` (`clap`, `rpassword`, `fluent-bundle`, `unic-langid`), `crates/cli/Cargo.toml`:

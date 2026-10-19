@@ -302,7 +302,7 @@ impl Repo {
         &self.id
     }
 
-    #[allow(dead_code)] // used by Task 13
+    #[allow(dead_code)] // used by Task 15
     pub(crate) fn blob_id(&self, data: &[u8]) -> BlobId {
         BlobId(Hash32(keyed_hash(&self.keys.blob_id, data)))
     }
@@ -341,7 +341,7 @@ impl Repo {
     }
 
     /// Idempotent: the name is the content's keyed hash.
-    #[allow(dead_code)] // used by Task 13
+    #[allow(dead_code)] // used by Task 15
     pub(crate) async fn put_blob(&self, data: &[u8]) -> Result<BlobId, EngineError> {
         let id = self.blob_id(data);
         match self
@@ -354,7 +354,7 @@ impl Repo {
     }
 
     /// Decrypts and checks that the content still hashes to `id`.
-    #[allow(dead_code)] // used by Task 13
+    #[allow(dead_code)] // used by Task 14
     pub(crate) async fn get_blob(&self, id: &BlobId) -> Result<Vec<u8>, EngineError> {
         let path = blob_path(id);
         let data = self
@@ -366,7 +366,7 @@ impl Repo {
         Ok(data)
     }
 
-    #[allow(dead_code)] // used by Task 13
+    #[allow(dead_code)] // used by Task 15
     pub(crate) async fn put_version(&self, v: &Version) -> Result<(), EngineError> {
         let path = version_path(&v.stream, &v.id);
         let json = v.to_json().map_err(|_| data(&path))?;
@@ -374,7 +374,7 @@ impl Repo {
             .await
     }
 
-    #[allow(dead_code)] // used by Task 13
+    #[allow(dead_code)] // used by Task 15
     pub(crate) async fn list_versions(
         &self,
         stream: &StreamId,

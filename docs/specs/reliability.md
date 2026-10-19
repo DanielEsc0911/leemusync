@@ -1,6 +1,6 @@
 # Reliability
 
-> **Status:** Draft · **Related:** [rules](../rules.md) (B3), [sync-model](sync-model.md), [security](security.md), [testing](testing.md), [platforms](platforms/desktop.md) · **Code:** `crates/engine` (planned)
+> **Status:** Draft · **Related:** [rules](../rules.md) (B3), [sync-model](sync-model.md), [security](security.md), [testing](testing.md), [platforms](platforms/desktop.md) · **Code:** `crates/engine` (`fsx.rs`, `snapshot.rs`, `upload.rs`; restore planned)
 
 ## Purpose
 A save must never be lost or corrupted, and sync must keep running around the clock wherever the OS allows.
@@ -32,6 +32,8 @@ A crash between 4 and 6 → on startup the journal restores every file from the 
 2. Upload missing blobs (create-only, idempotent: the same content gives the same id).
 3. Write the manifest (create-only) — this is the commit point.
 4. Update `base`. A crash anywhere → retry. Orphaned blobs are collected by GC after the grace period.
+
+Implemented in `crates/engine/src/{snapshot,upload}.rs`. Local history pruning is not in M1a: history grows until Phase 1's later plan adds pruning.
 
 ## Local history
 `<data>/history/<streamId>/<versionId or timestamp>/`. Keeps the last 10 snapshots per stream plus every pre-restore backup from the last 30 days (both configurable). Browsable and restorable from the UI and CLI, even offline.
