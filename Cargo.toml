@@ -22,6 +22,14 @@ getrandom = "0.4.3"
 tokio = "1.53.3"
 opendal = { version = "0.59.5", default-features = false, features = ["services-gdrive", "services-fs", "executors-tokio"] }
 tempfile = "3.27.0"
+opendal-http-transport-reqwest = { version = "0.59.5", default-features = false, features = ["rustls-no-provider"] }
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls-no-provider", "form", "json"] }
+rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
+rustls-platform-verifier = "0.7.1"
+url = "2.5.8"
+base64 = "0.22.1"
+sha2 = "0.10.9"
+keyring = { version = "3.6.3", default-features = false }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

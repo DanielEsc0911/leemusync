@@ -83,3 +83,38 @@ async fn fs_conformance() {
     assert!(store.capabilities().native_create_only);
     suite(&store, "conformance/").await;
 }
+
+#[tokio::test]
+#[ignore = "live Google Drive: run `cargo run -p leemusync-store --example gdrive_login` first"]
+async fn gdrive_conformance() {
+    use leemusync_store::{GdriveConfig, oauth::OAuthClient};
+    use zeroize::Zeroizing;
+    let client_id = std::env::var("LEEMUSYNC_TEST_GDRIVE_CLIENT_ID").unwrap();
+    let secret = Zeroizing::new(
+        keyring::Entry::new("leemusync-test", "gdrive-client-secret")
+            .unwrap()
+            .get_password()
+            .unwrap(),
+    );
+    let refresh = Zeroizing::new(
+        keyring::Entry::new("leemusync-test", "gdrive-refresh")
+            .unwrap()
+            .get_password()
+            .unwrap(),
+    );
+    let store = Store::gdrive(GdriveConfig {
+        root: "/".into(),
+        client: OAuthClient {
+            client_id,
+            client_secret: Some(secret),
+        },
+        refresh_token: refresh,
+    })
+    .unwrap();
+    assert!(!store.capabilities().native_create_only);
+    let run = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis();
+    suite(&store, &format!("leemusync-conformance/{run}/")).await;
+}

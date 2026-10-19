@@ -2,14 +2,19 @@
 //! Spec: docs/specs/storage-backends.md.
 
 mod error;
+mod gdrive;
+pub mod http;
+pub mod oauth;
 mod redact;
 
 use std::path::Path;
+use std::sync::Arc;
 
 use opendal::Operator;
 use opendal::services::Fs;
 
 pub use error::{ErrorClass, StoreError};
+pub use gdrive::GdriveConfig;
 pub use redact::redact;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -39,6 +44,7 @@ pub struct Store {
 #[derive(Clone)]
 enum Inner {
     Plain(Operator),
+    Gdrive(Arc<gdrive::GdriveSession>),
 }
 
 impl Store {
@@ -67,10 +73,25 @@ impl Store {
         self.caps
     }
 
-    #[allow(clippy::unused_async, clippy::unused_async_trait_impl)] // used by Task 8: the Drive operator is rebuilt when its token expires
+    /// Google Drive with the user's OAuth client and refresh token (D26, D27).
+    ///
+    /// # Errors
+    /// `Permanent` if the HTTP client can't be built.
+    pub fn gdrive(config: GdriveConfig) -> Result<Self, StoreError> {
+        let http = http::http_client()?;
+        Ok(Self {
+            inner: Inner::Gdrive(gdrive::GdriveSession::new(config, http)),
+            caps: Capabilities {
+                native_create_only: false,
+            },
+        })
+    }
+
+    /// The operator to use now. Drive's is rebuilt before its access token expires (D27).
     async fn op(&self) -> Result<Operator, StoreError> {
         match &self.inner {
             Inner::Plain(op) => Ok(op.clone()),
+            Inner::Gdrive(session) => session.operator().await,
         }
     }
 

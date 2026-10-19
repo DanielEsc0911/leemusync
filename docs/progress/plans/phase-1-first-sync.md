@@ -6,7 +6,7 @@
 
 **Architecture:** Thin but final slices of the layered crates (B1): pure logic in `core` (ids, paths, manifest, heads, reconciliation, repo config, profile schema), primitives in `crypto`, raw encrypted objects in `store` (OpenDAL `gdrive` + `fs`), orchestration in `engine` (discovery, snapshot, upload, journaled restore, SQLite state, sync), report types in `api`, and the `leemusync` binary in `cli`. Formats are v1 and final, so the next slice (M1b: leases, `play`, conflict resolution) builds on the data this test creates.
 
-**Tech Stack:** Rust 1.99.0 (edition 2024), tokio, OpenDAL 0.59.5, reqwest 0.13 + rustls (ring) + rustls-platform-verifier, XChaCha20-Poly1305, Argon2id, BLAKE3, SQLite (rusqlite, bundled), keyring (Secret Service), clap, Fluent.
+**Tech Stack:** Rust 1.99.0 (edition 2024), tokio, OpenDAL 0.59.5, reqwest 0.13 + rustls (ring) + rustls-platform-verifier, XChaCha20-Poly1305, Argon2id, BLAKE3, SQLite (rusqlite, bundled), keyring (Secret Service via vendored libdbus, Keychain, Credential Manager), clap, Fluent.
 
 **Spec:** this plan implements the design approved on 2026-10-18 (brainstorm with the maintainer). The design lives in the specs it touches, updated by Task 1 before any code: [sync-model](../../specs/sync-model.md), [players-and-accounts](../../specs/players-and-accounts.md), [reliability](../../specs/reliability.md), [security](../../specs/security.md), [storage-backends](../../specs/storage-backends.md), [config-and-cli](../../specs/config-and-cli.md), [emulator-profiles](../../specs/emulator-profiles.md), [decisions](../../decisions.md) D26–D30. Read the spec sections a task names before starting it. This plan is part of Phase 0 Task 6's "write the Phase 1 plan" item; the rest of Phase 1 gets its own plan after this test.
 
@@ -47,7 +47,7 @@
 | `url` | `2.5.8` | Task 8 |
 | `base64` | `0.22.1` | Task 8 |
 | `sha2` | `0.10.9` | Task 8 |
-| `keyring` | `3.6.3`, `sync-secret-service`, `crypto-rust` | Task 10 |
+| `keyring` | `3.6.3`, `default-features = false`; per OS in the crate's target tables: Linux `sync-secret-service`, `crypto-rust`, `vendored` (libdbus built from source, no system package); macOS `apple-native`; Windows `windows-native` | Task 8 (dev), Task 10 |
 | `rusqlite` | `0.37.0`, `bundled` | Task 10 |
 | `directories` | `6.0.0` | Task 10 |
 | `regex` | `1.13.1`, `default-features = false`, `std`, `unicode-perl` | Task 12 |
@@ -3441,7 +3441,15 @@ serde_json = { workspace = true }
 
 [dev-dependencies]
 # ...Task 7 entries...
-keyring = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+keyring = { workspace = true, features = ["sync-secret-service", "crypto-rust", "vendored"] }
+
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+keyring = { workspace = true, features = ["apple-native"] }
+
+[target.'cfg(windows)'.dev-dependencies]
+keyring = { workspace = true, features = ["windows-native"] }
 ```
 
 - Create: `crates/store/src/http.rs`, `crates/store/src/oauth.rs`, `crates/store/src/gdrive.rs`, `crates/store/examples/gdrive_login.rs`
@@ -3454,7 +3462,7 @@ keyring = { workspace = true }
   - `oauth::OAuthClient { client_id: String, client_secret: Option<Zeroizing<String>> }` (its `Debug` hides the secret); `oauth::AccessToken { token: Zeroizing<String>, expires_at_ms: u64 }`; `oauth::Tokens { refresh_token: Zeroizing<String>, access: AccessToken }`; `oauth::start_login(client: &OAuthClient) -> Result<PendingLogin, StoreError>` (async); `PendingLogin::url(&self) -> &str`; `PendingLogin::finish(self, client: &OAuthClient, http: &reqwest::Client) -> Result<Tokens, StoreError>` (async, waits at most 5 minutes); `oauth::refresh(client: &OAuthClient, http: &reqwest::Client, refresh_token: &str) -> Result<AccessToken, StoreError>` (async).
   - `gdrive::GdriveConfig { root: String, client: OAuthClient, refresh_token: Zeroizing<String> }`; `Store::gdrive(config: GdriveConfig) -> Result<Store, StoreError>` (capability `native_create_only: false`).
 
-- [ ] **Step 1: Failing tests.** `crates/store/src/oauth.rs`:
+- [x] **Step 1: Failing tests.** `crates/store/src/oauth.rs`:
 
 ```rust
 //! Google OAuth for Drive (`drive.file`): authorization code + PKCE with a loopback redirect (D28),
@@ -3472,7 +3480,7 @@ mod tests {
     fn pkce_challenge_is_s256_of_the_verifier() {
         // RFC 7636 appendix B.
         assert_eq!(
-            challenge("dBjftJeZ4CVP-mJ92K27uhbUJU1p1r_wW1gFWFOEjXk"),
+            challenge("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"),
             "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
         );
     }
@@ -3529,8 +3537,8 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Run** `cargo test -p leemusync-store` → compile errors.
-- [ ] **Step 3: Implement `http.rs`** (above its tests):
+- [x] **Step 2: Run** `cargo test -p leemusync-store` → compile errors.
+- [x] **Step 3: Implement `http.rs`** (above its tests):
 
 ```rust
 use std::sync::Arc;
@@ -3559,7 +3567,7 @@ pub fn http_client() -> Result<reqwest::Client, StoreError> {
 }
 ```
 
-- [ ] **Step 4: Implement `oauth.rs`** (above its tests):
+- [x] **Step 4: Implement `oauth.rs`** (above its tests):
 
 ```rust
 use std::fmt;
@@ -3784,7 +3792,7 @@ async fn post_token(http: &reqwest::Client, form: &[(&str, &str)]) -> Result<Tok
 }
 ```
 
-- [ ] **Step 5: Implement `gdrive.rs`:**
+- [x] **Step 5: Implement `gdrive.rs`:**
 
 ```rust
 //! Google Drive through OpenDAL with an access token only; the store refreshes it (D27).
@@ -3857,7 +3865,7 @@ impl Store {
 }
 ```
 
-- [ ] **Step 6: The live test and its login helper.** `crates/store/examples/gdrive_login.rs` logs in once and keeps the tokens in the keystore. It never prints them:
+- [x] **Step 6: The live test and its login helper.** `crates/store/examples/gdrive_login.rs` logs in once and keeps the tokens in the keystore. It never prints them:
 
 ```rust
 //! One-time login for the live Drive test. Stores the refresh token and client secret in the OS
@@ -3910,9 +3918,9 @@ async fn gdrive_conformance() {
 }
 ```
 
-- [ ] **Step 7: Run** `cargo test -p leemusync-store && cargo clippy -p leemusync-store --all-targets -- -D warnings` → PASS (the live test stays ignored). Then check TLS: `cargo tree -i aws-lc-sys -e normal` and `cargo tree -i openssl-sys -e normal` must both print `did not match any packages`.
+- [x] **Step 7: Run** `cargo test -p leemusync-store && cargo clippy -p leemusync-store --all-targets -- -D warnings` → PASS (the live test stays ignored). Then check TLS: `cargo tree -i aws-lc-sys -e normal` and `cargo tree -i openssl-sys -e normal` must both print `did not match any packages`.
 - [ ] **Step 8: Live run (maintainer, once).** With the maintainer's Desktop OAuth client (SP6 setup, [storage-backends §Google Drive (live)](../../specs/storage-backends.md#google-drive-live)): run the example, log in, then `LEEMUSYNC_TEST_GDRIVE_CLIENT_ID=<id> cargo test -p leemusync-store --test conformance -- --ignored`. Expected: PASS. Record the date, OpenDAL 0.59.5 and the result in storage-backends §Google Drive (live), and delete the `leemusync-conformance` folder in Drive by hand. If Drive's `list` returns sizes of 0, the suite still passes (it compares names only).
-- [ ] **Step 9: Commit.** Update `docs/specs/storage-backends.md` (V-STORE-7 code pointer `crates/store/src/{oauth,gdrive}.rs`) and `docs/specs/security.md` V-SEC-4 ("store errors pass through `crates/store/src/redact.rs`; tests cover the token URL, JSON bodies and Bearer headers"). `just check`, then:
+- [x] **Step 9: Commit.** Update `docs/specs/storage-backends.md` (V-STORE-7 code pointer `crates/store/src/{oauth,gdrive}.rs`) and `docs/specs/security.md` V-SEC-4 ("store errors pass through `crates/store/src/redact.rs`; tests cover the token URL, JSON bodies and Bearer headers"). `just check`, then:
 
 ```bash
 git add Cargo.toml Cargo.lock crates/store docs/specs
@@ -3995,7 +4003,6 @@ leemusync-core = { path = "../core" }
 leemusync-crypto = { path = "../crypto" }
 leemusync-store = { path = "../store" }
 directories = { workspace = true }
-keyring = { workspace = true }
 rusqlite = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -4009,6 +4016,15 @@ zeroize = { workspace = true }
 leemusync-engine = { path = ".", features = ["failpoints"] }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { workspace = true, features = ["sync-secret-service", "crypto-rust", "vendored"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { workspace = true, features = ["apple-native"] }
+
+[target.'cfg(windows)'.dependencies]
+keyring = { workspace = true, features = ["windows-native"] }
 ```
 
 - Create: `crates/engine/src/{error,locations,local_config,secrets,state,fsx,failpoints,process}.rs`
