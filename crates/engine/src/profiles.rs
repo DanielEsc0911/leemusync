@@ -234,12 +234,17 @@ mod tests {
         let native = loc.xdg_data.join("Cemu");
         std::fs::create_dir_all(&native).unwrap();
         let settings = loc.xdg_config.join("Cemu/settings.xml");
+        // Built from the tempdir so it is absolute on every OS (`/x` has no drive on Windows).
+        let elsewhere = dir.path().join("elsewhere/mlc");
         write(
             &settings,
-            "<content><mlc_path>/elsewhere/mlc</mlc_path></content>",
+            &format!(
+                "<content><mlc_path>{}</mlc_path></content>",
+                elsewhere.display()
+            ),
         );
         let i = resolve(&cemu(), &loc, None, &|_| true).unwrap().unwrap();
-        assert_eq!(i.saves_root, Path::new("/elsewhere/mlc/usr/save"));
+        assert_eq!(i.saves_root, elsewhere.join("usr/save"));
         let i = resolve(&cemu(), &loc, None, &|_| false).unwrap().unwrap();
         assert_eq!(i.saves_root, native.join("mlc01/usr/save"));
         assert_eq!(i.warnings.len(), 1);
