@@ -25,11 +25,11 @@ Let users keep their repo on storage they already own. The store layer moves opa
 ## Adapters
 | Provider | Adapter | Notes |
 |---|---|---|
-| AWS S3, MinIO, Backblaze B2, Cloudflare R2, Wasabi, MEGA S4 | OpenDAL `s3` | "Amazon" means S3. Amazon Drive shut down in 2023 |
+| AWS S3, MinIO, Backblaze B2, Cloudflare R2, Wasabi, MEGA S4 | OpenDAL `s3` | "Amazon" means S3. Amazon Drive shut down in 2023. Phase 1: `crates/store/src/s3.rs`, static keys, `https://` only; R2 is the first real test ([D31](../decisions.md#d31-cloudflare-r2-replaces-google-drive-for-the-first-real-test-2026-10-20)). R2: region `auto`, endpoint `https://<account id>.r2.cloudflarestorage.com` |
 | Nextcloud, ownCloud, Synology, `rclone serve webdav` | OpenDAL `webdav` | The most common self-hosted path |
 | Any SSH server (a Pi, a NAS) | OpenDAL `sftp` | Key-based auth recommended. Linux and macOS only ([D25](../decisions.md#d25-sftp-only-on-linux-and-macos-for-now-2026-10-08)); needs the system OpenSSH client. See [SFTP on mobile and Windows](#sftp-on-mobile-and-windows) |
 | Local folder, USB, mounted NAS/SMB | OpenDAL `fs` | Also serves iCloud Drive/OneDrive folders synced by the OS |
-| Google Drive | OpenDAL `gdrive` | Phase 1 for the first test ([D26](../decisions.md#d26-google-drive-is-the-backend-for-the-first-real-test-2026-10-18)); the public client in Phase 6. Scope `drive.file` (only files LeemuSync created) |
+| Google Drive | OpenDAL `gdrive` | Built in Phase 1 ([D26](../decisions.md#d26-google-drive-is-the-backend-for-the-first-real-test-2026-10-18); the first test moved to R2, D31); the public client in Phase 6. Scope `drive.file` (only files LeemuSync created) |
 | OneDrive, Dropbox | OpenDAL `onedrive`, `dropbox` | Phase 6 |
 | MEGA | see [MEGA](#mega) | Phase 6 |
 
@@ -109,7 +109,7 @@ OpenDAL's `fs` gets an atomic `if_not_exists` only without `atomic_write_dir`: i
 
 ## Setup and testing a backend
 1. Enter the details (UI wizard, CLI `backend add`, or config).
-2. **Probe:** write/read/list/delete a test object under `leemusync/.probe/`. Detect capabilities and measure latency.
+2. **Probe:** write/read/list/delete a test object under `leemusync/.probe/`. Detect capabilities and measure latency. Phase 1: `backend add s3` runs the write/read/list/delete probe (`crates/engine/src/setup.rs`); latency isn't measured yet.
 3. Store the credentials ([security §Credentials](security.md#credentials)).
 
 ## Conformance suite
@@ -117,7 +117,7 @@ Every adapter must pass the shared suite in `crates/store/tests/conformance.rs` 
 
 ## Verify
 Local services are answered in [Tested capabilities](#tested-capabilities-sp6). The rest is pending accounts (deferred by the maintainer).
-- **V-STORE-1** Live conditional writes, server mtime, list-after-write delay and rate limits on AWS S3, Cloudflare R2, Backblaze B2, OneDrive and Dropbox. Pending accounts (SP6). Google Drive done live 2026-10-08 ([Google Drive (live)](#google-drive-live)).
+- **V-STORE-1** Live conditional writes, server mtime, list-after-write delay and rate limits on AWS S3, Cloudflare R2, Backblaze B2, OneDrive and Dropbox. Pending accounts (SP6). Google Drive done live 2026-10-08 ([Google Drive (live)](#google-drive-live)). R2: Cloudflare documents atomic conditional `PutObject` ([R2 S3 API](https://developers.cloudflare.com/r2/api/s3/api/), read 2026-10-20); the live check is `cargo test -p leemusync-store --test conformance s3_conformance -- --ignored` (suite + 20-way `create_only` race), pending its first run.
 - **V-STORE-2** Google Drive `drive.file` OAuth: desktop flow done 2026-10-08 ([Google Drive (live)](#google-drive-live)). Open: the mobile flow, whether Google accepts a Desktop-client code exchange without the secret (and how that fits OpenDAL requiring `client_secret` with `refresh_token`), and whether the public client needs brand verification (SP6).
 - **V-STORE-3** MEGA: live S4 test, security review of `mega`/`megalib`, MEGAcmd WebDAV. Pending accounts (SP6).
 - **V-STORE-4** A pure-Rust SFTP adapter for Windows, Android and iOS (deferred by [D25](../decisions.md#d25-sftp-only-on-linux-and-macos-for-now-2026-10-08)).

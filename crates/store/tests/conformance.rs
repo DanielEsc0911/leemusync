@@ -118,3 +118,51 @@ async fn gdrive_conformance() {
         .as_millis();
     suite(&store, &format!("leemusync-conformance/{run}/")).await;
 }
+
+#[tokio::test]
+#[ignore = "live S3/R2: set LEEMUSYNC_TEST_S3_ENDPOINT, _BUCKET, _KEY_ID and keyring leemusync-test/s3-secret"]
+async fn s3_conformance() {
+    use leemusync_store::S3Config;
+    use zeroize::Zeroizing;
+    let var = |name: &str| std::env::var(format!("LEEMUSYNC_TEST_S3_{name}")).unwrap();
+    let secret = Zeroizing::new(
+        keyring::Entry::new("leemusync-test", "s3-secret")
+            .unwrap()
+            .get_password()
+            .unwrap(),
+    );
+    let store = Store::s3(&S3Config {
+        endpoint: var("ENDPOINT"),
+        bucket: var("BUCKET"),
+        region: "auto".into(),
+        root: "/".into(),
+        access_key_id: var("KEY_ID"),
+        secret_access_key: secret,
+    })
+    .unwrap();
+    assert!(store.capabilities().native_create_only);
+    let run = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis();
+    let root = format!("leemusync-conformance/{run}/");
+    suite(&store, &root).await;
+
+    // V-STORE-1: concurrent create-only writes to one name have exactly one winner.
+    let race = format!("{root}race");
+    let mut tasks = tokio::task::JoinSet::new();
+    for i in 0..20u8 {
+        let (store, race) = (store.clone(), race.clone());
+        tasks.spawn(async move { store.put(&race, vec![i], PutMode::CreateOnly).await });
+    }
+    let (mut won, mut lost) = (0, 0);
+    while let Some(r) = tasks.join_next().await {
+        match r.unwrap() {
+            Ok(()) => won += 1,
+            Err(e) if e.class() == ErrorClass::AlreadyExists => lost += 1,
+            Err(e) => panic!("unexpected error: {e}"),
+        }
+    }
+    assert_eq!((won, lost), (1, 19), "exactly one create-only write wins");
+    store.delete(&race).await.unwrap();
+}

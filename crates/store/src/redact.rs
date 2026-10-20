@@ -2,7 +2,7 @@
 
 /// Secret names, lowercase. The flag says whether `name: value` (no quotes) counts; it is off for
 /// words that also appear in prose ("error code: 404").
-const SECRET_NAMES: [(&str, bool); 14] = [
+const SECRET_NAMES: [(&str, bool); 16] = [
     ("access_token", true),
     ("refresh_token", true),
     ("client_secret", true),
@@ -16,6 +16,9 @@ const SECRET_NAMES: [(&str, bool); 14] = [
     ("x-amz-signature", true),
     ("x-amz-credential", true),
     ("x-amz-security-token", true),
+    ("secret_access_key", true),
+    // SigV4 `Authorization: AWS4-HMAC-SHA256 Credential=<key id>/…, Signature=…`.
+    ("credential", false),
     ("signature", false),
 ];
 const VALUE_END: [char; 9] = ['&', ' ', '"', '\'', ',', '}', ')', '\n', '\r'];
@@ -226,6 +229,8 @@ mod tests {
             "X-Amz-Signature=SECRET",
             "x-amz-credential=SECRET",
             "x-amz-security-token=SECRET",
+            "secret_access_key: SECRET",
+            "AWS4-HMAC-SHA256 Credential=SECRET/20261020/auto/s3/aws4_request, SignedHeaders=host, Signature=SECRET",
             "Authorization: Basic SECRET",
         ] {
             assert!(

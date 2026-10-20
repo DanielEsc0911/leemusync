@@ -50,6 +50,9 @@ impl Engine {
             repo: self.config.repo.clone(),
             backend: self.config.backend.as_ref().map(|b| match b {
                 BackendConfig::Gdrive { .. } => "gdrive".to_owned(),
+                BackendConfig::S3 {
+                    endpoint, bucket, ..
+                } => format!("s3 {endpoint}/{bucket}"),
                 BackendConfig::Fs { path } => format!("fs {}", path.display()),
             }),
             grants: self

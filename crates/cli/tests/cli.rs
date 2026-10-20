@@ -107,3 +107,41 @@ fn scan_output_is_fully_formatted_in_both_languages() {
         );
     }
 }
+
+#[test]
+fn backend_s3_asks_for_the_secret_at_a_prompt_only() {
+    let root = tempfile::tempdir().unwrap();
+    let help = String::from_utf8(
+        run(
+            root.path(),
+            "es_MX.UTF-8",
+            &["backend", "add", "s3", "--help"],
+        )
+        .stdout,
+    )
+    .unwrap();
+    assert!(help.contains("llavero del sistema"), "{help}");
+    assert!(
+        !help.contains("--secret"),
+        "no flag takes the secret: {help}"
+    );
+    let args = [
+        "backend",
+        "add",
+        "s3",
+        "--endpoint",
+        "https://acct.r2.cloudflarestorage.com",
+        "--bucket",
+        "saves",
+        "--access-key-id",
+        "id",
+    ];
+    let out = run(root.path(), "en_US.UTF-8", &args);
+    assert_eq!(out.status.code(), Some(2), "no terminal, no secret prompt");
+    let status = run(root.path(), "en_US.UTF-8", &["--json", "status"]);
+    let json: serde_json::Value = serde_json::from_slice(&status.stdout).unwrap();
+    assert!(
+        json["backend"].is_null(),
+        "nothing saved without the secret"
+    );
+}

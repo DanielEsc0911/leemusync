@@ -33,8 +33,21 @@ pub struct DeviceSection {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum BackendConfig {
-    Gdrive { root: String, client_id: String },
-    Fs { path: PathBuf },
+    Gdrive {
+        root: String,
+        client_id: String,
+    },
+    /// S3-compatible (R2 for the first test, D31). The secret key is in the keystore.
+    S3 {
+        endpoint: String,
+        bucket: String,
+        region: String,
+        root: String,
+        access_key_id: String,
+    },
+    Fs {
+        path: PathBuf,
+    },
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -118,6 +131,25 @@ mod tests {
             },
         );
         c
+    }
+
+    #[test]
+    fn s3_backend_round_trips_without_its_secret() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        let mut c = sample();
+        c.backend = Some(BackendConfig::S3 {
+            endpoint: "https://acct.r2.cloudflarestorage.com".into(),
+            bucket: "saves".into(),
+            region: "auto".into(),
+            root: "/".into(),
+            access_key_id: "key-id".into(),
+        });
+        c.save(&path).unwrap();
+        assert_eq!(LocalConfig::load(&path).unwrap(), Some(c));
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(text.contains("kind = \"s3\""), "{text}");
+        assert!(!text.contains("secret"), "{text}");
     }
 
     #[test]

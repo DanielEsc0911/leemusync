@@ -6,6 +6,7 @@ mod gdrive;
 pub mod http;
 pub mod oauth;
 mod redact;
+mod s3;
 
 use std::path::Path;
 use std::sync::Arc;
@@ -16,6 +17,7 @@ use opendal::services::Fs;
 pub use error::{ErrorClass, StoreError};
 pub use gdrive::GdriveConfig;
 pub use redact::redact;
+pub use s3::S3Config;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PutMode {
@@ -83,6 +85,21 @@ impl Store {
             inner: Inner::Gdrive(gdrive::GdriveSession::new(config, http)),
             caps: Capabilities {
                 native_create_only: false,
+            },
+        })
+    }
+
+    /// S3-compatible storage with static keys (Cloudflare R2 for the first test, D31).
+    ///
+    /// # Errors
+    /// `Permanent` for an endpoint that isn't `https://`, or if the HTTP client can't be built.
+    pub fn s3(config: &S3Config) -> Result<Self, StoreError> {
+        let op = s3::operator(config, http::http_client()?)?;
+        let native = op.info().capability().write_with_if_not_exists;
+        Ok(Self {
+            inner: Inner::Plain(op),
+            caps: Capabilities {
+                native_create_only: native,
             },
         })
     }

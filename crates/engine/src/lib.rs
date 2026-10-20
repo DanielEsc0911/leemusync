@@ -36,7 +36,7 @@ pub use local_config::{BackendConfig, DeviceSection, EmulatorOverride, LocalConf
 pub use locations::Locations;
 pub use process::{FakeProbe, ProcessProbe, SysinfoProbe};
 pub use secrets::{KeyringSecrets, MemorySecrets, SecretStore};
-pub use setup::{GdriveLogin, JoinSecret};
+pub use setup::{GdriveLogin, JoinSecret, S3Backend};
 pub use state::{JournalEntry, State, StreamRow};
 pub use sync::SyncOptions;
 

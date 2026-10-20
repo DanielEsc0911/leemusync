@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Also follow the project skills: `leemusync-feature` (always), `leemusync-security` (Tasks 6–8, 10–16), `leemusync-backend` (Tasks 7–8), `leemusync-emulator-profile` (Tasks 5, 12, 18), `leemusync-docs` (every task).
 
-**Goal:** Two Linux PCs (Fedora 44 + Cemu Flatpak, CachyOS + native `cemu-bin`), each with one Cemu account holding a different player's BotW save, end up with both saves on both PCs through an end-to-end encrypted repo on the maintainer's Google Drive, driven by the `leemusync` CLI.
+**Goal:** Two Linux PCs (Fedora 44 + Cemu Flatpak, CachyOS + native `cemu-bin`), each with one Cemu account holding a different player's BotW save, end up with both saves on both PCs through an end-to-end encrypted repo on the maintainer's Cloudflare R2 bucket (D31; Google Drive before 2026-10-20), driven by the `leemusync` CLI.
 
 **Architecture:** Thin but final slices of the layered crates (B1): pure logic in `core` (ids, paths, manifest, heads, reconciliation, repo config, profile schema), primitives in `crypto`, raw encrypted objects in `store` (OpenDAL `gdrive` + `fs`), orchestration in `engine` (discovery, snapshot, upload, journaled restore, SQLite state, sync), report types in `api`, and the `leemusync` binary in `cli`. Formats are v1 and final, so the next slice (M1b: leases, `play`, conflict resolution) builds on the data this test creates.
 
@@ -9284,7 +9284,56 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
 ---
+### Task 17b: `store` S3 adapter for Cloudflare R2 (added 2026-10-20, D31)
+
+The maintainer moved the first real test from Google Drive to an R2 bucket, starting on the Fedora PC alone.
+
+- [x] **Step 1:** `crates/store/src/s3.rs`: OpenDAL `s3` (`services-s3`), static keys, `disable_config_load` + `disable_ec2_metadata`, `https://` only, our rustls client. `Store::s3`, native `create_only` from the operator's capability. Redaction also covers `secret_access_key` and SigV4 `Credential=`.
+- [x] **Step 2:** engine `BackendConfig::S3 { endpoint, bucket, region, root, access_key_id }`, keystore entry `device-<id>-s3-secret-access-key`, `Engine::backend_add_s3(S3Backend, secret)` with a write/read/list/delete probe under `leemusync/.probe/` before anything is saved. `status` shows `s3 <endpoint>/<bucket>`.
+- [x] **Step 3:** CLI `backend add s3 --endpoint <url> --bucket <name> --access-key-id <id> [--region auto]`; the secret only at a no-echo prompt. en + es strings.
+- [x] **Step 4:** tests: S3 operator needs `https://` and has native `create_only`; config round-trip without the secret; a bad backend saves nothing; the probe cleans up; CLI help and no-terminal refusal. Live (ignored): `s3_conformance` runs the suite plus a 20-way `create_only` race (V-STORE-1).
+- [x] **Step 5:** `deny.toml` ignores RUSTSEC-2026-0374 (`basic-toml` unmaintained, build-time only via uniffi → askama; it also failed on `main`).
+- [ ] **Step 6: Live R2 run (maintainer, once).** Create an R2 API token with "Object Read & Write" for the bucket only. Then:
+
+    ```sh
+    secret-tool store --label "leemusync-test s3" service leemusync-test username s3-secret   # paste the secret key
+    LEEMUSYNC_TEST_S3_ENDPOINT=https://<account id>.r2.cloudflarestorage.com \
+    LEEMUSYNC_TEST_S3_BUCKET=<bucket> LEEMUSYNC_TEST_S3_KEY_ID=<access key id> \
+      cargo test -p leemusync-store --test conformance s3_conformance -- --ignored
+    secret-tool clear service leemusync-test username s3-secret
+    ```
+
+    Expected: pass. Record the result in storage-backends V-STORE-1.
+
+---
+
 ### Task 18: Test day on the real PCs (manual runbook)
+
+**Change (maintainer, 2026-10-20, D31):** the backend is Cloudflare R2, not Google Drive, and the test starts on the Fedora PC alone ("Part A"). Steps 3–7 below (two PCs) follow later, with `backend add s3` in place of `backend add gdrive` on both PCs.
+
+**Part A: Fedora alone, play and sync.** Use `./target/release/leemusync` from the repo (the system rpm is older). Cemu closed unless a step says otherwise.
+
+- [ ] **A1: Set up.**
+
+    ```sh
+    alias leemusync="$PWD/target/release/leemusync"
+    leemusync backend add s3 --endpoint https://<account id>.r2.cloudflarestorage.com --bucket <bucket> --access-key-id <id>
+    leemusync init                                   # passphrase twice; store the recovery key safely
+    leemusync grant add ~/.var/app/info.cemu.Cemu
+    leemusync scan                                   # expect account 80000001 and orphaned 80000002
+    leemusync players add "<Fedora player>"
+    leemusync accounts map "<Fedora player>" cemu 80000001
+    leemusync doctor                                 # all ok
+    ```
+
+- [ ] **A2: First push.** `leemusync sync --dry-run` (expect `uploaded` for BotW), then `leemusync sync` (answer yes: the panic backup exists). `leemusync history "<Fedora player>" cemu 101c9400` shows 1 version. Run `leemusync sync` again: `up to date`.
+- [ ] **A3: Play.** Open Cemu, play BotW and save in game. While it's open, run `leemusync sync`: BotW is skipped with "emulator running", and `doctor` shows `cemu running running`. Close Cemu.
+- [ ] **A4: Second push.** `leemusync sync --dry-run` (expect `uploaded`), `leemusync sync`, then `history`: 2 versions, the newest is the head and its parent is the first. Record object counts and timings from the R2 dashboard if notable.
+- [ ] **A5: Check without copying.** Compare names and hashes of `user/80000001` with what `history` reports (files and bytes of the head). Open Cemu once more and confirm the save is where you left it.
+- [ ] **A6 (optional): Restore round trip.** `leemusync restore "<Fedora player>" cemu 101c9400 <first version id>`, then check it in Cemu and close it. A `sync` now uploads that old state as a new version on top. To go back, `restore … <the A4 version id>` and `sync` again. History is never rewritten, and every pre-restore copy is in `~/.local/share/leemusync/history/`.
+
+**Part B: both PCs** (after Part A). The steps below, unchanged except for the backend.
+
 
 Done by the maintainer, with an agent on each PC if wanted. It needs Tasks 1–17 merged to `main` and `just check` green. Real saves are only read and written by `leemusync`, after the panic backups exist. Agents never copy saves anywhere else and never record save contents. Names, sizes and hashes are fine to record.
 

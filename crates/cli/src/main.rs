@@ -11,7 +11,7 @@ use clap::{CommandFactory as _, FromArgMatches as _, Parser, Subcommand};
 use leemusync_api::StreamAction;
 use leemusync_engine::{
     BackendConfig, Engine, EngineEnv, EngineError, JoinSecret, Locations, MapChoice, MapOutcome,
-    SyncOptions,
+    S3Backend, SyncOptions,
 };
 
 use crate::i18n::{I18n, s};
@@ -86,6 +86,16 @@ enum BackendKind {
     Gdrive {
         #[arg(long)]
         client_id: String,
+    },
+    S3 {
+        #[arg(long)]
+        endpoint: String,
+        #[arg(long)]
+        bucket: String,
+        #[arg(long)]
+        access_key_id: String,
+        #[arg(long, default_value = "auto")]
+        region: String,
     },
     Fs {
         path: PathBuf,
@@ -267,6 +277,35 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
                 },
         } => {
             gdrive_login(&mut engine, t, client_id).await?;
+        }
+        Cmd::Backend {
+            cmd:
+                BackendCmd::Add {
+                    kind:
+                        BackendKind::S3 {
+                            endpoint,
+                            bucket,
+                            access_key_id,
+                            region,
+                        },
+                },
+        } => {
+            let secret = prompt::secret(t, "prompt-s3-secret")?;
+            let backend = S3Backend {
+                endpoint: endpoint.clone(),
+                bucket: bucket.clone(),
+                region: region.clone(),
+                access_key_id: access_key_id.clone(),
+            };
+            engine.backend_add_s3(backend, &secret).await?;
+            output::line(
+                t,
+                "backend-s3-done",
+                &[
+                    ("bucket", s(bucket.clone())),
+                    ("endpoint", s(endpoint.clone())),
+                ],
+            );
         }
         Cmd::Backend {
             cmd: BackendCmd::Login,
