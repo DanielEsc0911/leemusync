@@ -2,7 +2,7 @@
 
 mod common;
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use common::{FIXTURE, env, install_fixture};
 use leemusync_engine::Engine;
@@ -118,10 +118,9 @@ async fn a_mlc_outside_the_base_asks_for_the_mlc_not_the_base() {
     let report = engine.scan().await.unwrap();
     let cemu = &report.installs[0];
     assert!(!cemu.granted);
-    assert_eq!(
-        cemu.needs_grant,
-        [mlc.join("usr/save").display().to_string()]
-    );
+    // Compared as paths: Windows reports `mlc/usr/save` with mixed separators.
+    let needs: Vec<_> = cemu.needs_grant.iter().map(PathBuf::from).collect();
+    assert_eq!(needs, [mlc.join("usr/save")]);
     engine.grant_add(&mlc).unwrap();
     let report = engine.scan().await.unwrap();
     assert!(report.installs[0].granted);
