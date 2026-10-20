@@ -10,7 +10,7 @@ Prove the rules automatically: no lost saves, identical UI, smooth frames, same 
 |---|---|---|
 | Unit | `cargo test`, `flutter test` | Pure logic in `core`, `crypto`, Dart state |
 | Property | `proptest` | Version graph and heads, reconciliation table, path validation, template expansion |
-| Simulation | Deterministic multi-device harness in `crates/engine/tests/sim/` | N devices + fake backend with injected faults: crash at every journal step, network errors, eventual-consistency delays, clock skew, concurrent leases. Checks invariants I1–I6 after every step |
+| Simulation | Deterministic multi-device harness in `crates/engine/tests/sim/` | N devices + fake backend with injected faults: crash at every journal step, network errors, eventual-consistency delays, clock skew, concurrent leases. Checks invariants I1–I6 after every step. Simulation: `crates/engine/tests/two_devices.rs` (the M1a test day). Fault injection: `crates/engine/tests/faults.rs` (feature `failpoints`) |
 | Backend conformance | `crates/store/tests/conformance.rs` | Every adapter. Docker services (MinIO, WebDAV, SFTP) in CI |
 | Profile fixtures | `profiles/fixtures/` | Each profile's scan finds exactly the expected streams |
 | Fuzz | `cargo-fuzz` (nightly CI, timeboxed) | Manifest decode, profile parse, path validation, IPC frames, lease decode |

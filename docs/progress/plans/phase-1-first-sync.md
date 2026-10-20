@@ -7953,7 +7953,7 @@ Spec: [testing §Layers](../../specs/testing.md#layers) (simulation, fault injec
 **Interfaces:**
 - Consumes: `tests/common/mod.rs` (`Pc`, `Pc::reopen`, `join`, `map`, `SAVE`) from Tasks 12 and 15; every public `Engine` method.
 
-- [ ] **Step 1: Write `faults.rs`:**
+- [x] **Step 1: Write `faults.rs`:**
 
 ```rust
 //! Kill the engine at every journal step; on restart nothing is half old, half new (I1, I5).
@@ -8025,7 +8025,7 @@ async fn a_crash_around_the_manifest_never_makes_a_conflict() {
 
 The `after_manifest` case relies on two Task 15 rules. Adopt-on-equal turns the leftover version into `base` instead of a conflict. `sync` also records the game in the repo config on `Adopt`, so other devices still find the stream.
 
-- [ ] **Step 2: Write `two_devices.rs`.** It mirrors the Task 18 runbook step for step:
+- [x] **Step 2: Write `two_devices.rs`.** It mirrors the Task 18 runbook step for step:
 
 ```rust
 //! The M1a test day on two simulated PCs: Fedora (Flatpak Cemu) and CachyOS (native Cemu).
@@ -8111,8 +8111,8 @@ async fn both_saves_end_up_on_both_pcs() {
 }
 ```
 
-- [ ] **Step 3: Run** `cargo test -p leemusync-engine --test faults --test two_devices` → PASS. If one fails, debug with `superpowers:systematic-debugging`; the tests are the spec.
-- [ ] **Step 4: Commit.** `docs/specs/testing.md` §Layers: add "Simulation: `crates/engine/tests/two_devices.rs` (the M1a test day). Fault injection: `crates/engine/tests/faults.rs` (feature `failpoints`)." `just check`, then `test(engine): simulate the M1a test day and crash at every journal step` with the trailer.
+- [x] **Step 3: Run** `cargo test -p leemusync-engine --test faults --test two_devices` → PASS. If one fails, debug with `superpowers:systematic-debugging`; the tests are the spec.
+- [x] **Step 4: Commit.** `docs/specs/testing.md` §Layers: add "Simulation: `crates/engine/tests/two_devices.rs` (the M1a test day). Fault injection: `crates/engine/tests/faults.rs` (feature `failpoints`)." `just check`, then `test(engine): simulate the M1a test day and crash at every journal step` with the trailer.
 
 ---
 ### Task 17: `cli`: commands, prompts, `--json`, exit codes, Fluent strings (en + es)
