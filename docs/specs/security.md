@@ -1,6 +1,6 @@
 # Security
 
-> **Status:** Draft · **Related:** [rules](../rules.md) (B2 is the rule this spec implements; also P2, P7, W3), [architecture](architecture.md#ipc), [sync-model](sync-model.md), [storage-backends](storage-backends.md), [emulator-profiles](emulator-profiles.md#validation), [release](release.md), [skill: leemusync-security](../../.claude/skills/leemusync-security/SKILL.md) · **Code:** `crates/crypto`, `crates/core` (validation), `crates/ipc` (planned)
+> **Status:** Draft · **Related:** [rules](../rules.md) (B2 is the rule this spec implements; also P2, P7, W3), [architecture](architecture.md#ipc), [sync-model](sync-model.md), [storage-backends](storage-backends.md), [emulator-profiles](emulator-profiles.md#validation), [release](release.md), [skill: leemusync-security](../../.claude/skills/leemusync-security/SKILL.md) · **Code:** `crates/crypto/src/lib.rs`, `crates/core` (validation), `crates/ipc` (planned)
 
 ## Purpose
 LeemuSync handles people's data, credentials and file systems on millions of possible machines. It must never become a way to attack those machines. This spec is the threat model and the required controls. [rules.md](../rules.md) B2 is the non-negotiable summary.
@@ -32,6 +32,8 @@ Use audited RustCrypto/BLAKE3 crates only. No custom primitives ([D21](../decisi
 | Randomness | OS CSPRNG (`getrandom`) |
 | Secret memory | `zeroize` on drop |
 
+`repo.json` KDF parameters are bounded on read (`m` 19 456–1 048 576 KiB, `t` 1–10, `p` 1–4), so a tampered file can neither weaken a rewrap below OWASP's minimum nor exhaust memory. The recovery key is 32 random bytes shown as Crockford base32 in groups of 4; its key-encryption key is BLAKE3 `derive_key("leemusync v1 recovery-kek", recovery key)` (it's already full-entropy, so no Argon2id).
+
 - **AAD** binds every ciphertext to its kind and id (e.g., `"blob" ‖ blobId`), so the server can't swap objects.
 - **Blob ids** are a keyed hash of the plaintext. After decryption the id is recomputed and must match.
 - **Manifests** carry file names and metadata, and they're encrypted. The provider sees only object counts, sizes and timing (accepted leak).
@@ -47,7 +49,7 @@ Use audited RustCrypto/BLAKE3 crates only. No custom primitives ([D21](../decisi
 A provider can serve an old state or hide new versions. Devices remember the highest version seen per stream (state DB) and warn if the remote goes backwards. Withholding can't be fully prevented without a trusted server, and that's accepted and documented.
 
 ## Network
-- **No inbound listeners**, ever. Outbound connections only to configured backends and OAuth endpoints.
+- **No inbound listeners**, ever, except the OAuth loopback redirect during login ([D28](../decisions.md#d28-oauth-loopback-listener-during-login-only-2026-10-18)). Outbound connections only to configured backends and OAuth endpoints.
 - TLS via `rustls` with the platform verifier. No OpenSSL. Certificate errors are never ignorable from the UI.
 - `http://` endpoints are refused unless the user explicitly allows them for a LAN host. A persistent warning stays visible.
 
@@ -56,7 +58,7 @@ Same-user only: socket permissions plus a peer credential check ([architecture �
 
 ## File-system confinement
 - The engine reads and writes only inside **grants**: folders the user approved, which are canonicalised when stored.
-- Every path from a manifest or profile is validated in `core`: relative; no `..`; not absolute; no drive letters, UNC paths, NUL bytes, `:` (alternate data streams) or Windows reserved names (`CON`, `NUL`, …); length limits.
+- Every path from a manifest or profile is validated in `core`: relative; no `..`; not absolute; no drive letters, UNC paths, NUL bytes, `:` (alternate data streams) or Windows reserved names (`CON`, `NUL`, …); length limits. Implemented in `crates/core/src/path.rs`.
 - Writes never follow symlinks (open with no-follow / capability-based directory handles). A symlink that resolves outside a grant is refused.
 - Per-file and per-stream size limits (profile `max_file_mb`) stop disk-filling.
 - Restores always back up first ([reliability](reliability.md#invariants)).
@@ -68,6 +70,7 @@ Same-user only: socket permissions plus a peer credential check ([architecture �
 
 ## Credentials
 - Stored in the OS keystore: macOS/iOS Keychain, Windows Credential Manager, Linux Secret Service, Android Keystore-backed encrypted storage.
+- Desktop backends through `keyring` 3.6.3, per OS: Linux `sync-secret-service` + `crypto-rust` + `vendored` (libdbus compiled from source, so no system D-Bus dev package and no zbus 4, whose crates are unmaintained: RUSTSEC-2026-0370/0371/0372), macOS `apple-native`, Windows `windows-native` (maintainer, 2026-10-19).
 - **Linux evidence (SP2, Fedora 44 XFCE):** `org.freedesktop.secrets` was served by KWallet's `ksecretd` (`kf6-kwallet` 6.30.0), default collection `kdewallet`, unlocked at login (`--pam-login`). `keyring` 3.6.3 (`sync-secret-service`) wrote, read and deleted an item from the session and from a systemd user service without a prompt. With no Secret Service on the bus the call fails with `PlatformFailure(Dbus(... org.freedesktop.secrets was not provided by any .service files (ServiceUnknown)))`. Where `gnome-keyring` is D-Bus-activatable but has no unlocked login keyring (private bus, no PAM), activation succeeds and the write fails with `NoStorageAccess(NoResult)`.
 - Headless without a keystore: a file with permissions `0600`, enabled only by explicit opt-in (`--allow-file-secrets`), with a warning.
 - OAuth: authorization code + PKCE. Loopback redirect on desktop, system browser sessions on mobile. Refresh tokens live in the keystore.
@@ -92,7 +95,7 @@ No telemetry, analytics or crash upload. Logs stay local. Users can export them 
 - **V-SEC-1** Argon2id parameters stay fast enough on low-end Android and Pi Zero 2 (target under 2 s). Benchmark in Phase 1.
 - **V-SEC-2** `rustls` platform verifier works on every target, Android and iOS included (SP1). Linux is done (2026-10-17, Fedora 44, `rustls-platform-verifier` 0.7.1, `ring` provider): a valid certificate (`www.rust-lang.org`) is accepted, and expired, self-signed and wrong-host certificates (`*.badssl.com`) are rejected with a certificate error. Test: `cargo test -p leemusync-bridge -- --include-ignored`. Android done on the API 34 emulator (2026-10-18, release build, same four bad-certificate cases rejected; [architecture §Bridge](architecture.md#bridge)). CachyOS done (2026-10-18, same test, all pass). Windows, macOS, iOS and a real Android device are still to run.
 - **V-SEC-3** Keystore access from the daemon on Windows and macOS (SP2). Linux with a Secret Service is done ([Credentials](#credentials)). Windows and macOS deferred by the maintainer on 2026-10-08.
-- **V-SEC-4** OpenDAL's `gdrive` puts the OAuth refresh token and client secret in the token URL, and they appear in error text when a refresh fails to send ([storage-backends §Google Drive (live)](storage-backends.md#google-drive-live), V-STORE-7). The log redaction layer must cover it (Phase 1).
+- **V-SEC-4** OpenDAL's `gdrive` puts the OAuth refresh token and client secret in the token URL, and they appear in error text when a refresh fails to send ([storage-backends §Google Drive (live)](storage-backends.md#google-drive-live), V-STORE-7). The log redaction layer must cover it (Phase 1). Store errors pass through `crates/store/src/redact.rs`; tests cover the token URL, JSON bodies and Bearer headers. Since D27 the store refreshes tokens itself with a form body (`crates/store/src/oauth.rs`), so OpenDAL no longer builds that URL.
 
 ## Open questions
 - **Headless Linux secret store** (evidence from SP2; not decided). (1) Kernel keyutils via `keyring`'s `linux-native` backend: worked with no D-Bus service, but the keys are lost on reboot ([keyring docs](https://docs.rs/keyring/3.6.3/keyring/keyutils/index.html)), so a human must re-enter secrets after each boot. (2) The `0600` opt-in file above, optionally encrypted with a passphrase, which has the same re-entry problem. (3) `systemd-creds --user encrypt/decrypt` (systemd ≥ 256; worked here without root), which binds the secret to the host key or TPM and the user and survives reboots ([systemd-creds](https://www.freedesktop.org/software/systemd/man/latest/systemd-creds.html)). Recommendation: (3) where available, falling back to (2). Needs a decision entry.

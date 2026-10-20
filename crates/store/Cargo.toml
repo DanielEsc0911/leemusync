@@ -10,3 +10,33 @@ publish = false
 
 [lints]
 workspace = true
+
+[dependencies]
+opendal = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["sync", "time", "net", "io-util"] }
+opendal-http-transport-reqwest = { workspace = true }
+reqwest = { workspace = true }
+rustls = { workspace = true }
+rustls-platform-verifier = { workspace = true }
+url = { workspace = true }
+base64 = { workspace = true }
+sha2 = { workspace = true }
+getrandom = { workspace = true }
+zeroize = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+# The live Drive test keeps its tokens in the OS keystore. Linux: libdbus built from source (vendored), no system package.
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+keyring = { workspace = true, features = ["sync-secret-service", "crypto-rust", "vendored"] }
+
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+keyring = { workspace = true, features = ["apple-native"] }
+
+[target.'cfg(windows)'.dev-dependencies]
+keyring = { workspace = true, features = ["windows-native"] }

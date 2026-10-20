@@ -5,7 +5,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 const SPEC_HEADER_FIELDS: [&str; 3] = ["**Status:**", "**Related:**", "**Code:**"];
-const SKIP_DIRS: [&str; 7] = [
+const SKIP_DIRS: [&str; 8] = [
     ".git",
     "target",
     "build",
@@ -13,6 +13,7 @@ const SKIP_DIRS: [&str; 7] = [
     "node_modules",
     "Pods",
     ".gradle",
+    ".superpowers",
 ];
 
 pub(crate) fn check(root: &Path) -> Result<(), Vec<String>> {

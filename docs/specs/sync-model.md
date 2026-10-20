@@ -1,6 +1,6 @@
 # Sync model
 
-> **Status:** Draft · **Related:** [rules](../rules.md) (B2, B3, P3), [reliability](reliability.md), [security](security.md), [players-and-accounts](players-and-accounts.md), [emulator-profiles](emulator-profiles.md), [storage-backends](storage-backends.md), [glossary](../glossary.md) · **Code:** —
+> **Status:** Draft · **Related:** [rules](../rules.md) (B2, B3, P3), [reliability](reliability.md), [security](security.md), [players-and-accounts](players-and-accounts.md), [emulator-profiles](emulator-profiles.md), [storage-backends](storage-backends.md), [glossary](../glossary.md) · **Code:** `crates/core/src/{manifest,heads,reconcile,config}.rs`, `crates/engine/src/{repo,repo_config}.rs`
 
 ## Purpose
 How saves move between devices without loss: what is synced (streams), how history is stored (versions), how divergence is detected (heads), and how simultaneous play is coordinated (leases, play sessions).
@@ -13,6 +13,7 @@ A stream is the unit of sync: `(player, game key, kind, compat group)`, where ki
 
 ## Versions
 - **Immutable** snapshot of a stream. Manifest fields: `format`, `stream`, `id`, `parents[]`, `device`, `player`, `created_at`, `emulator {id, version}`, `files[{path, size, mtime, blob}]`, `meta {session_secs, changed_files, takeover, note}`.
+  `created_at` and `files[].mtime` are Unix milliseconds. `blob` is the lowercase hex of the keyed BLAKE3 hash. Serialised as JSON with unknown fields rejected; `format` is `1`.
 - **Version id:** time-ordered and unique (48-bit milliseconds + 80-bit random, ULID-style). Never reused, sorts by creation.
 - **Parents:** the version(s) the local copy was based on. The first version has none. A conflict resolution has all the heads it resolves.
 - **Commit point:** the manifest object, written create-only after all its blobs exist. Readers ignore versions whose blobs are missing or fail authentication.
@@ -33,6 +34,8 @@ Per stream, the device tracks `base` (the version its local files match) and whe
 | any | several heads | Conflict |
 
 Uploading before asking means the local work is safe on the remote even if this device dies before the player decides.
+
+With no `base` yet: no local files and one head → fast-forward. Local files and one head whose files are identical → adopt that head as `base` (clean). Local files and one different head → upload with no parents, which makes two heads (conflict): nothing is overwritten. `replace_local` (set when the player chooses to replace an account's current files, [players-and-accounts §Discovery](players-and-accounts.md#discovery)) turns that last case into a fast-forward with backup. With a `base`: if the local files equal a head, that head becomes `base` (this also makes a crash between writing a manifest and saving `base` harmless). A `base` the remote no longer has → warn that the remote went backwards ([security §Rollback and withholding](security.md#rollback-and-withholding)), no action.
 
 ## Conflicts
 - Never merged automatically; saves are opaque binary ([D7](../decisions.md#d7-no-game-save-format-parsing-in-core-2026-10-07)).
@@ -78,6 +81,8 @@ Launcher mode on both ends makes handoff automatic (SC2). With watch mode the ha
 ## Repo config
 Players, account mappings, game aliases and repo-wide settings. Stored as a special `repo-config` stream using the same versions and heads, so conflicts are handled the same way.
 
+Several heads are merged automatically by union ([D30](../decisions.md#d30-repo-config-heads-merge-automatically-2026-10-18)). A config version is `{format, id, parents[], device, created_at, config}` stored at `config/versions/<versionId>`. The config holds players, per-device account mappings, and each player's games (`"<emulator>/<game key>"`), so a device can find a player's streams although stream ids are opaque.
+
 ## Remote layout
 ```
 <root>/leemusync/
@@ -89,6 +94,7 @@ Players, account mappings, game aliases and repo-wide settings. Stored as a spec
   blobs/<2 hex>/<blobId>
 ```
 - Every name is an opaque id. Every object except the public fields of `repo.json` is encrypted ([security](security.md#cryptography)).
+- AAD strings and lowercase object names: `crates/engine/src/repo.rs`.
 - Blobs are whole files, content-addressed with a keyed hash, so identical files dedupe across versions and players. Chunking for large save states is deferred until it's needed (P1).
 
 ## Retention

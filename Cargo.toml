@@ -9,6 +9,33 @@ license = "MPL-2.0"
 repository = "https://github.com/DanielEsc0911/leemusync"
 rust-version = "1.99" # same as rust-toolchain.toml
 
+[workspace.dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+toml = "1.1.8"
+thiserror = "2.0.21"
+chacha20poly1305 = "0.10.1"
+argon2 = { version = "0.5.3", default-features = false, features = ["alloc", "zeroize"] }
+blake3 = "1.8.7"
+zeroize = { version = "1.9.1", features = ["derive"] }
+getrandom = "0.4.3"
+tokio = "1.53.3"
+opendal = { version = "0.59.5", default-features = false, features = ["services-gdrive", "services-fs", "executors-tokio"] }
+tempfile = "3.27.0"
+opendal-http-transport-reqwest = { version = "0.59.5", default-features = false, features = ["rustls-no-provider"] }
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls-no-provider", "form", "json"] }
+rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
+rustls-platform-verifier = "0.7.1"
+url = "2.5.8"
+base64 = "0.22.1"
+sha2 = "0.10.9"
+keyring = { version = "3.6.3", default-features = false }
+rusqlite = { version = "0.37.0", features = ["bundled"] }
+directories = "6.0.0"
+sysinfo = { version = "0.37.2", default-features = false, features = ["system"] }
+regex = { version = "1.13.1", default-features = false, features = ["std", "unicode-perl"] }
+roxmltree = "0.21.1"
+
 [workspace.lints.rust]
 unsafe_code = "forbid"
 

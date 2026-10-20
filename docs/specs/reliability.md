@@ -1,6 +1,6 @@
 # Reliability
 
-> **Status:** Draft · **Related:** [rules](../rules.md) (B3), [sync-model](sync-model.md), [security](security.md), [testing](testing.md), [platforms](platforms/desktop.md) · **Code:** `crates/engine` (planned)
+> **Status:** Draft · **Related:** [rules](../rules.md) (B3), [sync-model](sync-model.md), [security](security.md), [testing](testing.md), [platforms](platforms/desktop.md) · **Code:** `crates/engine` (`fsx.rs`, `snapshot.rs`, `upload.rs`, `restore.rs`)
 
 ## Purpose
 A save must never be lost or corrupted, and sync must keep running around the clock wherever the OS allows.
@@ -8,14 +8,14 @@ A save must never be lost or corrupted, and sync must keep running around the cl
 ## Invariants
 Each invariant has tests (unit, simulation with injected faults) that must pass before any release.
 
-| ID | Invariant |
-|---|---|
-| I1 | No local save is overwritten unless its previous content is in local history first |
-| I2 | The remote is append-only. Only leases and `repo.json` are overwritten, and only retention GC deletes |
-| I3 | Never read for a snapshot, or write a restore, while the emulator runs (when detectable) or before the quiet period ends |
-| I4 | Every local write is atomic: temp file in the same folder → write → fsync → rename → fsync folder |
-| I5 | Every multi-step operation is journaled and resumes or rolls back after a crash |
-| I6 | Nothing is committed or restored until it's verified (AEAD authentication + content hash) |
+| ID | Invariant | Tests |
+|---|---|---|
+| I1 | No local save is overwritten unless its previous content is in local history first | tested (M1a) |
+| I2 | The remote is append-only. Only leases and `repo.json` are overwritten, and only retention GC deletes | — |
+| I3 | Never read for a snapshot, or write a restore, while the emulator runs (when detectable) or before the quiet period ends | tested (M1a) |
+| I4 | Every local write is atomic: temp file in the same folder → write → fsync → rename → fsync folder (not done on Windows; see V-REL-6) (`crates/engine/src/fsx.rs`) | tested (M1a) |
+| I5 | Every multi-step operation is journaled and resumes or rolls back after a crash | tested (M1a) |
+| I6 | Nothing is committed or restored until it's verified (AEAD authentication + content hash) | tested (M1a) |
 
 ## Restore procedure
 1. Download all blobs to staging (`<data>/staging/<op>/`) and verify them (I6).
@@ -27,11 +27,20 @@ Each invariant has tests (unit, simulation with injected faults) that must pass 
 
 A crash between 4 and 6 → on startup the journal restores every file from the step-3 backup, then retries. A stream is never left half old, half new.
 
+Implemented in `crates/engine/src/restore.rs`; crash tests at every journal step (`restore.after_backup`, `restore.mid_swap`, `restore.before_done`).
+- Every staged file is checked against its manifest size and the profile's per-file limit before anything is written. Writes stay inside the grant and never follow symlinks.
+- The step-3 backup (`<data>/history/<stream>/<ms>-<reason>/`) is read consistently, built in a temp folder, fsynced (files and folders) and renamed into place before the journal entry is written.
+- Files the version doesn't have are removed from the save folder after the swap; they are in the backup.
+- An I/O error during the swap rolls back at once. A crash is rolled back when the engine next opens (postponed while the emulator runs) and at the start of `sync` and `restore`.
+- A rollback keeps I1 too: if the folder differs from the backup, its current files go to `<ms>-pre-rollback` in local history first. Rolling back is idempotent.
+
 ## Upload procedure
 1. Take a snapshot (quiet, consistent read, [sync-model §Snapshot rules](sync-model.md#snapshot-rules)) into local history.
 2. Upload missing blobs (create-only, idempotent: the same content gives the same id).
 3. Write the manifest (create-only) — this is the commit point.
 4. Update `base`. A crash anywhere → retry. Orphaned blobs are collected by GC after the grace period.
+
+Implemented in `crates/engine/src/{snapshot,upload}.rs`. Local history pruning is not in M1a: history grows until Phase 1's later plan adds pruning.
 
 ## Local history
 `<data>/history/<streamId>/<versionId or timestamp>/`. Keeps the last 10 snapshots per stream plus every pre-restore backup from the last 30 days (both configurable). Browsable and restorable from the UI and CLI, even offline.
@@ -77,3 +86,4 @@ Targets for the daemon on desktop. Measured in Phase 1/2 benchmarks and enforced
 - **V-REL-5** Desktop idle suspend actually waits while LeemuSync holds its inhibit (needs an idle-timeout run): XFCE with `org.freedesktop.PowerManagement.Inhibit`; GNOME (gnome-settings-daemon follows `org.gnome.SessionManager` inhibitors, which the portal's `Inhibit` feeds) and KDE (PowerDevil's policy agent, which also reads logind inhibitors) from documentation only, unmeasured (SP2).
 - **V-REL-2** Windows logon task restart behaviour and tray from a scheduled task (SP2). Deferred by the maintainer on 2026-10-08.
 - **V-REL-3** Budgets are achievable with OpenDAL + tokio + SQLite (Phase 1 benchmarks).
+- **V-REL-6** Whether the I4 rename survives power loss on Windows without a folder fsync. `fsx::write_atomic` doesn't do that step on Windows (SP2).

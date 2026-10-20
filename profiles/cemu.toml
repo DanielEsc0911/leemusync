@@ -1,5 +1,6 @@
-# DRAFT from spike SP7 (not loaded until Phase 1). Verified: Cemu 2.6, Linux (Flatpak info.cemu.Cemu + source tag v2.6), 2026-10-08.
-# No loader exists yet: this file and profiles/fixtures/cemu/ are not tested. Evidence: docs/specs/emulator-profiles.md#linux-paths-sp7
+# DRAFT from spike SP7. Verified: Cemu 2.6, Linux (Flatpak info.cemu.Cemu + source tag v2.6), 2026-10-08;
+# native cemu-bin 2.6 on CachyOS, 2026-10-18. Loaded by crates/engine/src/profiles.rs from Phase 1.
+# Evidence: docs/specs/emulator-profiles.md#linux-paths-sp7
 # windows/macos: pending SP7 device pass
 schema = 1
 id = "cemu"
@@ -11,20 +12,22 @@ requires_closed = true
 [platforms.linux]
 # Portable: a folder named "portable" next to the executable (or next to the AppImage) holds data and config.
 roots = ["{exe_dir}/portable", "{flatpak:info.cemu.Cemu}/data/Cemu", "{xdg_data}/Cemu"]
+# settings.xml lives in the config folder, not under the data root: one entry per root, same order.
+config_roots = ["{exe_dir}/portable", "{flatpak:info.cemu.Cemu}/config/Cemu", "{xdg_config}/Cemu"]
 # Flatpak runs Cemu_relwithdebinfo via Cemu-wrapper; comm is truncated to 15 chars ("Cemu_relwithdeb").
 # Arch package cemu-bin installs the binary as lowercase /usr/bin/cemu (CachyOS, 2026-10-18).
 process = ["Cemu_relwithdebinfo", "Cemu", "cemu"]
 
-# Schema gap (SP7): settings.xml lives in the config dir ({xdg_config}/Cemu or
-# {flatpak:info.cemu.Cemu}/config/Cemu), not under the data root. Empty value = default mlc01.
 [[config_keys]]
-file = "settings.xml"
+file = "settings.xml"              # relative to the matching config root
 format = "xml"
 key = "content/mlc_path"
 var = "mlc"
+default = "{base}/mlc01"           # used when the key is missing or empty
 
 [saves]
-root = "{mlc}/usr/save"            # default: "{base}/mlc01/usr/save"
+root = "{mlc}/usr/save"
+max_file_mb = 64
 pattern = "00050000/{title_id}/user/{account}"
 shared = ["00050000/{title_id}/user/common"]
 
