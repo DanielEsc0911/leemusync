@@ -1,6 +1,7 @@
 //! Sync engine: scanning, snapshots, transfers, journal, state.
 //! Spec: docs/specs/architecture.md (Engine internals), docs/specs/reliability.md.
 
+mod accounts;
 mod discover;
 mod error;
 mod failpoints;
@@ -10,6 +11,7 @@ mod local_config;
 mod locations;
 mod process;
 mod profiles;
+mod query;
 mod repo;
 mod repo_config;
 mod restore;
@@ -18,6 +20,7 @@ mod secrets;
 mod setup;
 mod snapshot;
 mod state;
+mod sync;
 mod upload;
 
 use std::sync::Arc;
@@ -26,6 +29,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use leemusync_core::{DeviceId, VersionId};
 use leemusync_crypto::KdfParams;
 
+pub use accounts::{MapChoice, MapOutcome};
 pub use error::EngineError;
 pub use failpoints::Failpoints;
 pub use local_config::{BackendConfig, DeviceSection, EmulatorOverride, LocalConfig};
@@ -34,6 +38,7 @@ pub use process::{FakeProbe, ProcessProbe, SysinfoProbe};
 pub use secrets::{KeyringSecrets, MemorySecrets, SecretStore};
 pub use setup::{GdriveLogin, JoinSecret};
 pub use state::{JournalEntry, State, StreamRow};
+pub use sync::SyncOptions;
 
 pub struct EngineEnv {
     pub locations: Locations,

@@ -11,21 +11,18 @@ use leemusync_core::{BlobId, RelPath};
 
 use crate::{EngineError, fsx};
 
-#[allow(dead_code)] // used by Task 15
 pub(crate) enum Quick {
     Missing,
     SameAsBase,
     Changed,
 }
 
-#[allow(dead_code)] // used by Task 15
 pub(crate) struct Snapshot {
     pub dir: PathBuf,
     pub files: Vec<FileEntry>,
 }
 
 /// Names, sizes and mtimes only; never reads file contents.
-#[allow(dead_code)] // used by Task 15
 pub(crate) fn quick(src: &Path, base_files: &[FileEntry]) -> Result<Quick, EngineError> {
     if !src.is_dir() {
         return Ok(Quick::Missing);
@@ -48,7 +45,6 @@ pub(crate) fn quick(src: &Path, base_files: &[FileEntry]) -> Result<Quick, Engin
 }
 
 /// Same paths and same blobs (mtimes and sizes don't matter).
-#[allow(dead_code)] // used by Task 15
 pub(crate) fn same_files(a: &[FileEntry], b: &[FileEntry]) -> bool {
     a.len() == b.len()
         && a.iter()
@@ -63,7 +59,6 @@ pub(crate) fn same_files(a: &[FileEntry], b: &[FileEntry]) -> bool {
 /// Errors: `Busy(path)` if a file changed, appeared or vanished during the read;
 /// `Usage("file_too_large:<path>")` or `Usage("file_name_invalid:<path>")`; `Io` for symlinks
 /// and I/O failures.
-#[allow(dead_code)] // used by Task 15
 pub(crate) fn take(
     src: &Path,
     dest: &Path,

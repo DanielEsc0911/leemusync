@@ -7128,7 +7128,7 @@ Spec: [sync-model §Reconciliation](../../specs/sync-model.md#reconciliation) (w
   - `sync` refuses installs whose `Install.provisional` is true (the emulator's config file exists but isn't granted, so the paths are defaults and may be stale): it skips them with a `NotGranted` warning and does nothing else (scan still reports them).
   - `sync` writes one config version at the end when it learned new games, or when it had to merge config heads.
 
-- [ ] **Step 1: Write `sync.rs`:**
+- [x] **Step 1: Write `sync.rs`:**
 
 ```rust
 //! `leemusync sync`: reconcile every stream of every granted install (sync-model §Reconciliation).
@@ -7449,9 +7449,11 @@ impl Engine {
 }
 ```
 
+As built, the stream-key loop (repo games plus mapped local saves) lives in a private `stream_keys` helper so `sync` stays under clippy's `too_many_lines`; behaviour is the same. The `#[allow(dead_code)] // used by Task 15` markers in earlier modules are removed.
+
 Check the `Adopt` path against core: with no `base` and a matching head, `reconcile` returns `Action::Adopt(h)`. With a `base`, the pre-adopt block sets `base = h` and `local = Clean`, so `reconcile` returns `Nothing`, which is reported as `Adopt`.
 
-- [ ] **Step 2: Write `accounts.rs`:**
+- [x] **Step 2: Write `accounts.rs`:**
 
 ```rust
 //! `leemusync accounts map` (choices a/b, keep or replace) and `accounts recover`
@@ -7613,7 +7615,7 @@ impl Engine {
 }
 ```
 
-- [ ] **Step 3: Write `query.rs`:**
+- [x] **Step 3: Write `query.rs`:**
 
 ```rust
 //! `status`, `history`, `restore`, `doctor`.
@@ -7790,8 +7792,8 @@ impl Engine {
 }
 ```
 
-- [ ] **Step 4: Wire `lib.rs`:** `mod accounts; mod query; mod sync;` and `pub use accounts::{MapChoice, MapOutcome}; pub use sync::SyncOptions;`.
-- [ ] **Step 5: Engine-level tests.** Add to `crates/engine/tests/common/mod.rs`:
+- [x] **Step 4: Wire `lib.rs`:** `mod accounts; mod query; mod sync;` and `pub use accounts::{MapChoice, MapOutcome}; pub use sync::SyncOptions;`.
+- [x] **Step 5: Engine-level tests.** Add to `crates/engine/tests/common/mod.rs`:
 
 ```rust
 use leemusync_engine::{Engine, JoinSecret, MapChoice, MapOutcome, SyncOptions};
@@ -7927,8 +7929,8 @@ async fn edit_on_one_pc_fast_forwards_the_other() {
 }
 ```
 
-- [ ] **Step 6: Run** `cargo test -p leemusync-engine && cargo clippy -p leemusync-engine --all-targets -- -D warnings` → PASS. If a test fails, use skill `superpowers:systematic-debugging` before changing code. Never weaken an assertion to make it pass.
-- [ ] **Step 7: Commit.** `docs/specs/sync-model.md` **Code:** add `` `crates/engine/src/sync.rs` ``, and Status `Partial` (leases, play sessions and retention are still open). `docs/specs/players-and-accounts.md` **Code:** `` `crates/core/src/config.rs`, `crates/engine/src/accounts.rs` ``, Status `Partial`. `just check`, then:
+- [x] **Step 6: Run** `cargo test -p leemusync-engine && cargo clippy -p leemusync-engine --all-targets -- -D warnings` → PASS. If a test fails, use skill `superpowers:systematic-debugging` before changing code. Never weaken an assertion to make it pass.
+- [x] **Step 7: Commit.** `docs/specs/sync-model.md` **Code:** add `` `crates/engine/src/sync.rs` ``, and Status `Partial` (leases, play sessions and retention are still open). `docs/specs/players-and-accounts.md` **Code:** `` `crates/core/src/config.rs`, `crates/engine/src/accounts.rs` ``, Status `Partial`. `just check`, then:
 
 ```bash
 git add crates/engine docs/specs
@@ -7951,7 +7953,7 @@ Spec: [testing §Layers](../../specs/testing.md#layers) (simulation, fault injec
 **Interfaces:**
 - Consumes: `tests/common/mod.rs` (`Pc`, `Pc::reopen`, `join`, `map`, `SAVE`) from Tasks 12 and 15; every public `Engine` method.
 
-- [ ] **Step 1: Write `faults.rs`:**
+- [x] **Step 1: Write `faults.rs`:**
 
 ```rust
 //! Kill the engine at every journal step; on restart nothing is half old, half new (I1, I5).
@@ -8023,7 +8025,7 @@ async fn a_crash_around_the_manifest_never_makes_a_conflict() {
 
 The `after_manifest` case relies on two Task 15 rules. Adopt-on-equal turns the leftover version into `base` instead of a conflict. `sync` also records the game in the repo config on `Adopt`, so other devices still find the stream.
 
-- [ ] **Step 2: Write `two_devices.rs`.** It mirrors the Task 18 runbook step for step:
+- [x] **Step 2: Write `two_devices.rs`.** It mirrors the Task 18 runbook step for step:
 
 ```rust
 //! The M1a test day on two simulated PCs: Fedora (Flatpak Cemu) and CachyOS (native Cemu).
@@ -8109,8 +8111,8 @@ async fn both_saves_end_up_on_both_pcs() {
 }
 ```
 
-- [ ] **Step 3: Run** `cargo test -p leemusync-engine --test faults --test two_devices` → PASS. If one fails, debug with `superpowers:systematic-debugging`; the tests are the spec.
-- [ ] **Step 4: Commit.** `docs/specs/testing.md` §Layers: add "Simulation: `crates/engine/tests/two_devices.rs` (the M1a test day). Fault injection: `crates/engine/tests/faults.rs` (feature `failpoints`)." `just check`, then `test(engine): simulate the M1a test day and crash at every journal step` with the trailer.
+- [x] **Step 3: Run** `cargo test -p leemusync-engine --test faults --test two_devices` → PASS. If one fails, debug with `superpowers:systematic-debugging`; the tests are the spec.
+- [x] **Step 4: Commit.** `docs/specs/testing.md` §Layers: add "Simulation: `crates/engine/tests/two_devices.rs` (the M1a test day). Fault injection: `crates/engine/tests/faults.rs` (feature `failpoints`)." `just check`, then `test(engine): simulate the M1a test day and crash at every journal step` with the trailer.
 
 ---
 ### Task 17: `cli`: commands, prompts, `--json`, exit codes, Fluent strings (en + es)
@@ -8118,6 +8120,8 @@ async fn both_saves_end_up_on_both_pcs() {
 Spec: [config-and-cli §Commands, §Exit codes, §Parity rule](../../specs/config-and-cli.md#commands), [i18n §Rust strings, §Rules, §Terminology, §Parity check](../../specs/i18n.md#rust-strings), D19. Skill: `leemusync-security` (secrets at prompts).
 
 Error keys from Task 11 (P6: engine payloads are keys or data, never prose): `NotSetUp` takes `backend`, `gdrive_login`, `repo`, `repo_key`; `Usage` takes `repo_exists`, `repo_race`, `already_joined`, `passphrase_too_short`, `player_name_invalid`, `player_name_taken`; `Config` takes `repo_mismatch`, `repo_config`; `Secrets` takes `bad_master_key`; `Data` carries the remote object name, or `repo_format_newer` when `repo.json` is from a newer LeemuSync (tell the user to update). From Task 13: `Usage` takes `file_too_large:<path>` and `file_name_invalid:<path>` (the key, a colon, then the save-relative path as data); `Data` takes `history_changed:<path>`, `blob_corrupt:<blob id>` and `manifest_invalid`; `Busy` carries the save-relative path. Map each key to its own en + es Fluent message instead of printing it through `{ $detail }`.
+
+> **As built:** keyed messages are `error-<code>-<key>` (`output::error_text` splits `key:data` and passes the data as `$detail`; unknown keys fall back to `error-<code>`). A preceding `fix(engine)` commit turned the remaining English `Usage` prose in `accounts.rs`/`query.rs` into keys (`unknown_player`, `no_install`, `no_account`, `account_taken`, `not_orphaned`, `already_has_save`, `folder_empty`, `not_mapped`, `unknown_restore_point`), and `accounts recover` without a grant now returns `NotGranted`. `backend login` without Drive returns `NotSetUp("gdrive_backend")`. `prompt::secret` wraps rpassword's raw `String` in `Zeroizing` too. `doctor` check details are engine display text (English), as `Check.detail` documents.
 
 **Files:**
 - Modify: `Cargo.toml` (`clap`, `rpassword`, `fluent-bundle`, `unic-langid`), `crates/cli/Cargo.toml`:
@@ -8151,7 +8155,7 @@ tempfile = { workspace = true }
 - Language: the first non-empty of `LC_ALL`, `LC_MESSAGES`, `LANG`, `LANGUAGE` that starts with `es` selects `es`; anything else selects `en` (i18n §Rules).
 - Secrets: passphrases, the recovery key typed at `join` and the OAuth client secret are read with `rpassword` (no echo) into `Zeroizing<String>`. They're never accepted as arguments or environment variables. The recovery key is printed once, by `init`, to stderr in human form, even with `--json`.
 
-- [ ] **Step 1: Failing CLI tests.** Replace `crates/cli/tests/version.rs` with:
+- [x] **Step 1: Failing CLI tests.** Replace `crates/cli/tests/version.rs` with:
 
 ```rust
 use std::process::Command;
@@ -8242,8 +8246,8 @@ fn scan_output_is_fully_formatted_in_both_languages() {
 }
 ```
 
-- [ ] **Step 2: Run** `cargo test -p leemusync-cli` → compile/assert failures.
-- [ ] **Step 3: Write `locales/en/leemusync.ftl`:**
+- [x] **Step 2: Run** `cargo test -p leemusync-cli` → compile/assert failures.
+- [x] **Step 3: Write `locales/en/leemusync.ftl`:**
 
 ```ftl
 # LeemuSync Rust strings (English source). Keys describe meaning (i18n §Rules).
@@ -8405,7 +8409,7 @@ doctor-fail = FAILED
 doctor-check = { $status } { $name } { $detail }
 ```
 
-- [ ] **Step 4: Write `locales/es/leemusync.ftl`** with the same keys (neutral Latin American Spanish, "tú", the terminology table):
+- [x] **Step 4: Write `locales/es/leemusync.ftl`** with the same keys (neutral Latin American Spanish, "tú", the terminology table):
 
 ```ftl
 # Textos de LeemuSync para Rust (español neutro latinoamericano). Mismas claves que en/leemusync.ftl.
@@ -8568,7 +8572,7 @@ doctor-check = { $status } { $name } { $detail }
 
 Have a Spanish-speaking reviewer (the maintainer) read this file once before the commit. "Partida huérfana" and "llavero del sistema" are new terms: add them to [i18n §Terminology](../../specs/i18n.md#terminology) in this task's commit.
 
-- [ ] **Step 5: Implement `crates/cli/src/i18n.rs`:**
+- [x] **Step 5: Implement `crates/cli/src/i18n.rs`:**
 
 ```rust
 //! Fluent strings for human output (i18n §Rust strings). `--json` never goes through here.
@@ -8644,7 +8648,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 6: Implement `crates/cli/src/prompt.rs`:**
+- [x] **Step 6: Implement `crates/cli/src/prompt.rs`:**
 
 ```rust
 //! Terminal questions. Secrets are read without echo and never come from argv or the environment.
@@ -8711,7 +8715,7 @@ pub fn keep_or_replace(t: &I18n, question: &str) -> Result<Option<bool>, EngineE
 }
 ```
 
-- [ ] **Step 7: Implement `crates/cli/src/output.rs`:**
+- [x] **Step 7: Implement `crates/cli/src/output.rs`:**
 
 ```rust
 //! Human (Fluent) or `--json` output. JSON goes to stdout; human results to stdout, problems to stderr.
@@ -8843,7 +8847,7 @@ pub fn doctor(t: &I18n, r: &DoctorReport) {
 }
 ```
 
-- [ ] **Step 8: Implement `crates/cli/src/main.rs`:**
+- [x] **Step 8: Implement `crates/cli/src/main.rs`:**
 
 ```rust
 //! `leemusync`: command-line interface. Spec: docs/specs/config-and-cli.md.
@@ -9206,7 +9210,7 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
 
 `FluentValue::from(conflicts)` needs `conflicts` as a type Fluent accepts. If `usize` isn't supported, use `u32::try_from(conflicts).unwrap_or(u32::MAX)`.
 
-- [ ] **Step 9: Extend `xtask/src/i18n.rs` with Fluent parity.** Add, next to the ARB constants:
+- [x] **Step 9: Extend `xtask/src/i18n.rs` with Fluent parity.** Add, next to the ARB constants:
 
 ```rust
 const FTL_DIR: &str = "locales";
@@ -9261,8 +9265,8 @@ fn ftl_keys_skip_comments_and_continuations() {
 }
 ```
 
-- [ ] **Step 10: Run** `cargo test -p leemusync-cli -p xtask && cargo xtask i18n-check && cargo clippy --workspace --all-targets -- -D warnings` → PASS. Then try it by hand: `LEEMUSYNC_TEST_ROOT=$(mktemp -d) LANG=es_MX.UTF-8 cargo run -q -p leemusync-cli -- --help` shows Spanish command descriptions.
-- [ ] **Step 11: Commit.** Docs in the same commit:
+- [x] **Step 10: Run** `cargo test -p leemusync-cli -p xtask && cargo xtask i18n-check && cargo clippy --workspace --all-targets -- -D warnings` → PASS. Then try it by hand: `LEEMUSYNC_TEST_ROOT=$(mktemp -d) LANG=es_MX.UTF-8 cargo run -q -p leemusync-cli -- --help` shows Spanish command descriptions.
+- [x] **Step 11: Commit.** Docs in the same commit:
   - `docs/specs/i18n.md`: **Code:** `` `app/lib/l10n/`, `locales/` ``; §Parity check: "checks ARB and Fluent (`locales/<lang>/leemusync.ftl`)"; §Terminology: rows "orphaned save | partida huérfana" and "system keyring | llavero del sistema"; §Open questions: "clap's built-in headings (`Usage:`, `Options:`) and `-h`/`-V` descriptions are English. Localise them with a custom help template before 1.0."
   - `docs/specs/config-and-cli.md`: §Commands notes `LEEMUSYNC_TEST_ROOT` as test-only, and that secrets are only typed at prompts.
 
@@ -9286,7 +9290,7 @@ Done by the maintainer, with an agent on each PC if wanted. It needs Tasks 1–1
 
 - [ ] **Step 1: Panic backups.**
   - **CachyOS laptop:** done on 2026-10-18 at `~/Documents/panic/botw-cachyos-2026-10-18/` (170 files sha256-verified, `RESTORE.md` inside). Check it's still there.
-  - **Fedora PC** (Cemu Flatpak). Close Cemu (`pgrep -a -i cemu` prints nothing), then:
+  - **Fedora PC:** done on 2026-10-19 at `~/Documents/panic/botw-fedora-2026-10-19/` (339 files sha256-verified, `act/` diffed, `RESTORE.md` inside). The backup still holds the `80000002` account: the maintainer deleted it in Cemu right after. Afterwards only `system/act/80000002/` was gone, `persisid.dat` was unchanged, and every save file still matched `SHA256SUMS`, so `user/80000002/` (20 files) is now an orphan, as on CachyOS. Commands used (Cemu Flatpak). Close Cemu (`pgrep -a -i cemu` prints nothing), then:
 
     ```sh
     S=~/.var/app/info.cemu.Cemu/data/Cemu/mlc01/usr/save

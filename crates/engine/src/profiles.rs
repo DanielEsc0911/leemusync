@@ -22,7 +22,6 @@ pub struct Install {
     /// True when the emulator's config file exists but could not be read because it isn't
     /// granted, so the paths above come from profile defaults and may be stale. Sync must refuse
     /// provisional installs (Task 15); scan only reports them.
-    #[allow(dead_code)] // used by Task 15
     pub provisional: bool,
 }
 
