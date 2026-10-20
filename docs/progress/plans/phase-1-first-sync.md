@@ -9286,7 +9286,7 @@ Done by the maintainer, with an agent on each PC if wanted. It needs Tasks 1–1
 
 - [ ] **Step 1: Panic backups.**
   - **CachyOS laptop:** done on 2026-10-18 at `~/Documents/panic/botw-cachyos-2026-10-18/` (170 files sha256-verified, `RESTORE.md` inside). Check it's still there.
-  - **Fedora PC** (Cemu Flatpak). Close Cemu (`pgrep -a -i cemu` prints nothing), then:
+  - **Fedora PC:** done on 2026-10-19 at `~/Documents/panic/botw-fedora-2026-10-19/` (339 files sha256-verified, `act/` diffed, `RESTORE.md` inside). The `80000002` account was not deleted on Fedora: `system/act/80000002/` exists and `user/80000002/` holds 20 files, so on this PC `scan` shows it as a live account, not an orphan. Commands used (Cemu Flatpak). Close Cemu (`pgrep -a -i cemu` prints nothing), then:
 
     ```sh
     S=~/.var/app/info.cemu.Cemu/data/Cemu/mlc01/usr/save
