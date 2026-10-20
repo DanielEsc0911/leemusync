@@ -49,6 +49,8 @@ Every command supports `--json` (stable English keys, versioned) and `--help`. H
 
 The Phase 1 first slice ships `init`, `join`, `backend add/login`, `grant add/list`, `players add/list`, `scan`, `accounts map/recover`, `sync [--dry-run] [--yes]`, `status`, `history`, `restore` and `doctor` ([plan](../progress/plans/phase-1-first-sync.md)).
 
+Secrets (passphrase, recovery key, OAuth client secret) are only typed at no-echo prompts, never taken from arguments or environment variables; without a terminal the command fails with a usage error. The recovery key is printed once by `init`, to stderr, even with `--json`. `LEEMUSYNC_TEST_ROOT=<dir>` puts the config, data and emulator search under `<dir>`: it's for tests only (the OS keystore is still used).
+
 ## Exit codes
 | Code | Meaning |
 |---|---|

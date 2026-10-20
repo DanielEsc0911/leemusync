@@ -12,5 +12,21 @@ publish = false
 name = "leemusync"
 path = "src/main.rs"
 
+[dependencies]
+leemusync-api = { path = "../api" }
+leemusync-engine = { path = "../engine" }
+clap = { workspace = true }
+fluent-bundle = { workspace = true }
+rpassword = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+unic-langid = { workspace = true }
+zeroize = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+
 [lints]
 workspace = true
