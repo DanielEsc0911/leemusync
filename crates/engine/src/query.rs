@@ -75,7 +75,7 @@ impl Engine {
             .config;
         let pid = config
             .player_named(player)
-            .ok_or_else(|| EngineError::Usage(format!("no player `{player}`")))?;
+            .ok_or_else(|| EngineError::Usage(format!("unknown_player:{player}")))?;
         Ok(self
             .repo_ref()?
             .stream_id(pid, emulator, &game.to_lowercase()))
@@ -147,18 +147,16 @@ impl Engine {
             .config;
         let pid = config
             .player_named(player)
-            .ok_or_else(|| EngineError::Usage(format!("no player `{player}`")))?;
+            .ok_or_else(|| EngineError::Usage(format!("unknown_player:{player}")))?;
         let account = config
             .account_of(device, pid, emulator)
-            .ok_or_else(|| {
-                EngineError::Usage(format!("{player} has no {emulator} account on this device"))
-            })?
+            .ok_or_else(|| EngineError::Usage(format!("not_mapped:{emulator}")))?
             .to_owned();
         let installs = self.installs()?;
         let (profile, install, _) = installs
             .iter()
             .find(|(p, _, _)| p.id == emulator)
-            .ok_or_else(|| EngineError::Usage(format!("no {emulator} install found")))?;
+            .ok_or_else(|| EngineError::Usage(format!("no_install:{emulator}")))?;
         let folder = save_folder(profile, install, &game.to_lowercase(), &account)?;
         let names = profile
             .platforms
@@ -193,9 +191,7 @@ impl Engine {
             )
             .await?;
         } else {
-            return Err(EngineError::Usage(format!(
-                "`{what}` is neither a version nor a backup; see `leemusync history`"
-            )));
+            return Err(EngineError::Usage(format!("unknown_restore_point:{what}")));
         }
         Ok(StreamReport {
             player: player.to_owned(),

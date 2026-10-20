@@ -23,14 +23,26 @@ pub enum MapOutcome {
     },
 }
 
+/// `key:data` usage errors (P6: the CLI maps keys to localised text).
+fn map_error(e: &leemusync_core::config::ConfigError) -> EngineError {
+    use leemusync_core::config::ConfigError;
+    match e {
+        ConfigError::UnknownPlayer(name) => EngineError::Usage(format!("unknown_player:{name}")),
+        ConfigError::AccountTaken { player, .. } => {
+            EngineError::Usage(format!("account_taken:{player}"))
+        }
+        _ => EngineError::Config("repo_config".into()),
+    }
+}
+
 impl Engine {
     fn player_id(
         config: &leemusync_core::config::RepoConfig,
         name: &str,
     ) -> Result<PlayerId, EngineError> {
-        config.player_named(name).ok_or_else(|| {
-            EngineError::Usage(format!("no player `{name}`; run `leemusync players add`"))
-        })
+        config
+            .player_named(name)
+            .ok_or_else(|| EngineError::Usage(format!("unknown_player:{name}")))
     }
 
     /// # Errors
@@ -48,17 +60,12 @@ impl Engine {
         let (profile, install, discovery) = installs
             .iter()
             .find(|(p, _, _)| p.id == emulator)
-            .ok_or_else(|| {
-                EngineError::Usage(format!("no {emulator} install found; run `leemusync scan`"))
-            })?;
+            .ok_or_else(|| EngineError::Usage(format!("no_install:{emulator}")))?;
         let discovery = discovery
             .as_ref()
             .ok_or_else(|| EngineError::NotGranted(install.base.display().to_string()))?;
         if !discovery.accounts.iter().any(|a| a.id == account) {
-            return Err(EngineError::Usage(format!(
-                "{} has no account {account} on this device; create it in {}, then run `leemusync scan`",
-                profile.name, profile.name
-            )));
+            return Err(EngineError::Usage(format!("no_account:{account}")));
         }
         let loaded = repo_config::load(self.repo_ref()?, &self.state).await?;
         let pid = Self::player_id(&loaded.config, player)?;
@@ -79,7 +86,7 @@ impl Engine {
         }
         repo_config::update(self.repo_ref()?, &self.state, device, |c| {
             c.map_account(device, pid, &profile.id, account)
-                .map_err(|e| EngineError::Usage(e.to_string()))
+                .map_err(|e| map_error(&e))
         })
         .await?;
         if matches!(choice, MapChoice::Replace) {
@@ -117,20 +124,18 @@ impl Engine {
         self.ensure_repo().await?;
         let device = self.device_id();
         let installs = self.installs()?;
-        let (profile, _, discovery) = installs
+        let (profile, install, discovery) = installs
             .iter()
             .find(|(p, _, _)| p.id == emulator)
-            .ok_or_else(|| EngineError::Usage(format!("no {emulator} install found")))?;
+            .ok_or_else(|| EngineError::Usage(format!("no_install:{emulator}")))?;
         let discovery = discovery
             .as_ref()
-            .ok_or(EngineError::NotSetUp("grant the emulator folder first"))?;
+            .ok_or_else(|| EngineError::NotGranted(install.base.display().to_string()))?;
         let save = discovery
             .saves
             .iter()
             .find(|s| s.account == account && s.orphaned)
-            .ok_or_else(|| {
-                EngineError::Usage(format!("{account} isn't an orphaned save folder here"))
-            })?;
+            .ok_or_else(|| EngineError::Usage(format!("not_orphaned:{account}")))?;
         let names = profile
             .platforms
             .get("linux")
@@ -145,7 +150,7 @@ impl Engine {
         let stream = repo.stream_id(pid, &profile.id, &save.game);
         if !repo.list_versions(&stream).await?.is_empty() {
             return Err(EngineError::Usage(format!(
-                "{player} already has a save for {}; recover it to a new player instead",
+                "already_has_save:{}",
                 save.game
             )));
         }
@@ -154,7 +159,7 @@ impl Engine {
         let snap = snapshot::take(&save.path, &dest, profile.max_file_bytes(), &|d| {
             repo.blob_id(d)
         })?
-        .ok_or_else(|| EngineError::Usage("that folder is empty".into()))?;
+        .ok_or_else(|| EngineError::Usage("folder_empty".into()))?;
         let meta = UploadMeta {
             stream,
             parents: vec![],
