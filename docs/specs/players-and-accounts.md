@@ -1,6 +1,6 @@
 # Players and accounts
 
-> **Status:** Draft · **Related:** [rules](../rules.md) (P3, P5), [sync-model](sync-model.md), [emulator-profiles](emulator-profiles.md), [glossary](../glossary.md), [navigation](ui/navigation.md) · **Code:** —
+> **Status:** Partial · **Related:** [rules](../rules.md) (P3, P5), [sync-model](sync-model.md), [emulator-profiles](emulator-profiles.md), [glossary](../glossary.md), [navigation](ui/navigation.md) · **Code:** `crates/core/src/config.rs`, `crates/engine/src/accounts.rs`
 
 ## Purpose
 Map people (players) to emulator user folders on every device, so each player's saves stay separate and follow them from machine to machine.

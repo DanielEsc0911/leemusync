@@ -21,13 +21,11 @@ use crate::{
 const KIND: &str = "restore";
 
 /// What to restore: a version from the repo, or a local-history folder.
-#[allow(dead_code)] // used by Task 15
 pub(crate) enum Source<'a> {
     Remote(&'a Version),
     Local(&'a Path),
 }
 
-#[allow(dead_code)] // used by Task 15
 pub(crate) struct Ctx<'a> {
     pub repo: Option<&'a Repo>,
     pub state: &'a State,
@@ -198,7 +196,6 @@ fn swap(
 /// `Data("file_too_large:…" | "wrong_size:…" | "file_name_invalid:…")`, `Busy`, repo and I/O
 /// errors. A failure before the swap leaves the target untouched; a failure during it is rolled
 /// back at once, or by `recover` if the process dies.
-#[allow(dead_code)] // used by Task 15
 pub(crate) async fn restore(
     ctx: &Ctx<'_>,
     stream: &StreamId,

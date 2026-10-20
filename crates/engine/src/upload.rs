@@ -8,7 +8,6 @@ use crate::repo::Repo;
 use crate::snapshot::Snapshot;
 use crate::{EngineError, Failpoints, new_version_id, now_ms};
 
-#[allow(dead_code)] // used by Task 15
 pub(crate) struct UploadMeta<'a> {
     pub stream: StreamId,
     pub parents: Vec<VersionId>,
@@ -26,7 +25,6 @@ pub(crate) struct UploadMeta<'a> {
 /// Errors: `Data("history_changed:<path>")` if the history copy no longer matches the snapshot;
 /// `Data("blob_corrupt:<id>")` if a blob already on the remote is damaged;
 /// `Data("manifest_invalid")` if the manifest would break a validation rule.
-#[allow(dead_code)] // used by Task 15
 pub(crate) async fn upload(
     repo: &Repo,
     snap: &Snapshot,

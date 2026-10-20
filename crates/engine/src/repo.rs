@@ -302,12 +302,10 @@ impl Repo {
         &self.id
     }
 
-    #[allow(dead_code)] // used by Task 15
     pub(crate) fn blob_id(&self, data: &[u8]) -> BlobId {
         BlobId(Hash32(keyed_hash(&self.keys.blob_id, data)))
     }
 
-    #[allow(dead_code)] // used by Task 15
     pub(crate) fn stream_id(&self, player: PlayerId, emulator: &str, game: &str) -> StreamId {
         let canonical = format!("save\0{player}\0{emulator}\0{game}\0default");
         StreamId(Hash32(keyed_hash(
@@ -342,7 +340,6 @@ impl Repo {
 
     /// Idempotent: the name is the content's keyed hash. An existing object is verified first;
     /// `Data("blob_corrupt:<id>")` if it fails to decrypt or hash.
-    #[allow(dead_code)] // used by Task 15
     pub(crate) async fn put_blob(&self, data: &[u8]) -> Result<BlobId, EngineError> {
         let id = self.blob_id(data);
         match self
@@ -376,7 +373,6 @@ impl Repo {
         Ok(data)
     }
 
-    #[allow(dead_code)] // used by Task 15
     pub(crate) async fn put_version(&self, v: &Version) -> Result<(), EngineError> {
         let path = version_path(&v.stream, &v.id);
         let json = v.to_json().map_err(|_| data(&path))?;
@@ -384,7 +380,6 @@ impl Repo {
             .await
     }
 
-    #[allow(dead_code)] // used by Task 15
     pub(crate) async fn list_versions(
         &self,
         stream: &StreamId,
@@ -393,7 +388,6 @@ impl Repo {
     }
 
     /// The decrypted manifest JSON; parse it with `Version::from_json`.
-    #[allow(dead_code)] // used by Task 15
     pub(crate) async fn get_version(
         &self,
         stream: &StreamId,

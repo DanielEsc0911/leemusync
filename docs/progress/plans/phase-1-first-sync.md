@@ -7128,7 +7128,7 @@ Spec: [sync-model §Reconciliation](../../specs/sync-model.md#reconciliation) (w
   - `sync` refuses installs whose `Install.provisional` is true (the emulator's config file exists but isn't granted, so the paths are defaults and may be stale): it skips them with a `NotGranted` warning and does nothing else (scan still reports them).
   - `sync` writes one config version at the end when it learned new games, or when it had to merge config heads.
 
-- [ ] **Step 1: Write `sync.rs`:**
+- [x] **Step 1: Write `sync.rs`:**
 
 ```rust
 //! `leemusync sync`: reconcile every stream of every granted install (sync-model §Reconciliation).
@@ -7449,9 +7449,11 @@ impl Engine {
 }
 ```
 
+As built, the stream-key loop (repo games plus mapped local saves) lives in a private `stream_keys` helper so `sync` stays under clippy's `too_many_lines`; behaviour is the same. The `#[allow(dead_code)] // used by Task 15` markers in earlier modules are removed.
+
 Check the `Adopt` path against core: with no `base` and a matching head, `reconcile` returns `Action::Adopt(h)`. With a `base`, the pre-adopt block sets `base = h` and `local = Clean`, so `reconcile` returns `Nothing`, which is reported as `Adopt`.
 
-- [ ] **Step 2: Write `accounts.rs`:**
+- [x] **Step 2: Write `accounts.rs`:**
 
 ```rust
 //! `leemusync accounts map` (choices a/b, keep or replace) and `accounts recover`
@@ -7613,7 +7615,7 @@ impl Engine {
 }
 ```
 
-- [ ] **Step 3: Write `query.rs`:**
+- [x] **Step 3: Write `query.rs`:**
 
 ```rust
 //! `status`, `history`, `restore`, `doctor`.
@@ -7790,8 +7792,8 @@ impl Engine {
 }
 ```
 
-- [ ] **Step 4: Wire `lib.rs`:** `mod accounts; mod query; mod sync;` and `pub use accounts::{MapChoice, MapOutcome}; pub use sync::SyncOptions;`.
-- [ ] **Step 5: Engine-level tests.** Add to `crates/engine/tests/common/mod.rs`:
+- [x] **Step 4: Wire `lib.rs`:** `mod accounts; mod query; mod sync;` and `pub use accounts::{MapChoice, MapOutcome}; pub use sync::SyncOptions;`.
+- [x] **Step 5: Engine-level tests.** Add to `crates/engine/tests/common/mod.rs`:
 
 ```rust
 use leemusync_engine::{Engine, JoinSecret, MapChoice, MapOutcome, SyncOptions};
@@ -7927,8 +7929,8 @@ async fn edit_on_one_pc_fast_forwards_the_other() {
 }
 ```
 
-- [ ] **Step 6: Run** `cargo test -p leemusync-engine && cargo clippy -p leemusync-engine --all-targets -- -D warnings` → PASS. If a test fails, use skill `superpowers:systematic-debugging` before changing code. Never weaken an assertion to make it pass.
-- [ ] **Step 7: Commit.** `docs/specs/sync-model.md` **Code:** add `` `crates/engine/src/sync.rs` ``, and Status `Partial` (leases, play sessions and retention are still open). `docs/specs/players-and-accounts.md` **Code:** `` `crates/core/src/config.rs`, `crates/engine/src/accounts.rs` ``, Status `Partial`. `just check`, then:
+- [x] **Step 6: Run** `cargo test -p leemusync-engine && cargo clippy -p leemusync-engine --all-targets -- -D warnings` → PASS. If a test fails, use skill `superpowers:systematic-debugging` before changing code. Never weaken an assertion to make it pass.
+- [x] **Step 7: Commit.** `docs/specs/sync-model.md` **Code:** add `` `crates/engine/src/sync.rs` ``, and Status `Partial` (leases, play sessions and retention are still open). `docs/specs/players-and-accounts.md` **Code:** `` `crates/core/src/config.rs`, `crates/engine/src/accounts.rs` ``, Status `Partial`. `just check`, then:
 
 ```bash
 git add crates/engine docs/specs

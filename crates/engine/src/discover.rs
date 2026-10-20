@@ -177,7 +177,6 @@ pub fn discover(profile: &Profile, install: &Install) -> Result<Discovery, Engin
 /// # Errors
 /// `Config` for an invalid pattern or regex, or an unsupported capture; `Usage` for a game or
 /// account id the profile rejects.
-#[allow(dead_code)] // used by Task 15
 pub fn save_folder(
     profile: &Profile,
     install: &Install,
