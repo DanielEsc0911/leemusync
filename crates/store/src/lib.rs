@@ -6,18 +6,21 @@ mod gdrive;
 pub mod http;
 pub mod oauth;
 mod redact;
+mod retry;
 mod s3;
 
 use std::path::Path;
 use std::sync::Arc;
 
-use opendal::Operator;
 use opendal::services::Fs;
+use opendal::{Buffer, Operator};
 
 pub use error::{ErrorClass, StoreError};
 pub use gdrive::GdriveConfig;
 pub use redact::redact;
 pub use s3::S3Config;
+
+use retry::{RetryPolicy, retry};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PutMode {
@@ -41,6 +44,9 @@ pub struct Capabilities {
 pub struct Store {
     inner: Inner,
     caps: Capabilities,
+    policy: RetryPolicy,
+    #[cfg(test)]
+    faults: test_faults::Faults,
 }
 
 #[derive(Clone)]
@@ -62,12 +68,17 @@ impl Store {
             .ok_or_else(|| StoreError::new(ErrorClass::Permanent, "store path is not UTF-8"))?;
         let op = Operator::new(Fs::default().root(root))?;
         let native = op.info().capability().write_with_if_not_exists;
-        Ok(Self {
-            inner: Inner::Plain(op),
-            caps: Capabilities {
-                native_create_only: native,
-            },
-        })
+        Ok(Self::with(Inner::Plain(op), native))
+    }
+
+    fn with(inner: Inner, native_create_only: bool) -> Self {
+        Self {
+            inner,
+            caps: Capabilities { native_create_only },
+            policy: RetryPolicy::default(),
+            #[cfg(test)]
+            faults: test_faults::Faults::default(),
+        }
     }
 
     #[must_use]
@@ -81,12 +92,10 @@ impl Store {
     /// `Permanent` if the HTTP client can't be built.
     pub fn gdrive(config: GdriveConfig) -> Result<Self, StoreError> {
         let http = http::http_client()?;
-        Ok(Self {
-            inner: Inner::Gdrive(gdrive::GdriveSession::new(config, http)),
-            caps: Capabilities {
-                native_create_only: false,
-            },
-        })
+        Ok(Self::with(
+            Inner::Gdrive(gdrive::GdriveSession::new(config, http)),
+            false,
+        ))
     }
 
     /// S3-compatible storage with static keys (Cloudflare R2 for the first test, D31).
@@ -96,12 +105,7 @@ impl Store {
     pub fn s3(config: &S3Config) -> Result<Self, StoreError> {
         let op = s3::operator(config, http::http_client()?)?;
         let native = op.info().capability().write_with_if_not_exists;
-        Ok(Self {
-            inner: Inner::Plain(op),
-            caps: Capabilities {
-                native_create_only: native,
-            },
-        })
+        Ok(Self::with(Inner::Plain(op), native))
     }
 
     /// The operator to use now. Drive's is rebuilt before its access token expires (D27).
@@ -116,16 +120,40 @@ impl Store {
     /// `NotFound`, or any classified backend error.
     pub async fn get(&self, path: &str) -> Result<Vec<u8>, StoreError> {
         check_path(path)?;
-        Ok(self.op().await?.read(path).await?.to_vec())
+        retry(&self.policy, |_| async move {
+            let after = self.fault()?;
+            let bytes = self.op().await?.read(path).await?.to_vec();
+            self.fault_after(after)?;
+            Ok(bytes)
+        })
+        .await
     }
 
     /// `CreateOnly` uses the backend's conditional write, or stat-then-write where there is none
-    /// (safe because names are unique, D5).
+    /// (safe because names are unique, D5). A retried `CreateOnly` that finds the name taken reads
+    /// it back: the same bytes mean an earlier try landed.
     ///
     /// # Errors
     /// `AlreadyExists` for `CreateOnly` on an existing name, or any classified backend error.
     pub async fn put(&self, path: &str, bytes: Vec<u8>, mode: PutMode) -> Result<(), StoreError> {
         check_path(path)?;
+        let bytes = Buffer::from(bytes);
+        retry(&self.policy, |attempt| {
+            let bytes = bytes.clone();
+            async move {
+                match self.put_once(path, bytes.clone(), mode).await {
+                    Err(e) if attempt > 0 && e.class() == ErrorClass::AlreadyExists => {
+                        self.read_back(path, &bytes, e).await
+                    }
+                    other => other,
+                }
+            }
+        })
+        .await
+    }
+
+    async fn put_once(&self, path: &str, bytes: Buffer, mode: PutMode) -> Result<(), StoreError> {
+        let after = self.fault()?;
         let op = self.op().await?;
         match mode {
             PutMode::Overwrite => {
@@ -141,7 +169,24 @@ impl Store {
                 op.write(path, bytes).await?;
             }
         }
-        Ok(())
+        self.fault_after(after)
+    }
+
+    /// After a lost response: our bytes there → `Ok`, other bytes or nothing → `exists`.
+    async fn read_back(
+        &self,
+        path: &str,
+        ours: &Buffer,
+        exists: StoreError,
+    ) -> Result<(), StoreError> {
+        #[cfg(test)]
+        self.faults.count_read();
+        match self.op().await?.read(path).await {
+            Ok(found) if found.to_bytes() == ours.to_bytes() => Ok(()),
+            Ok(_) => Err(exists),
+            Err(e) if e.kind() == opendal::ErrorKind::NotFound => Err(exists),
+            Err(e) => Err(e.into()),
+        }
     }
 
     /// Files directly under `prefix`. The prefix is a valid object path that ends with `/`; the
@@ -157,33 +202,44 @@ impl Store {
                 "list prefix must end with /",
             ));
         }
-        let op = self.op().await?;
-        match op.list(prefix).await {
-            Ok(entries) => Ok(entries
-                .into_iter()
-                .filter(|e| e.metadata().is_file())
-                .map(|e| Entry {
-                    path: e.path().to_owned(),
-                    size: e.metadata().content_length(),
-                })
-                .collect()),
-            Err(e) if e.kind() == opendal::ErrorKind::NotFound => Ok(Vec::new()),
-            Err(e) => Err(e.into()),
-        }
+        retry(&self.policy, |_| async move {
+            let after = self.fault()?;
+            let listed = self.op().await?.list(prefix).await;
+            self.fault_after(after)?;
+            match listed {
+                Ok(entries) => Ok(entries
+                    .into_iter()
+                    .filter(|e| e.metadata().is_file())
+                    .map(|e| Entry {
+                        path: e.path().to_owned(),
+                        size: e.metadata().content_length(),
+                    })
+                    .collect()),
+                Err(e) if e.kind() == opendal::ErrorKind::NotFound => Ok(Vec::new()),
+                Err(e) => Err(e.into()),
+            }
+        })
+        .await
     }
 
     /// # Errors
     /// Any classified backend error except `NotFound`, which gives `None`.
     pub async fn stat(&self, path: &str) -> Result<Option<Entry>, StoreError> {
         check_path(path)?;
-        match self.op().await?.stat(path).await {
-            Ok(meta) => Ok(Some(Entry {
-                path: path.to_owned(),
-                size: meta.content_length(),
-            })),
-            Err(e) if e.kind() == opendal::ErrorKind::NotFound => Ok(None),
-            Err(e) => Err(e.into()),
-        }
+        retry(&self.policy, |_| async move {
+            let after = self.fault()?;
+            let found = self.op().await?.stat(path).await;
+            self.fault_after(after)?;
+            match found {
+                Ok(meta) => Ok(Some(Entry {
+                    path: path.to_owned(),
+                    size: meta.content_length(),
+                })),
+                Err(e) if e.kind() == opendal::ErrorKind::NotFound => Ok(None),
+                Err(e) => Err(e.into()),
+            }
+        })
+        .await
     }
 
     /// Idempotent. On Google Drive this moves the file to the trash (V-STORE-9).
@@ -198,7 +254,75 @@ impl Store {
                 "delete takes an object, not a folder",
             ));
         }
-        Ok(self.op().await?.delete(path).await?)
+        retry(&self.policy, |_| async move {
+            let after = self.fault()?;
+            self.op().await?.delete(path).await?;
+            self.fault_after(after)
+        })
+        .await
+    }
+
+    /// Test failpoint before an attempt: `Err` to fail now, `true` to fail after the real call.
+    #[allow(clippy::unnecessary_wraps, clippy::unused_self)]
+    fn fault(&self) -> Result<bool, StoreError> {
+        #[cfg(test)]
+        return self.faults.before();
+        #[cfg(not(test))]
+        Ok(false)
+    }
+
+    #[allow(clippy::unused_self)]
+    fn fault_after(&self, after: bool) -> Result<(), StoreError> {
+        if after {
+            Err(StoreError::new(ErrorClass::Transient, "injected"))
+        } else {
+            Ok(())
+        }
+    }
+}
+
+#[cfg(test)]
+mod test_faults {
+    use std::collections::VecDeque;
+    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::sync::{Arc, Mutex};
+
+    use crate::{ErrorClass, StoreError};
+
+    #[derive(Clone, Copy, Debug)]
+    pub(crate) enum Fault {
+        /// Fail before touching the backend.
+        Transient,
+        /// Do the real call, then report `Transient` (a lost response).
+        TransientAfterWrite,
+    }
+
+    #[derive(Clone, Default)]
+    pub(crate) struct Faults {
+        queue: Arc<Mutex<VecDeque<Fault>>>,
+        reads: Arc<AtomicU32>,
+    }
+
+    impl Faults {
+        pub(crate) fn push(&self, f: Fault, n: usize) {
+            self.queue.lock().unwrap().extend(std::iter::repeat_n(f, n));
+        }
+
+        pub(crate) fn before(&self) -> Result<bool, StoreError> {
+            match self.queue.lock().unwrap().pop_front() {
+                Some(Fault::Transient) => Err(StoreError::new(ErrorClass::Transient, "injected")),
+                Some(Fault::TransientAfterWrite) => Ok(true),
+                None => Ok(false),
+            }
+        }
+
+        pub(crate) fn count_read(&self) {
+            self.reads.fetch_add(1, Ordering::SeqCst);
+        }
+
+        pub(crate) fn reads(&self) -> u32 {
+            self.reads.load(Ordering::SeqCst)
+        }
     }
 }
 
@@ -226,7 +350,95 @@ fn check_path(path: &str) -> Result<(), StoreError> {
 
 #[cfg(test)]
 mod tests {
+    use super::test_faults::Fault;
     use super::*;
+    use std::time::Duration;
+
+    fn fast_store(dir: &Path) -> Store {
+        let mut store = Store::fs(dir).unwrap();
+        store.policy = RetryPolicy {
+            attempts: 5,
+            base: Duration::from_millis(1),
+            cap: Duration::from_millis(4),
+        };
+        store
+    }
+
+    #[tokio::test]
+    async fn a_transient_put_is_retried() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = fast_store(dir.path());
+        store.faults.push(Fault::Transient, 1);
+        store
+            .put("a/b", b"hi".to_vec(), PutMode::Overwrite)
+            .await
+            .unwrap();
+        assert_eq!(store.get("a/b").await.unwrap(), b"hi");
+    }
+
+    #[tokio::test]
+    async fn a_create_only_whose_response_was_lost_reads_back_our_bytes() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = fast_store(dir.path());
+        store.faults.push(Fault::TransientAfterWrite, 1);
+        store
+            .put("a/b", b"ours".to_vec(), PutMode::CreateOnly)
+            .await
+            .unwrap();
+        assert_eq!(store.faults.reads(), 1);
+        assert_eq!(store.get("a/b").await.unwrap(), b"ours");
+    }
+
+    #[tokio::test]
+    async fn a_retried_create_only_on_other_bytes_is_already_exists() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = fast_store(dir.path());
+        store
+            .put("a/b", b"theirs".to_vec(), PutMode::CreateOnly)
+            .await
+            .unwrap();
+        store.faults.push(Fault::Transient, 1);
+        let e = store
+            .put("a/b", b"ours".to_vec(), PutMode::CreateOnly)
+            .await
+            .unwrap_err();
+        assert_eq!(e.class(), ErrorClass::AlreadyExists);
+        assert_eq!(store.faults.reads(), 1);
+        assert_eq!(store.get("a/b").await.unwrap(), b"theirs");
+    }
+
+    #[tokio::test]
+    async fn a_first_try_create_only_on_an_existing_name_reads_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = fast_store(dir.path());
+        store
+            .put("a/b", b"ours".to_vec(), PutMode::CreateOnly)
+            .await
+            .unwrap();
+        let e = store
+            .put("a/b", b"ours".to_vec(), PutMode::CreateOnly)
+            .await
+            .unwrap_err();
+        assert_eq!(e.class(), ErrorClass::AlreadyExists);
+        assert_eq!(store.faults.reads(), 0);
+    }
+
+    #[tokio::test]
+    async fn get_survives_four_transient_failures_but_not_five() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = fast_store(dir.path());
+        store
+            .put("a/b", b"hi".to_vec(), PutMode::CreateOnly)
+            .await
+            .unwrap();
+        store.faults.push(Fault::Transient, 4);
+        assert_eq!(store.get("a/b").await.unwrap(), b"hi");
+        store.faults.push(Fault::Transient, 5);
+        assert_eq!(
+            store.get("a/b").await.unwrap_err().class(),
+            ErrorClass::Transient
+        );
+    }
 
     #[test]
     fn check_path_accepts_object_names() {

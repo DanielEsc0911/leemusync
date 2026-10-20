@@ -1,6 +1,7 @@
 //! Store errors, classified for retry and user prompts (storage-backends §Interface).
 
 use std::fmt;
+use std::time::Duration;
 
 use opendal::ErrorKind;
 
@@ -22,6 +23,7 @@ pub enum ErrorClass {
 pub struct StoreError {
     class: ErrorClass,
     message: String,
+    retry_after: Option<Duration>,
 }
 
 impl StoreError {
@@ -30,7 +32,20 @@ impl StoreError {
         Self {
             class,
             message: redact(message),
+            retry_after: None,
         }
+    }
+
+    /// The server's `Retry-After` in whole seconds, if it sent one.
+    #[must_use]
+    pub fn retry_after(&self) -> Option<Duration> {
+        self.retry_after
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_retry_after(mut self, after: Duration) -> Self {
+        self.retry_after = Some(after);
+        self
     }
 
     #[must_use]
@@ -55,8 +70,23 @@ impl std::error::Error for StoreError {}
 impl From<opendal::Error> for StoreError {
     fn from(e: opendal::Error) -> Self {
         let text = e.to_string();
-        Self::new(classify(e.kind(), e.is_temporary(), &text), &text)
+        Self {
+            retry_after: retry_after(&text),
+            ..Self::new(classify(e.kind(), e.is_temporary(), &text), &text)
+        }
     }
+}
+
+/// A `"retry-after": "<seconds>"` header in the response debug text. HTTP-dates give `None`.
+fn retry_after(text: &str) -> Option<Duration> {
+    const KEY: &str = "\"retry-after\": \"";
+    let lower = text.to_ascii_lowercase();
+    let rest = &lower[lower.find(KEY)? + KEY.len()..];
+    let value = &rest[..rest.find('"')?];
+    if value.is_empty() || !value.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    value.parse().ok().map(Duration::from_secs)
 }
 
 pub(crate) fn classify(kind: ErrorKind, temporary: bool, text: &str) -> ErrorClass {
@@ -129,6 +159,29 @@ mod tests {
         assert_eq!(
             classify(ErrorKind::Unexpected, false, "status: 400"),
             ErrorClass::Permanent
+        );
+    }
+
+    #[test]
+    fn retry_after_is_read_from_the_response_headers() {
+        let raw = |h: &str| {
+            StoreError::from(opendal::Error::new(
+                ErrorKind::RateLimited,
+                format!("response: Parts {{ status: 429, headers: {{{h}}} }}"),
+            ))
+        };
+        assert_eq!(
+            raw(r#""content-type": "text/xml", "Retry-After": "7""#).retry_after(),
+            Some(Duration::from_secs(7))
+        );
+        assert_eq!(raw(r#""content-type": "text/xml""#).retry_after(), None);
+        assert_eq!(
+            raw(r#""retry-after": "Wed, 21 Oct 2026 07:28:00 GMT""#).retry_after(),
+            None
+        );
+        assert_eq!(
+            StoreError::new(ErrorClass::Transient, r#""retry-after": "7""#).retry_after(),
+            None
         );
     }
 

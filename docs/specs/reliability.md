@@ -66,7 +66,7 @@ Implemented in `crates/engine/src/{snapshot,upload}.rs`. Local history pruning i
 - **On shutdown or logout:** finish the current atomic step, journal the rest, and release leases if the network allows.
 
 ## Network
-Offline → queue locally and keep working. Transient errors → exponential backoff with jitter (1 s → 5 min). Auth errors → stop that backend and notify. Uploads are idempotent (content-addressed).
+Offline → queue locally and keep working. Transient errors → exponential backoff with jitter (1 s → 5 min). Auth errors → stop that backend and notify. Uploads are idempotent (content-addressed). Inside one sync the store retries each request (storage-backends §Interface); the daemon's 1 s → 5 min backoff is for whole syncs that still fail (Phase 2). Blobs upload 4 at a time.
 
 ## Budgets
 Targets for the daemon on desktop. Measured in Phase 1/2 benchmarks and enforced in CI on regression.

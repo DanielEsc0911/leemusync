@@ -1877,6 +1877,7 @@ name = "leemusync-engine"
 version = "0.0.1-alpha.1"
 dependencies = [
  "directories",
+ "futures-util",
  "keyring",
  "leemusync-api",
  "leemusync-core",

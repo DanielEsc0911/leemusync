@@ -1,6 +1,7 @@
 //! Upload procedure: blobs (create-only, idempotent) → manifest (commit point)
 //! (reliability §Upload procedure).
 
+use futures_util::{StreamExt, TryStreamExt, stream};
 use leemusync_core::manifest::{EmulatorRef, FORMAT, FileEntry, Meta, Version};
 use leemusync_core::{DeviceId, PlayerId, StreamId, VersionId};
 
@@ -18,8 +19,23 @@ pub(crate) struct UploadMeta<'a> {
     pub note: Option<String>,
 }
 
+/// Blob uploads in flight at once.
+const PARALLEL_BLOBS: usize = 4;
+
+/// Reads a history file and checks it still matches the snapshot (I6).
+fn read_checked(repo: &Repo, snap: &Snapshot, f: &FileEntry) -> Result<Vec<u8>, EngineError> {
+    let data = std::fs::read(snap.dir.join(f.path.as_str()))?;
+    if u64::try_from(data.len()).unwrap_or(u64::MAX) != f.size || repo.blob_id(&data) != f.blob {
+        return Err(EngineError::Data(format!(
+            "history_changed:{}",
+            f.path.as_str()
+        )));
+    }
+    Ok(data)
+}
+
 /// Uploads every blob from the local history copy (verified against the snapshot's size and
-/// blob id first, I6), then writes the manifest. A failure before the manifest leaves only
+/// blob id first, I6), 4 at a time, then writes the manifest. A failure before the manifest leaves only
 /// orphaned blobs, which GC collects; retrying is safe.
 ///
 /// Errors: `Data("history_changed:<path>")` if the history copy no longer matches the snapshot;
@@ -32,16 +48,13 @@ pub(crate) async fn upload(
     fp: &Failpoints,
 ) -> Result<Version, EngineError> {
     for f in &snap.files {
-        let data = std::fs::read(snap.dir.join(f.path.as_str()))?;
-        if u64::try_from(data.len()).unwrap_or(u64::MAX) != f.size || repo.blob_id(&data) != f.blob
-        {
-            return Err(EngineError::Data(format!(
-                "history_changed:{}",
-                f.path.as_str()
-            )));
-        }
-        repo.put_blob(&data).await?;
+        read_checked(repo, snap, f)?;
     }
+    stream::iter(&snap.files)
+        .map(|f| async move { repo.put_blob(&read_checked(repo, snap, f)?).await })
+        .buffer_unordered(PARALLEL_BLOBS)
+        .try_for_each(|_| async { Ok(()) })
+        .await?;
     fp.hit("upload.before_manifest")?;
     let changed = snap
         .files
@@ -132,6 +145,53 @@ mod tests {
         let v = upload(&repo, &snap, meta(), &fp).await.unwrap();
         assert_eq!(repo.list_versions(&stream).await.unwrap(), vec![v.id]);
         assert_eq!(v.meta.changed_files, 1);
+    }
+
+    #[tokio::test]
+    async fn twelve_files_land_twelve_blobs_and_one_manifest() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = leemusync_store::Store::fs(&dir.path().join("remote")).unwrap();
+        let fast = leemusync_crypto::KdfParams {
+            m_kib: 19_456,
+            t: 1,
+            p: 1,
+        };
+        let (repo, _, _) = Repo::create(store, "p", fast).await.unwrap();
+        let src = dir.path().join("save");
+        std::fs::create_dir_all(&src).unwrap();
+        for i in 0..12 {
+            std::fs::write(src.join(format!("slot{i}.sav")), format!("save {i}")).unwrap();
+        }
+        let snap =
+            crate::snapshot::take(&src, &dir.path().join("hist"), 1024, &|d| repo.blob_id(d))
+                .unwrap()
+                .unwrap();
+        assert_eq!(snap.files.len(), 12);
+        let stream = StreamId(Hash32([6; 32]));
+        let meta = UploadMeta {
+            stream,
+            parents: vec![],
+            device: DeviceId(VersionId::from_parts(1, [1; 10])),
+            player: PlayerId(VersionId::from_parts(2, [2; 10])),
+            emulator: "cemu",
+            base_files: &[],
+            note: None,
+        };
+        let v = upload(&repo, &snap, meta, &Failpoints::default())
+            .await
+            .unwrap();
+        assert_eq!(repo.list_versions(&stream).await.unwrap(), vec![v.id]);
+        for f in &snap.files {
+            let i = f
+                .path
+                .as_str()
+                .trim_start_matches("slot")
+                .trim_end_matches(".sav");
+            assert_eq!(
+                repo.get_blob(&f.blob).await.unwrap(),
+                format!("save {i}").as_bytes()
+            );
+        }
     }
 
     #[tokio::test]
