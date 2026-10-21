@@ -56,4 +56,4 @@
 - **W2 Test first.** Follow TDD. `just check` is green before every commit. Never claim work is done without running it.
 - **W3 No unverified facts.** Vendor or platform behaviour that this repo hasn't proven goes under **Verify** with the spike that will prove it.
 - **W4 Decisions are logged.** Record them in [decisions.md](decisions.md). Don't reopen one without new facts. A change gets a superseding entry.
-- **W5 Commits.** Use Conventional Commits. The human maintainer is the author. AI agents add a `Co-Authored-By:` trailer ([git-workflow](specs/git-workflow.md)).
+- **W5 Commits.** Use Conventional Commits. The human maintainer is the author. AI agents add a `Co-Authored-By:` trailer and nothing else: no session URLs or session references in commits or PRs ([git-workflow](specs/git-workflow.md)).

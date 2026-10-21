@@ -30,7 +30,7 @@ Cite rules by ID. Full text, rationale and how each is enforced: `docs/rules.md`
 - **W2** Test first. `just check` must be green before every commit.
 - **W3** No unverified facts. Unproven claims go under "Verify" with a spike ID.
 - **W4** Decisions are logged in `docs/decisions.md`. Don't reopen one without new facts.
-- **W5** Conventional Commits. The human is the author and the AI agent adds a `Co-Authored-By:` trailer.
+- **W5** Conventional Commits. The human is the author and the AI agent adds a `Co-Authored-By:` trailer. Never add session URLs or session references to commits or PRs.
 
 ## Where everything is
 | Path | What |
