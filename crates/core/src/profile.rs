@@ -2,6 +2,7 @@
 //! Spec: docs/specs/emulator-profiles.md (Schema, Templates, Validation).
 
 use std::collections::BTreeMap;
+use std::ffi::{OsStr, OsString};
 
 use serde::Deserialize;
 
@@ -17,6 +18,8 @@ pub const ALLOWED_VARS: [&str; 8] = [
     "exe_dir",
 ];
 const DEFAULT_MAX_FILE_MB: u32 = 64;
+/// The only variable `launch.args` may use; it is a whole argument, never part of one.
+pub const GAME_PATH_VAR: &str = "{game_path}";
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum ProfileError {
@@ -49,6 +52,15 @@ pub struct Profile {
     pub saves: Saves,
     pub accounts: Option<Accounts>,
     pub game_key: GameKey,
+    /// How to start a game. Arguments only: the executable is always the user's (config).
+    pub launch: Option<Launch>,
+}
+
+/// `[launch]`. `deny_unknown_fields` keeps a profile from naming an executable or a shell.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Launch {
+    pub args: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -187,8 +199,48 @@ impl Profile {
         {
             return Err(ProfileError::Field("game_key"));
         }
+        if let Some(launch) = &self.launch {
+            check_launch(&launch.args)?;
+        }
         Ok(())
     }
+
+    /// The profile's launch arguments with `{game_path}` replaced by `game_path`, which stays one
+    /// argument whatever it contains (spaces, quotes, `;`). `None` when the profile can't launch.
+    #[must_use]
+    pub fn launch_args(&self, game_path: &OsStr) -> Option<Vec<OsString>> {
+        let launch = self.launch.as_ref()?;
+        Some(
+            launch
+                .args
+                .iter()
+                .map(|a| {
+                    if a == GAME_PATH_VAR {
+                        game_path.to_owned()
+                    } else {
+                        OsString::from(a)
+                    }
+                })
+                .collect(),
+        )
+    }
+}
+
+/// Each argument is `{game_path}` exactly, or a literal without braces or NUL.
+fn check_launch(args: &[String]) -> Result<(), ProfileError> {
+    for a in args.iter().filter(|a| *a != GAME_PATH_VAR) {
+        if let Some(start) = a.find('{') {
+            let name = a[start + 1..].split('}').next().unwrap_or_default();
+            return Err(ProfileError::UnknownVar(name.to_owned()));
+        }
+        if a.is_empty() || a.contains(['}', '\0']) || a.len() > 256 {
+            return Err(ProfileError::Field("launch.args"));
+        }
+    }
+    if args.len() > 32 || !args.iter().any(|a| a == GAME_PATH_VAR) {
+        return Err(ProfileError::Field("launch.args"));
+    }
+    Ok(())
 }
 
 fn is_allowed(name: &str) -> bool {
@@ -294,6 +346,64 @@ mod tests {
         );
         assert!(linux.process.contains(&"cemu".to_owned()));
         assert_eq!(p.max_file_bytes(), 64 * 1024 * 1024);
+    }
+
+    #[test]
+    fn cemu_launch_args_put_the_game_path_in_one_argument() {
+        let p = Profile::from_toml(CEMU).unwrap();
+        let args = p
+            .launch_args(OsStr::new("/g/My Game; rm -rf ~/x.wux"))
+            .unwrap();
+        assert_eq!(
+            args,
+            vec![
+                OsString::from("-g"),
+                OsString::from("/g/My Game; rm -rf ~/x.wux")
+            ]
+        );
+    }
+
+    #[test]
+    fn launch_rejects_other_variables_and_any_executable() {
+        let with = |launch: &str| CEMU.to_owned() + "\n" + launch;
+        for (launch, want) in [
+            (
+                "[launch]\nargs = [\"-g\", \"{home}/x\"]",
+                ProfileError::UnknownVar("home".into()),
+            ),
+            (
+                "[launch]\nargs = [\"--path={game_path}\"]",
+                ProfileError::UnknownVar("game_path".into()),
+            ),
+            (
+                "[launch]\nargs = [\"-g\"]",
+                ProfileError::Field("launch.args"),
+            ),
+        ] {
+            let text = with(launch).replace("[launch]\nargs = [\"-g\", \"{game_path}\"]\n", "");
+            assert_eq!(Profile::from_toml(&text).unwrap_err(), want, "{launch}");
+        }
+        for field in ["exe", "command", "shell", "program"] {
+            let text = CEMU.replace(
+                "[launch]\n",
+                &format!("[launch]\n{field} = [\"/bin/sh\", \"-c\"]\n"),
+            );
+            assert!(
+                matches!(Profile::from_toml(&text), Err(ProfileError::Toml(_))),
+                "{field}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_profile_without_launch_cannot_launch() {
+        let text = CEMU.replace("[launch]\nargs = [\"-g\", \"{game_path}\"]\n", "");
+        assert!(
+            Profile::from_toml(&text)
+                .unwrap()
+                .launch_args(OsStr::new("g"))
+                .is_none()
+        );
     }
 
     #[test]

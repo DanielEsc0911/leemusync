@@ -102,6 +102,23 @@ fn one_head(input: &Input<'_>, head: VersionId) -> Action {
     }
 }
 
+/// Parents of a resolution version: every head, so the stream ends with one head
+/// (sync-model §Conflicts).
+#[must_use]
+pub fn resolution_parents(graph: &Graph) -> Vec<VersionId> {
+    heads(graph)
+}
+
+/// The newest of `(head, created_at)`: the latest time on its writer's clock, ties broken by the
+/// larger id. `None` for no heads.
+#[must_use]
+pub fn newest_head(heads: &[(VersionId, u64)]) -> Option<VersionId> {
+    heads
+        .iter()
+        .max_by_key(|(id, at)| (*at, *id))
+        .map(|(id, _)| *id)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -225,5 +242,18 @@ mod tests {
             run(Some(1), Local::Dirty, &fork, None, false),
             Action::RemoteBehind
         );
+    }
+
+    #[test]
+    fn resolution_parents_are_every_head() {
+        let g: Graph = [(v(1), vec![]), (v(2), vec![v(1)]), (v(3), vec![v(1)])].into();
+        assert_eq!(resolution_parents(&g), vec![v(2), v(3)]);
+    }
+
+    #[test]
+    fn newest_head_uses_time_then_id() {
+        assert_eq!(newest_head(&[]), None);
+        assert_eq!(newest_head(&[(v(9), 10), (v(2), 20)]), Some(v(2)));
+        assert_eq!(newest_head(&[(v(2), 20), (v(9), 20)]), Some(v(9)));
     }
 }

@@ -33,6 +33,8 @@ pub enum PutMode {
 pub struct Entry {
     pub path: String,
     pub size: u64,
+    /// The backend's server-side modified time, when it reports one (`None` on Drive `list`, V-SYNC-2).
+    pub modified: Option<std::time::SystemTime>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -213,6 +215,7 @@ impl Store {
                     .map(|e| Entry {
                         path: e.path().to_owned(),
                         size: e.metadata().content_length(),
+                        modified: modified(e.metadata()),
                     })
                     .collect()),
                 Err(e) if e.kind() == opendal::ErrorKind::NotFound => Ok(Vec::new()),
@@ -234,6 +237,7 @@ impl Store {
                 Ok(meta) => Ok(Some(Entry {
                     path: path.to_owned(),
                     size: meta.content_length(),
+                    modified: modified(&meta),
                 })),
                 Err(e) if e.kind() == opendal::ErrorKind::NotFound => Ok(None),
                 Err(e) => Err(e.into()),
@@ -279,6 +283,10 @@ impl Store {
             Ok(())
         }
     }
+}
+
+fn modified(meta: &opendal::Metadata) -> Option<std::time::SystemTime> {
+    meta.last_modified().map(std::time::SystemTime::from)
 }
 
 #[cfg(test)]

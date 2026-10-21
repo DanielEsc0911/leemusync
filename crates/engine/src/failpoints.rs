@@ -1,13 +1,20 @@
-//! Test-only fault injection: `hit` fails once at an armed point (testing §Fault injection).
+//! Test-only fault injection: `hit` fails once at an armed point, `pause` waits once at an armed
+//! barrier so two engines can interleave deterministically (testing §Fault injection).
+//!
+//! Names: `upload.*`, `restore.*`, and `lease.after_write` (a pause between writing our lease
+//! and listing again, used to force the both-write-at-once race).
 
-use std::collections::BTreeSet;
-use std::sync::Mutex;
+use std::collections::{BTreeMap, BTreeSet};
+use std::sync::{Arc, Mutex};
+
+use tokio::sync::Barrier;
 
 use crate::EngineError;
 
 #[derive(Default)]
 pub struct Failpoints {
     armed: Mutex<BTreeSet<&'static str>>,
+    barriers: Mutex<BTreeMap<&'static str, Arc<Barrier>>>,
 }
 
 impl Failpoints {
@@ -15,6 +22,21 @@ impl Failpoints {
     pub fn arm(&self, name: &'static str) {
         if let Ok(mut armed) = self.armed.lock() {
             armed.insert(name);
+        }
+    }
+
+    #[cfg(any(test, feature = "failpoints"))]
+    pub fn arm_pause(&self, name: &'static str, barrier: Arc<Barrier>) {
+        if let Ok(mut b) = self.barriers.lock() {
+            b.insert(name, barrier);
+        }
+    }
+
+    /// Waits once at `name`'s barrier, if one was armed.
+    pub async fn pause(&self, name: &'static str) {
+        let barrier = self.barriers.lock().ok().and_then(|mut b| b.remove(name));
+        if let Some(b) = barrier {
+            b.wait().await;
         }
     }
 

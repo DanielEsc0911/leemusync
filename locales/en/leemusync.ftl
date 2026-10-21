@@ -174,6 +174,7 @@ action-local_missing = the save folder is missing
 action-remote_behind = the repo went back in time; nothing changed
 action-needs_account = no account on this device: run `leemusync accounts map`
 action-skipped = skipped (the emulator is running)
+action-resolved = conflict resolved; the other versions stay in history
 
 warning-emulator_running = { $detail } is running, so its saves were skipped.
 warning-not_granted = Not allowed yet: { $detail }. Run `leemusync grant add`.

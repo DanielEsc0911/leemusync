@@ -82,6 +82,43 @@ async fn fs_conformance() {
     let store = Store::fs(dir.path()).unwrap();
     assert!(store.capabilities().native_create_only);
     suite(&store, "conformance/").await;
+    modified_advances(&store, "conformance/").await;
+}
+
+/// Lease liveness reads the backend's modified time (sync-model §Leases).
+async fn modified_advances(store: &Store, root: &str) {
+    let lock = format!("{root}locks/a/b");
+    store
+        .put(&lock, b"1".to_vec(), PutMode::Overwrite)
+        .await
+        .unwrap();
+    let listed = |store: &Store| {
+        let prefix = format!("{root}locks/a/");
+        let lock = lock.clone();
+        let store = store.clone();
+        async move {
+            store
+                .list(&prefix)
+                .await
+                .unwrap()
+                .into_iter()
+                .find(|e| e.path == lock)
+                .unwrap()
+                .modified
+                .unwrap()
+        }
+    };
+    let first = store.stat(&lock).await.unwrap().unwrap().modified.unwrap();
+    let first_listed = listed(store).await;
+    tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+    store
+        .put(&lock, b"2".to_vec(), PutMode::Overwrite)
+        .await
+        .unwrap();
+    let second = store.stat(&lock).await.unwrap().unwrap().modified.unwrap();
+    assert!(second > first, "stat modified advances on overwrite");
+    assert!(listed(store).await > first_listed, "list modified advances");
+    store.delete(&lock).await.unwrap();
 }
 
 #[tokio::test]

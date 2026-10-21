@@ -44,11 +44,12 @@ The engine derives the tier. Profiles don't declare it ([D9](../decisions.md#d9-
 | `saves.include` / `saves.exclude` | [glob] | Files that belong to a stream |
 | `saves.max_file_mb` | int, default `64` | Per-file size limit for snapshots (disk-fill guard) |
 | `accounts` | {root, id_regex, name_file?, name_key?} | Account discovery (multi-user emulators) |
+| `accounts.create` | planned, next Phase 1 plan | How to write a new account as data ([players-and-accounts](players-and-accounts.md#creating-a-cemu-account-sp8)) |
 | `game_key` | {from, normalize[]} | Which capture identifies the game, and how to normalise it |
 | `compat` | [string] | Compat groups whose files are interchangeable |
 | `states` | {pattern, include} | Save states (opt-in, [D15](../decisions.md#d15-save-states-are-opt-in-2026-10-07)) |
 | `recommend` | [{setting, value, unlocks, how}] | Emulator settings that raise the tier, shown in the UI |
-| `launch.args` | [template] | Arguments to start a game. The executable is always chosen by the user |
+| `launch.args` | [string] | Arguments to start a game. Each one is a literal or exactly `{game_path}`, the only variable here; the game path is passed as one argument, never split or joined. At least one must be `{game_path}`. `[launch]` has no other field: the executable is always chosen by the user (`[emulators.<id>] exe` in [config](config-and-cli.md#config-file)) and started with argv, never a shell. Cemu: `["-g", "{game_path}"]` (Verify V-PLAY-1) |
 
 ### Templates
 Allowed variables: `{base}` `{home}` `{xdg_data}` `{xdg_config}` `{appdata}` `{localappdata}` `{documents}` `{mac_app_support}` `{flatpak:<app-id>}` `{android_storage}` `{exe_dir}`, plus `config_keys` variables and pattern captures. Anything else is a validation error.
@@ -94,6 +95,9 @@ name_key = "MiiName"
 
 [game_key]
 from = "title_id"
+
+[launch]
+args = ["-g", "{game_path}"]       # Verify V-PLAY-1
 ```
 
 ## Validation

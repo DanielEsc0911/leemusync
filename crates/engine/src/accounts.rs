@@ -172,6 +172,7 @@ impl Engine {
                 "recovered from orphaned folder {account} on {}",
                 self.config.device.name
             )),
+            takeover_from: None,
         };
         let meter = Meter::new(self.progress.clone(), player, &profile.id, &save.game);
         let v = upload(repo, &snap, meta, &self.failpoints, &meter).await?;
