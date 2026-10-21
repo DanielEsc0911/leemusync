@@ -11,6 +11,7 @@ mod launch;
 mod lease;
 mod local_config;
 mod locations;
+mod play;
 mod process;
 mod profiles;
 mod progress;
@@ -41,7 +42,8 @@ pub use local_config::{
     BackendConfig, ConflictPolicy, DeviceSection, EmulatorOverride, LeaseSettings, LocalConfig,
 };
 pub use locations::Locations;
-pub use process::{FakeProbe, ProcessProbe, SysinfoProbe};
+pub use play::{LeaseChoice, PlayPrompt};
+pub use process::{Child, FakeProbe, Launcher, OsLauncher, ProcessProbe, SysinfoProbe};
 pub use progress::ProgressSink;
 pub use secrets::{KeyringSecrets, MemorySecrets, SecretStore};
 pub use setup::{GdriveLogin, JoinSecret, S3Backend};
@@ -84,6 +86,8 @@ pub struct Engine {
     takeovers: std::sync::Mutex<std::collections::BTreeMap<leemusync_core::StreamId, DeviceId>>,
     /// Test-only shift of the lease clock (`shift_lease_clock_ms`).
     clock_shift_ms: i64,
+    /// Renew, lease-poll and quiet-period intervals for `play` (shortened in tests).
+    play_timings: play::Timings,
 }
 
 impl Engine {
@@ -113,6 +117,7 @@ impl Engine {
             repo: None,
             takeovers: std::sync::Mutex::default(),
             clock_shift_ms: 0,
+            play_timings: play::Timings::default(),
         };
         // A running emulator only postpones recovery (to `sync`/`restore`); the CLI still starts.
         match engine.recover_journal() {

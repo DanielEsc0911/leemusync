@@ -119,9 +119,9 @@ impl Engine {
 ```
 Steps exactly as the spec: resolve stream → sync that stream (fast-forward with backup; conflict → `prompt.conflict`) → acquire (held → prompt; `Wait` polls every 10 s) → launch → renew every 60 s on a tokio interval while waiting on the child in `spawn_blocking` → on exit wait the quiet period, snapshot, upload → release. Release also runs on error paths. A renewal failure is logged and retried, never kills the game. If the Cemu process is already running before launch, refuse (I3).
 
-- [ ] **Step 1: failing tests** with `FakeLauncher` (writes save files then exits) and a scripted prompt: SC2 handoff (A plays, B plays, B starts from A's version); lease held → `Wait` then A releases → B launches; `PlayAnyway` on both → divergent heads → conflict reported, both versions on the remote (SC3); renewals happen (`tokio::time::pause` + advance 3 min → `renewed_at` moved); a launcher error releases the lease; exit with no changes uploads nothing.
-- [ ] **Step 2:** implement; pass; clippy.
-- [ ] **Step 3:** spec, `just check`, commit `feat(engine): add launcher mode`.
+- [x] **Step 1: failing tests** with `FakeLauncher` (writes save files then exits) and a scripted prompt: SC2 handoff (A plays, B plays, B starts from A's version); lease held → `Wait` then A releases → B launches; `PlayAnyway` on both → divergent heads → conflict reported, both versions on the remote (SC3); renewals happen (`tokio::time::pause` + advance 3 min → `renewed_at` moved); a launcher error releases the lease; exit with no changes uploads nothing.
+- [x] **Step 2:** implement; pass; clippy.
+- [x] **Step 3:** spec, `just check`, commit `feat(engine): add launcher mode`.
 
 ### Task 6: `accounts.create` profile section and account creation
 

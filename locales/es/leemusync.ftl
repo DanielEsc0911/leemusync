@@ -186,6 +186,8 @@ warning-restore_rolled_back = Se deshizo una restauración interrumpida en { $de
 warning-invalid_version = Se ignoraron datos no válidos del repo: { $detail }
 warning-setup_incomplete = Se creó el repo, pero este dispositivo no quedó configurado del todo ({ $detail }). Ejecuta `leemusync join` con tu frase de contraseña para terminar.
 warning-unreadable_folder = No se pudo leer una carpeta de guardado de forma segura y se omitió: { $detail }
+warning-lease_renew_failed = No se pudo renovar el bloqueo ({ $detail }); se reintenta. El juego sigue abierto.
+warning-lease_release_failed = No se pudo liberar el bloqueo ({ $detail }); vence solo.
 
 scan-install = { $emulator } en { $base }
 scan-needs-grant = Permítelo: leemusync grant add { $path }
