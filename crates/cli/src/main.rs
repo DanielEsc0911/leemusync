@@ -2,6 +2,7 @@
 
 mod i18n;
 mod output;
+mod progress;
 mod prompt;
 
 use std::path::{Path, PathBuf};
@@ -11,7 +12,7 @@ use clap::{CommandFactory as _, FromArgMatches as _, Parser, Subcommand};
 use leemusync_api::StreamAction;
 use leemusync_engine::{
     BackendConfig, Engine, EngineEnv, EngineError, JoinSecret, Locations, MapChoice, MapOutcome,
-    SyncOptions,
+    S3Backend, SyncOptions,
 };
 
 use crate::i18n::{I18n, s};
@@ -86,6 +87,16 @@ enum BackendKind {
     Gdrive {
         #[arg(long)]
         client_id: String,
+    },
+    S3 {
+        #[arg(long)]
+        endpoint: String,
+        #[arg(long)]
+        bucket: String,
+        #[arg(long)]
+        access_key_id: String,
+        #[arg(long, default_value = "auto")]
+        region: String,
     },
     Fs {
         path: PathBuf,
@@ -204,6 +215,8 @@ async fn gdrive_login(engine: &mut Engine, t: &I18n, client_id: &str) -> Result<
 async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
     let mut engine = Engine::open(env()?)?;
     let json = cli.json;
+    let mut live = progress::Live::new(json);
+    engine.set_progress(live.sink());
     match &cli.command {
         Cmd::Init => {
             let pass = prompt::new_passphrase(t)?;
@@ -267,6 +280,35 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
                 },
         } => {
             gdrive_login(&mut engine, t, client_id).await?;
+        }
+        Cmd::Backend {
+            cmd:
+                BackendCmd::Add {
+                    kind:
+                        BackendKind::S3 {
+                            endpoint,
+                            bucket,
+                            access_key_id,
+                            region,
+                        },
+                },
+        } => {
+            let secret = prompt::secret(t, "prompt-s3-secret")?;
+            let backend = S3Backend {
+                endpoint: endpoint.clone(),
+                bucket: bucket.clone(),
+                region: region.clone(),
+                access_key_id: access_key_id.clone(),
+            };
+            engine.backend_add_s3(backend, &secret).await?;
+            output::line(
+                t,
+                "backend-s3-done",
+                &[
+                    ("bucket", s(bucket.clone())),
+                    ("endpoint", s(endpoint.clone())),
+                ],
+            );
         }
         Cmd::Backend {
             cmd: BackendCmd::Login,
@@ -403,7 +445,9 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
                     player,
                 },
         } => {
-            let report = engine.accounts_recover(emulator, account, player).await?;
+            let report = live
+                .run(t, engine.accounts_recover(emulator, account, player))
+                .await?;
             if json {
                 output::json(&report);
             } else {
@@ -419,7 +463,8 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
         }
         Cmd::Sync { dry_run, yes } => {
             let opts = || SyncOptions { dry_run: *dry_run };
-            let report = match engine.sync(opts()).await {
+            let started = std::time::Instant::now();
+            let report = match live.run(t, engine.sync(opts())).await {
                 Err(EngineError::NeedsConfirmation) => {
                     let ok = *yes
                         || (!json
@@ -429,7 +474,7 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
                         return Err(EngineError::NeedsConfirmation);
                     }
                     engine.confirm_first_sync()?;
-                    engine.sync(opts()).await?
+                    live.run(t, engine.sync(opts())).await?
                 }
                 other => other?,
             };
@@ -446,7 +491,7 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
             if json {
                 output::json(&report);
             } else {
-                output::sync(t, &report);
+                output::sync(t, &report, output::color_on(), Some(started.elapsed()));
                 if conflicts > 0 {
                     output::line(
                         t,
@@ -497,7 +542,9 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
                     ));
                 }
             }
-            let report = engine.restore(player, emulator, game, what).await?;
+            let report = live
+                .run(t, engine.restore(player, emulator, game, what))
+                .await?;
             if json {
                 output::json(&report);
             } else {

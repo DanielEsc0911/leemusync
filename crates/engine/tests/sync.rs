@@ -77,3 +77,55 @@ async fn edit_on_one_pc_fast_forwards_the_other() {
     assert_eq!(a.sync().await.streams[0].action, StreamAction::FastForward);
     assert_eq!(a.save("80000001"), b"version two");
 }
+
+#[tokio::test]
+async fn progress_reports_each_transfer_and_an_unchanged_save_moves_nothing() {
+    use leemusync_api::{TransferPhase, TransferProgress};
+    use std::sync::{Arc, Mutex};
+    let seen: Arc<Mutex<Vec<TransferProgress>>> = Arc::default();
+    let sink = {
+        let seen = seen.clone();
+        Arc::new(move |p: &TransferProgress| seen.lock().unwrap().push(p.clone()))
+    };
+    let root = tempfile::tempdir().unwrap();
+    let remote = root.path().join("remote");
+    let mut a = Pc::new(&root.path().join("a"), true, b"A's save");
+    a.engine.set_progress(sink.clone());
+    a.engine.backend_add_fs(&remote).unwrap();
+    a.engine.init("pass phrase").await.unwrap();
+    a.engine.players_add("Ana").await.unwrap();
+    map(&mut a, "Ana", "80000001", MapChoice::Ask).await;
+    let r = a.sync().await;
+    let up = seen.lock().unwrap().clone();
+    assert_eq!(up[0].phase, TransferPhase::Checking);
+    assert_eq!(
+        (up[0].player.as_str(), up[0].game.as_str()),
+        ("Ana", "101c9400")
+    );
+    let last = up.last().unwrap();
+    assert_eq!(last.phase, TransferPhase::Uploading);
+    assert!(last.files_total > 0);
+    assert_eq!(last.files_done, last.files_total);
+    assert_eq!(last.bytes_done, last.bytes_total);
+    assert_eq!(
+        (r.streams[0].files, r.streams[0].bytes),
+        (last.files_total, last.bytes_total)
+    );
+
+    let again = a.sync().await;
+    assert_eq!((again.streams[0].files, again.streams[0].bytes), (0, 0));
+
+    seen.lock().unwrap().clear();
+    let mut b = Pc::new(&root.path().join("b"), false, b"other");
+    b.engine.set_progress(sink);
+    join(&mut b, &remote).await;
+    b.create_account("80000002");
+    map(&mut b, "Ana", "80000002", MapChoice::Ask).await;
+    let r = b.sync().await;
+    assert_eq!(r.streams[0].action, StreamAction::FastForward);
+    let down = seen.lock().unwrap().clone();
+    let last = down.last().unwrap();
+    assert_eq!(last.phase, TransferPhase::Downloading);
+    assert_eq!(last.files_done, last.files_total);
+    assert_eq!(r.streams[0].files, last.files_total);
+}

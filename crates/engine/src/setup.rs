@@ -10,14 +10,23 @@ use leemusync_core::PlayerId;
 use leemusync_core::config::{ConfigError, RepoConfig};
 use leemusync_crypto::{Key, RecoveryKey};
 use leemusync_store::oauth::{self, OAuthClient, PendingLogin};
-use leemusync_store::{GdriveConfig, Store};
+use leemusync_store::{ErrorClass, GdriveConfig, PutMode, S3Config, Store, StoreError};
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use crate::repo::{DeviceRecord, Repo, Unlock, key_from_hex, key_to_hex};
-use crate::secrets::{secret_gdrive_client, secret_gdrive_refresh, secret_master};
+use crate::secrets::{secret_gdrive_client, secret_gdrive_refresh, secret_master, secret_s3_key};
 use crate::{BackendConfig, Engine, EngineError, new_version_id, now_ms, repo_config};
 
 const MIN_PASSPHRASE_CHARS: usize = 8;
+
+/// Where an S3-compatible bucket is. The secret key is passed separately and never stored here.
+#[derive(Clone, Debug)]
+pub struct S3Backend {
+    pub endpoint: String,
+    pub bucket: String,
+    pub region: String,
+    pub access_key_id: String,
+}
 
 /// What the user typed to join. Wiped on drop; `Debug` never shows it.
 #[derive(Zeroize, ZeroizeOnDrop)]
@@ -65,6 +74,24 @@ fn player_error(e: &ConfigError) -> EngineError {
     }
 }
 
+/// Write, read back, list and delete one object (storage-backends §Setup).
+async fn probe(store: &Store, name: &str) -> Result<(), EngineError> {
+    let path = format!("leemusync/.probe/{}", name.to_ascii_lowercase());
+    store
+        .put(&path, b"probe".to_vec(), PutMode::CreateOnly)
+        .await?;
+    let read = store.get(&path).await?;
+    let listed = store.list("leemusync/.probe/").await?;
+    store.delete(&path).await?;
+    if read != b"probe" || !listed.iter().any(|e| e.path == path) {
+        return Err(EngineError::Store(StoreError::new(
+            ErrorClass::Permanent,
+            "probe object didn't round-trip",
+        )));
+    }
+    Ok(())
+}
+
 impl Engine {
     /// Uses a local folder as the storage (tests, and a synced folder the user manages).
     ///
@@ -73,6 +100,45 @@ impl Engine {
     pub fn backend_add_fs(&mut self, path: &Path) -> Result<(), EngineError> {
         self.config.backend = Some(BackendConfig::Fs {
             path: path.to_path_buf(),
+        });
+        self.repo = None;
+        self.save_config()
+    }
+
+    /// Uses an S3-compatible bucket (R2 for the first test, D31). Probes first (storage-backends
+    /// §Setup): writes, reads, lists and deletes an object under `leemusync/.probe/`, so a wrong
+    /// endpoint, bucket or key, or a read-only key, fails here and nothing is saved. The secret
+    /// key goes to the OS keystore, the rest to `config.toml`.
+    ///
+    /// # Errors
+    /// `Store` (`Auth` for refused keys) if the probe fails; `Secrets` if the keystore fails.
+    pub async fn backend_add_s3(
+        &mut self,
+        backend: S3Backend,
+        secret_access_key: &str,
+    ) -> Result<(), EngineError> {
+        let config = S3Config {
+            endpoint: backend.endpoint.trim().trim_end_matches('/').to_owned(),
+            bucket: backend.bucket.trim().to_owned(),
+            region: backend.region.trim().to_owned(),
+            root: "/".into(),
+            access_key_id: backend.access_key_id.trim().to_owned(),
+            secret_access_key: Zeroizing::new(secret_access_key.trim().to_owned()),
+        };
+        probe(
+            &Store::s3(&config)?,
+            &format!("{}-{}", self.device_id(), now_ms()),
+        )
+        .await?;
+        self.env
+            .secrets
+            .set(&secret_s3_key(self.device_id()), &config.secret_access_key)?;
+        self.config.backend = Some(BackendConfig::S3 {
+            endpoint: config.endpoint,
+            bucket: config.bucket,
+            region: config.region,
+            root: config.root,
+            access_key_id: config.access_key_id,
         });
         self.repo = None;
         self.save_config()
@@ -142,6 +208,27 @@ impl Engine {
                         client_secret: secret,
                     },
                     refresh_token: refresh,
+                })?)
+            }
+            Some(BackendConfig::S3 {
+                endpoint,
+                bucket,
+                region,
+                root,
+                access_key_id,
+            }) => {
+                let secret = self
+                    .env
+                    .secrets
+                    .get(&secret_s3_key(self.device_id()))?
+                    .ok_or(EngineError::NotSetUp("s3_key"))?;
+                Ok(Store::s3(&S3Config {
+                    endpoint: endpoint.clone(),
+                    bucket: bucket.clone(),
+                    region: region.clone(),
+                    root: root.clone(),
+                    access_key_id: access_key_id.clone(),
+                    secret_access_key: secret,
                 })?)
             }
         }
@@ -322,7 +409,34 @@ mod tests {
     use leemusync_core::{PlayerId, VersionId};
 
     use crate::tests::test_env;
-    use crate::{Engine, EngineError, JoinSecret};
+    use crate::{Engine, EngineError, JoinSecret, S3Backend};
+
+    #[tokio::test]
+    async fn the_probe_round_trips_and_cleans_up() {
+        let root = tempfile::tempdir().unwrap();
+        let store = leemusync_store::Store::fs(root.path()).unwrap();
+        super::probe(&store, "01ABC-1").await.unwrap();
+        assert_eq!(store.list("leemusync/.probe/").await.unwrap(), Vec::new());
+    }
+
+    #[tokio::test]
+    async fn a_bad_s3_backend_saves_nothing() {
+        let root = tempfile::tempdir().unwrap();
+        let mut a = Engine::open(test_env(root.path())).unwrap();
+        let backend = S3Backend {
+            endpoint: "http://insecure.example".into(),
+            bucket: "saves".into(),
+            region: "auto".into(),
+            access_key_id: "id".into(),
+        };
+        assert!(matches!(
+            a.backend_add_s3(backend, "secret").await,
+            Err(EngineError::Store(_))
+        ));
+        assert_eq!(a.local_config().backend, None);
+        let key = crate::secrets::secret_s3_key(a.device_id());
+        assert!(a.env.secrets.get(&key).unwrap().is_none());
+    }
 
     #[tokio::test]
     async fn init_on_one_device_and_join_on_another() {

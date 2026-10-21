@@ -11,6 +11,7 @@ mod local_config;
 mod locations;
 mod process;
 mod profiles;
+mod progress;
 mod query;
 mod repo;
 mod repo_config;
@@ -35,8 +36,9 @@ pub use failpoints::Failpoints;
 pub use local_config::{BackendConfig, DeviceSection, EmulatorOverride, LocalConfig};
 pub use locations::Locations;
 pub use process::{FakeProbe, ProcessProbe, SysinfoProbe};
+pub use progress::ProgressSink;
 pub use secrets::{KeyringSecrets, MemorySecrets, SecretStore};
-pub use setup::{GdriveLogin, JoinSecret};
+pub use setup::{GdriveLogin, JoinSecret, S3Backend};
 pub use state::{JournalEntry, State, StreamRow};
 pub use sync::SyncOptions;
 
@@ -70,6 +72,8 @@ pub struct Engine {
     failpoints: Failpoints,
     /// The unlocked repo, opened on first use (`ensure_repo`).
     repo: Option<repo::Repo>,
+    /// Where `TransferProgress` goes (`set_progress`); nowhere by default.
+    progress: Option<ProgressSink>,
 }
 
 impl Engine {
@@ -95,6 +99,7 @@ impl Engine {
             config,
             state,
             failpoints: Failpoints::default(),
+            progress: None,
             repo: None,
         };
         // A running emulator only postpones recovery (to `sync`/`restore`); the CLI still starts.
@@ -108,6 +113,11 @@ impl Engine {
     /// Rolls back every restore a crash interrupted (reliability §Restore procedure).
     pub(crate) fn recover_journal(&self) -> Result<Vec<leemusync_api::Warning>, EngineError> {
         restore::recover(&self.state, self.env.processes.as_ref())
+    }
+
+    /// Sends live `TransferProgress` for `sync`, `restore` and `accounts recover` to `sink`.
+    pub fn set_progress(&mut self, sink: ProgressSink) {
+        self.progress = Some(sink);
     }
 
     #[must_use]

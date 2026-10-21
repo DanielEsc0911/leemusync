@@ -7,6 +7,7 @@ use leemusync_api::{
 use leemusync_core::heads::{Graph, heads};
 
 use crate::discover::save_folder;
+use crate::progress::Meter;
 use crate::repo::REPO_JSON;
 use crate::restore::{self, Ctx, Source};
 use crate::{BackendConfig, Engine, EngineError, history_dir, repo_config};
@@ -50,6 +51,9 @@ impl Engine {
             repo: self.config.repo.clone(),
             backend: self.config.backend.as_ref().map(|b| match b {
                 BackendConfig::Gdrive { .. } => "gdrive".to_owned(),
+                BackendConfig::S3 {
+                    endpoint, bucket, ..
+                } => format!("s3 {endpoint}/{bucket}"),
                 BackendConfig::Fs { path } => format!("fs {}", path.display()),
             }),
             grants: self
@@ -166,6 +170,12 @@ impl Engine {
         let mut warnings = Vec::new();
         let versions = self.fetch_graph(&stream, &mut warnings).await?;
         let backup_dir = history_dir(&self.env.locations.data_dir, &stream).join(what);
+        let meter = Meter::new(
+            self.progress.clone(),
+            player,
+            emulator,
+            &game.to_lowercase(),
+        );
         let ctx = Ctx {
             repo: Some(self.repo_ref()?),
             state: &self.state,
@@ -175,6 +185,7 @@ impl Engine {
             process_names: &names,
             max_file_bytes: profile.max_file_bytes(),
             fp: &self.failpoints,
+            meter: &meter,
         };
         if let Some(v) = versions
             .values()
@@ -202,6 +213,8 @@ impl Engine {
             version: Some(what.to_owned()),
             heads: vec![],
             done: true,
+            files: meter.transferred().0,
+            bytes: meter.transferred().1,
         })
     }
 

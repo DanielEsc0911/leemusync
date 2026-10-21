@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Also follow the project skills: `leemusync-feature` (always), `leemusync-security` (Tasks 6–8, 10–16), `leemusync-backend` (Tasks 7–8), `leemusync-emulator-profile` (Tasks 5, 12, 18), `leemusync-docs` (every task).
 
-**Goal:** Two Linux PCs (Fedora 44 + Cemu Flatpak, CachyOS + native `cemu-bin`), each with one Cemu account holding a different player's BotW save, end up with both saves on both PCs through an end-to-end encrypted repo on the maintainer's Google Drive, driven by the `leemusync` CLI.
+**Goal:** Two Linux PCs (Fedora 44 + Cemu Flatpak, CachyOS + native `cemu-bin`), each with one Cemu account holding a different player's BotW save, end up with both saves on both PCs through an end-to-end encrypted repo on the maintainer's Cloudflare R2 bucket (D31; Google Drive before 2026-10-20), driven by the `leemusync` CLI.
 
 **Architecture:** Thin but final slices of the layered crates (B1): pure logic in `core` (ids, paths, manifest, heads, reconciliation, repo config, profile schema), primitives in `crypto`, raw encrypted objects in `store` (OpenDAL `gdrive` + `fs`), orchestration in `engine` (discovery, snapshot, upload, journaled restore, SQLite state, sync), report types in `api`, and the `leemusync` binary in `cli`. Formats are v1 and final, so the next slice (M1b: leases, `play`, conflict resolution) builds on the data this test creates.
 
@@ -9284,12 +9284,95 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
 ---
+### Task 17b: `store` S3 adapter for Cloudflare R2 (added 2026-10-20, D31)
+
+The maintainer moved the first real test from Google Drive to an R2 bucket, starting on the Fedora PC alone.
+
+- [x] **Step 1:** `crates/store/src/s3.rs`: OpenDAL `s3` (`services-s3`), static keys, `disable_config_load` + `disable_ec2_metadata`, `https://` only, our rustls client. `Store::s3`, native `create_only` from the operator's capability. Redaction also covers `secret_access_key` and SigV4 `Credential=`.
+- [x] **Step 2:** engine `BackendConfig::S3 { endpoint, bucket, region, root, access_key_id }`, keystore entry `device-<id>-s3-secret-access-key`, `Engine::backend_add_s3(S3Backend, secret)` with a write/read/list/delete probe under `leemusync/.probe/` before anything is saved. `status` shows `s3 <endpoint>/<bucket>`.
+- [x] **Step 3:** CLI `backend add s3 --endpoint <url> --bucket <name> --access-key-id <id> [--region auto]`; the secret only at a no-echo prompt. en + es strings.
+- [x] **Step 4:** tests: S3 operator needs `https://` and has native `create_only`; config round-trip without the secret; a bad backend saves nothing; the probe cleans up; CLI help and no-terminal refusal. Live (ignored): `s3_conformance` runs the suite plus a 20-way `create_only` race (V-STORE-1).
+- [x] **Step 5:** `deny.toml` ignores RUSTSEC-2026-0374 (`basic-toml` unmaintained, build-time only via uniffi → askama; it also failed on `main`).
+- [ ] **Step 6: Live R2 run (maintainer, once).** Create an R2 API token with "Object Read & Write" for the bucket only. Then:
+
+    ```sh
+    secret-tool store --label "leemusync-test s3" service leemusync-test username s3-secret   # paste the secret key
+    LEEMUSYNC_TEST_S3_ENDPOINT=https://<account id>.r2.cloudflarestorage.com \
+    LEEMUSYNC_TEST_S3_BUCKET=<bucket> LEEMUSYNC_TEST_S3_KEY_ID=<access key id> \
+      cargo test -p leemusync-store --test conformance s3_conformance -- --ignored
+    secret-tool clear service leemusync-test username s3-secret
+    ```
+
+    Expected: pass. Record the result in storage-backends V-STORE-1.
+
+---
+
+### Task 17c: `store` retries transient errors; `engine` uploads blobs 4 at a time (added 2026-10-20)
+
+Found in Task 18 Part A: the first R2 sync failed on one blob `PutObject` with `500 InternalError … Please try again`, and the rerun passed. The store classified it as `Transient`, but nothing retried it, though [storage-backends §Interface](../../specs/storage-backends.md#interface) promises backoff. Blobs also uploaded one at a time, so the first sync (~320 files) was slow.
+
+**Files:** `crates/store/src/retry.rs` (new), `crates/store/src/error.rs`, `crates/store/src/lib.rs`, `crates/engine/src/upload.rs`, `crates/engine/Cargo.toml` (+ `futures-util`, already in `Cargo.lock`), `Cargo.toml` (workspace dep), specs `storage-backends.md` §Interface and `reliability.md` §Network.
+
+- [x] **Step 1: `Retry-After` on errors.** `StoreError` gets `retry_after(&self) -> Option<Duration>`, parsed when the error is built from the raw (pre-redaction) text: a `"retry-after": "<seconds>"` header as it appears in OpenDAL's `Parts { … headers: {…} }` debug text, case-insensitive name, whole seconds only (HTTP-dates are ignored → `None`). Tests: header present → `Some(n s)`; absent or a date → `None`; `StoreError::new` → `None`.
+- [x] **Step 2: `retry.rs`.** `pub(crate) struct RetryPolicy { pub attempts: u32, pub base: Duration, pub cap: Duration }`, default `attempts: 5` (1 try + 4 retries), `base: 1 s`, `cap: 30 s`. `pub(crate) async fn retry<T, F, Fut>(policy: &RetryPolicy, mut op: F) -> Result<T, StoreError>` where `F: FnMut(u32 /* attempt, 0-based */) -> Fut`, `Fut: Future<Output = Result<T, StoreError>>`. Only `ErrorClass::Transient` is retried; every other class returns at once. Wait before retry *n* (1-based): full jitter, uniform in `[0, min(cap, base·2^(n-1))]` (`getrandom` for the random draw), but if the error has `retry_after`, wait exactly `min(retry_after, cap)`. `tokio::time::sleep`. After the last attempt the last error is returned unchanged. Unit tests (with `base`/`cap` of a few ms, or `tokio::time::pause`): succeeds after 2 transient failures (3 calls); gives up after `attempts` calls with the last error; `Auth`, `NotFound`, `AlreadyExists`, `Permanent` and `Quota` are never retried (1 call); a `retry_after` larger than `cap` waits `cap` (paused clock: elapsed ≥ cap and < cap + 1 s).
+- [x] **Step 3: wire it into `Store`.** `Store` holds a `RetryPolicy` (default as above; `#[cfg(test)]`/`pub(crate)` constructor or setter so tests can use millisecond waits). `get`, `put`, `list`, `stat`, `delete` each run their body through `retry`, calling `self.op()` inside each attempt (Drive's token may need a refresh between tries). Path checks stay outside the loop.
+  - **Ambiguous `create_only`:** a transient failure may still have stored the object (the response was lost, not the write). So if attempt *n ≥ 1* of a `CreateOnly` put gets `AlreadyExists`, read the object back: same bytes → `Ok(())` (it was our write; sealed objects carry a random nonce, so equal bytes can't be someone else's); different bytes or the read fails with `NotFound` → `AlreadyExists`; any other read error → that error. `AlreadyExists` on attempt 0 is returned as before, with no read. This keeps every caller's meaning: blobs still verify, a manifest or config version whose write landed doesn't fail the sync, `repo.json` still reports `repo_race` only for a real race, devices stay idempotent.
+  - Tests in `lib.rs` need a store whose first calls fail. Add a `#[cfg(test)]` OpenDAL layer, or simpler, a `#[cfg(test)]` failpoint inside `Store`: an `Arc<Mutex<VecDeque<Fault>>>` consumed at the top of each attempt, where `Fault` is `Transient` (fail before touching the backend) or `TransientAfterWrite` (do the real write, then report `Transient`). Tests on `Store::fs`: a `put` with one `Transient` fault succeeds and the object is there; a `CreateOnly` put with `TransientAfterWrite` returns `Ok` (read-back matched) and the object holds our bytes; a `CreateOnly` put with `TransientAfterWrite` where the test then swaps the object for other bytes before the retry, via a fault hook or by writing different bytes first and only faulting, returns `AlreadyExists`; `CreateOnly` on an existing object with no faults returns `AlreadyExists` without a read (assert via a read counter or by making reads fault); `get` with 4 `Transient` faults succeeds, with 5 it returns `Transient`.
+- [x] **Step 4: engine uploads 4 blobs at a time.** In `upload.rs`, verify every history file against the snapshot first (as now, in order, before any network call), then upload with `futures_util::stream::iter(..).map(|data| repo.put_blob(data)).buffer_unordered(4)` and stop at the first error (`try_for_each` / `try_collect`). Keep the existing `blob_corrupt` and `history_changed` behaviour and tests. Memory stays bounded: read the file inside the stream item, not all up front (re-check size and blob id after reading, as now). Test: an upload of 12 files lands all 12 blobs and one manifest; existing faults/two-device tests stay green.
+- [x] **Step 5: specs (W1).** storage-backends §Interface, replace the "All errors are classified" bullet with: "All errors are classified as `transient`, `auth` (ask the user), `quota`, or `permanent`. The store retries `transient` errors itself: up to 5 tries, exponential backoff with full jitter (1 s base, 30 s cap), or the server's `Retry-After` in seconds (capped at 30 s). A retried `create_only` that finds the object already there reads it back: the same bytes mean the earlier try landed and count as success." reliability §Network, append: "Inside one sync the store retries each request (storage-backends §Interface); the daemon's 1 s → 5 min backoff is for whole syncs that still fail (Phase 2). Blobs upload 4 at a time."
+- [x] **Step 6:** `just check` green, commit `feat(store): retry transient errors with backoff and upload blobs 4 at a time`.
+- [x] **Step 7: Live (maintainer).** Rebuild the release binary; on Fedora run `leemusync sync` after a play session and check `history`. Done 2026-10-20: `uploaded` in 52.45 s with no output until the end (0.4 s of CPU), which led to Task 17d.
+
+---
+
+### Task 17d: upload only new blobs, restore 4 at a time, live sync progress in the CLI (added 2026-10-20)
+
+Found in Task 17c Step 7: a sync after a short play session took 52 s and printed nothing until the end. `upload` sent every blob of the snapshot. For each one already on the remote, the create-only put failed with `AlreadyExists` and `put_blob` downloaded the blob to verify it. So each sync moved the whole save up and down again (~15.6 MB each way for BotW). Restores also downloaded one blob at a time. The maintainer asked for live progress (what is being transferred, how far along), with richer CLI output (2026-10-20).
+
+**Files:** `crates/api/src/lib.rs` (`TransferProgress`, `TransferPhase`; `StreamReport.files`/`bytes`), `crates/engine/src/progress.rs` (new), `crates/engine/src/upload.rs`, `crates/engine/src/restore.rs`, `crates/engine/src/sync.rs`, `crates/engine/src/accounts.rs`, `crates/engine/src/lib.rs`, `crates/cli/src/progress.rs` (new), `crates/cli/src/output.rs`, `crates/cli/src/main.rs`, `crates/cli/Cargo.toml` (tokio `macros`, `time`), `locales/{en,es}/leemusync.ftl`, specs `reliability.md` §Upload procedure, `architecture.md` §Engine API, `config-and-cli.md` §Commands.
+
+- [x] **Step 1: upload only new blobs.** `upload` skips every blob that the base version already references (`UploadMeta.base_files`): its manifest was committed after its blobs, so they're on the remote. The rest are deduplicated by blob id (two equal files → one put) and uploaded 4 at a time as before. Every snapshot file is still checked against its history copy first (I6). A blob that's on the remote but not in the base (another device's version) still goes through the create-only put and the read-back check. Tests: an upload whose base holds 10 of 12 files puts 2 blobs (count via the store's object list before and after); two identical files → one blob; a first upload (no base) puts all.
+- [x] **Step 2: restore downloads 4 at a time.** `restore::stage` fetches and verifies blobs with `buffer_unordered(4)` and stops at the first error, writing each file to staging as it arrives. The size checks stay before any download. Existing restore tests stay green.
+- [x] **Step 3: progress events.** `api::TransferProgress { player, emulator, game, phase, files_done, files_total, bytes_done, bytes_total }` with `TransferPhase::{Checking, Uploading, Downloading}` (the spec's `TransferProgress` event). Engine `progress.rs`: `pub type ProgressSink = Arc<dyn Fn(&TransferProgress) + Send + Sync>`, `Engine::set_progress(sink)`, and a crate-internal `Meter` (one per stream: `begin(phase, files, bytes)`, `advance(bytes)`, `transferred()`). `sync_stream` emits `Checking` when it starts a stream. `upload` and `stage` report each finished blob. `StreamReport` gains `files: u32` and `bytes: u64` (what this run transferred, `#[serde(default)]`, additive, so `API_VERSION` stays 1). Tests: a sync with a sink records `Checking` then `Uploading` events ending at `files_done == files_total`, and the report's `files`/`bytes` match; a second sync with no changes transfers 0.
+- [x] **Step 4: CLI live line and summary.** `cli/src/progress.rs`: while `sync` and `restore` run, redraw one stderr line every 100 ms: spinner, player · game, phase, a 20-cell bar, files, MB and MB/s. Only when stderr is a terminal, `TERM` isn't `dumb` and `--json` is off. The line is cleared before anything else prints (results, prompts, errors). The summary pads the player and game columns, adds "N files, X MB" when something moved, colors the action (green done, yellow skipped/needs account, red conflict) only when stdout is a terminal and `NO_COLOR` is unset, and ends with the elapsed time. en + es strings. Tests: the line text and bar for given numbers; no color when `NO_COLOR` is set; `--json` output unchanged apart from the two new fields.
+- [x] **Step 5: specs (W1).** reliability §Upload procedure step 2: "Upload the blobs the base version doesn't already reference, deduplicated, 4 at a time." architecture §Engine API: `TransferProgress` carries player, emulator, game, phase and file/byte counts. config-and-cli §Commands: the live progress line and its conditions.
+- [x] **Step 6:** `just check` green, commit `feat(sync): upload only new blobs and show live progress`.
+- [ ] **Step 7: Live (maintainer).** Rebuild the release binary, play, `time leemusync sync`: expect a progress line and only the changed files uploaded.
+
+---
+
 ### Task 18: Test day on the real PCs (manual runbook)
+
+**Change (maintainer, 2026-10-20, D31):** the backend is Cloudflare R2, not Google Drive, and the test starts on the Fedora PC alone ("Part A"). Part B (two PCs) follows, with CachyOS joining the R2 repo.
+
+**Part A: Fedora alone, play and sync.** Use `./target/release/leemusync` from the repo (the system rpm is older). Cemu closed unless a step says otherwise.
+
+- [x] **A1: Set up.**
+
+    ```sh
+    alias leemusync="$PWD/target/release/leemusync"
+    leemusync backend add s3 --endpoint https://<account id>.r2.cloudflarestorage.com --bucket <bucket> --access-key-id <id>
+    leemusync init                                   # passphrase twice; store the recovery key safely
+    leemusync grant add ~/.var/app/info.cemu.Cemu
+    leemusync scan                                   # expect account 80000001 and orphaned 80000002
+    leemusync players add "<Fedora player>"
+    leemusync accounts map "<Fedora player>" cemu 80000001
+    leemusync doctor                                 # all ok
+    ```
+
+- [x] **A2: First push.** `leemusync sync --dry-run` (expect `uploaded` for BotW), then `leemusync sync` (answer yes: the panic backup exists). `leemusync history "<Fedora player>" cemu 101c9400` shows 1 version. Run `leemusync sync` again: `up to date`.
+- [x] **A3: Play.** Open Cemu, play BotW and save in game. While it's open, run `leemusync sync`: BotW is skipped with "emulator running", and `doctor` shows `cemu running running`. Close Cemu.
+- [x] **A4: Second push.** `leemusync sync --dry-run` (expect `uploaded`), `leemusync sync`, then `history`: 2 versions, the newest is the head and its parent is the first. Record object counts and timings from the R2 dashboard if notable.
+- [x] **A5: Check without copying.** Compare names and hashes of `user/80000001` with what `history` reports (files and bytes of the head). Open Cemu once more and confirm the save is where you left it.
+- [ ] **A6 (optional): Restore round trip.** `leemusync restore "<Fedora player>" cemu 101c9400 <first version id>`, then check it in Cemu and close it. A `sync` now uploads that old state as a new version on top. To go back, `restore … <the A4 version id>` and `sync` again. History is never rewritten, and every pre-restore copy is in `~/.local/share/leemusync/history/`.
+
+**Part B: both PCs** (after Part A; rewritten 2026-10-20). The repo already exists on R2 from Part A, so CachyOS **joins** it. The Fedora player (named in Part A; `leemusync players list` shows the exact name) gets a new Cemu account on CachyOS, and the CachyOS player gets a new one on Fedora. Use each PC's own release binary built from the branch below. Cemu is closed unless a step says otherwise.
+
 
 Done by the maintainer, with an agent on each PC if wanted. It needs Tasks 1–17 merged to `main` and `just check` green. Real saves are only read and written by `leemusync`, after the panic backups exist. Agents never copy saves anywhere else and never record save contents. Names, sizes and hashes are fine to record.
 
-- [ ] **Step 1: Panic backups.**
-  - **CachyOS laptop:** done on 2026-10-18 at `~/Documents/panic/botw-cachyos-2026-10-18/` (170 files sha256-verified, `RESTORE.md` inside). Check it's still there.
+- [x] **Step 1: Panic backups.**
+  - **CachyOS laptop:** done on 2026-10-18 at `~/Documents/panic/botw-cachyos-2026-10-18/` (170 files sha256-verified, `RESTORE.md` inside). Check it's still there. If BotW was played on CachyOS since, take a fresh one with the commands below, using `S=~/.local/share/Cemu/mlc01/usr/save` and `D=~/Documents/panic/botw-cachyos-$(date +%F)`.
   - **Fedora PC:** done on 2026-10-19 at `~/Documents/panic/botw-fedora-2026-10-19/` (339 files sha256-verified, `act/` diffed, `RESTORE.md` inside). The backup still holds the `80000002` account: the maintainer deleted it in Cemu right after. Afterwards only `system/act/80000002/` was gone, `persisid.dat` was unchanged, and every save file still matched `SHA256SUMS`, so `user/80000002/` (20 files) is now an orphan, as on CachyOS. Commands used (Cemu Flatpak). Close Cemu (`pgrep -a -i cemu` prints nothing), then:
 
     ```sh
@@ -9305,57 +9388,66 @@ Done by the maintainer, with an agent on each PC if wanted. It needs Tasks 1–1
     ```
 
     Expected: `all OK`, `accounts OK`, and a list of user folders (note whether an orphaned `80000002` is there). Copy `RESTORE.md` from the CachyOS backup and change `S=` to the Flatpak path above. If `80000002` hasn't been deleted on Fedora yet, take this backup first.
-- [ ] **Step 2: Build and check on both PCs.**
+- [x] **Step 2: Build on CachyOS.** Task 17d isn't on `main` yet, so build the branch:
 
     ```sh
-    git switch main && git pull
+    git fetch && git switch feat/store-s3 && git pull --ff-only
     cargo build --release -p leemusync-cli
     alias leemusync="$PWD/target/release/leemusync"
-    leemusync doctor
+    leemusync doctor                    # keystore ok; backend "not set up yet" is fine here
     ```
 
-    Expected: `keystore` ok (KWallet on both). `backend` fails ("not set up yet"), and that's fine at this point.
-- [ ] **Step 3: CachyOS creates the repo.** Use the maintainer's Desktop OAuth client from SP6. Its consent screen is in Testing, and the maintainer's Google account must be a test user.
+    On Fedora, rebuild the same commit too, so both PCs run the same code.
+- [x] **Step 3: CachyOS joins, maps its own player and pushes first.** Nothing is restored on CachyOS until its own save is safely in the repo.
 
     ```sh
-    leemusync backend add gdrive --client-id <client id>   # paste the secret; approve in the browser
-    leemusync init                                          # passphrase twice; store the recovery key safely
+    leemusync backend add s3 --endpoint https://<account id>.r2.cloudflarestorage.com --bucket lemusync --access-key-id <id>
+    leemusync join                                   # the passphrase from Part A (or the recovery key)
     leemusync grant add ~/.local/share/Cemu
     leemusync grant add ~/.config/Cemu
-    leemusync scan                                          # expect account 80000001 and orphaned 80000002
+    leemusync scan                                   # expect account 80000001 and orphaned 80000002
     leemusync players add "<CachyOS player>"
-    leemusync players add "<Fedora player>"
     leemusync accounts map "<CachyOS player>" cemu 80000001
+    leemusync sync --dry-run                         # CachyOS player: uploaded; Fedora player: no account on this device
+    leemusync sync                                   # answer yes: the panic backup exists
     ```
 
-- [ ] **Step 4: Fedora joins.**
+    `accounts map` must not ask keep or replace here (the CachyOS player has no versions yet). If it does, stop: the wrong player name was typed.
+- [x] **Step 4: Keep CachyOS's orphan.** Before Cemu creates any account, because it may reuse id `80000002` and its folder still holds the orphan's files:
 
     ```sh
-    leemusync backend add gdrive --client-id <client id>
-    leemusync join
-    leemusync grant add ~/.var/app/info.cemu.Cemu
-    leemusync scan
-    leemusync accounts map "<Fedora player>" cemu 80000001
+    leemusync players add "Old CachyOS"
+    leemusync accounts recover cemu 80000002 --player "Old CachyOS"
     ```
 
-- [ ] **Step 5: First pushes.** On each PC: `leemusync sync --dry-run` (expect `uploaded` for that PC's own player), then `leemusync sync` (it asks whether the panic backup exists; answer yes). The second PC to sync also shows the other player as `no account on this device`.
-- [ ] **Step 6: The other player's save.** On each PC:
-  1. **The orphan first.** To keep it as its own player: `leemusync players add "Old <PC>"` and `leemusync accounts recover cemu 80000002 --player "Old <PC>"`. To skip it: the panic backup already holds it.
-  2. **Create the second account in Cemu** (account settings, under General settings in 2.6; check the menu on the day), then close Cemu. Run `leemusync scan` to see its id, probably `80000002`.
-  3. Run `leemusync accounts map "<other player>" cemu <new id>`. If it asks keep or replace (the folder still holds the orphan's files), choose **replace**. The current files go to local history first.
-  4. Run `leemusync sync --dry-run` (expect `restored the latest version`), then `leemusync sync`.
-- [ ] **Step 7: Check.**
+    To skip it instead, the panic backup already holds it.
+- [x] **Step 5: New account for the Fedora player on CachyOS.**
+  1. Open Cemu, create an account (account settings, under General settings in 2.6; check the menu on the day), close Cemu. LeemuSync can't create it yet: that's option c, behind SP8 (Task 19).
+  2. `leemusync scan` to see its id (`80000002` if Cemu reuses it, else `80000003`; record which in Step 9).
+  3. `leemusync accounts map "<Fedora player>" cemu <new id>`. If it asks keep or replace (the folder holds the orphan's files), choose **replace**: those files go to local history first and Step 4 already put them in the repo.
+  4. `leemusync sync --dry-run` (Fedora player: `restored the latest version`; CachyOS player: `up to date`), then `leemusync sync`. The progress line shows the download.
+- [x] **Step 6: Back on Fedora, the CachyOS player.**
+
+    ```sh
+    leemusync sync                                   # pulls the config; CachyOS and Old CachyOS players show "no account on this device"
+    leemusync players add "Old Fedora"
+    leemusync accounts recover cemu 80000002 --player "Old Fedora"
+    ```
+
+    Then create an account in Cemu, close it, `leemusync scan`, `leemusync accounts map "<CachyOS player>" cemu <new id>` (**replace** if asked), `leemusync sync --dry-run` (expect `restored the latest version`), `leemusync sync`. "Old CachyOS" stays at `no account on this device` on Fedora, and "Old Fedora" on CachyOS: expected.
+- [x] **Step 7: Check.**
   - Open Cemu on each PC, pick each account in turn, load BotW, and confirm it's the right save (location and play time). Close Cemu.
   - While Cemu is open, run `leemusync doctor` once on each PC. Expect `cemu running running`, which confirms process detection for the Flatpak and the native package.
-  - Run `leemusync sync` on both PCs. Expect `up to date` everywhere. An "Old …" player shows `no account on this device`, which is expected.
-  - Compare names and hashes only, without copying files. On each PC, for each account folder: `(cd <save>/00050000/101c9400/user/<id> && find . -type f -exec sha256sum {} + | sort -k2)`. Fedora's `80000002` must match CachyOS's `80000001`, and the other way round.
-- [ ] **Step 8: If anything looks wrong**, stop syncing, follow `RESTORE.md` on that PC, and keep `~/.local/share/leemusync/history/` (it holds every pre-restore backup). Debug with `superpowers:systematic-debugging`.
-- [ ] **Step 9: Record and close.**
+  - Run `leemusync sync` on both PCs. Expect `up to date` everywhere, with nothing transferred.
+  - Compare names and hashes only, without copying files. On each PC, for each account folder: `(cd <save>/00050000/101c9400/user/<id> && find . -type f -exec sha256sum {} + | sort -k2)`. CachyOS's new account must match Fedora's `80000001`, and Fedora's new account must match CachyOS's `80000001`.
+  - **Handoff once:** play as the Fedora player on CachyOS, save, close Cemu, `sync` (uploaded, only the changed files). On Fedora, `sync` (restored the latest version), then load it in Cemu.
+- [x] **Step 8: If anything looks wrong**, stop syncing, follow `RESTORE.md` on that PC, and keep `~/.local/share/leemusync/history/` (it holds every pre-restore backup). Debug with `superpowers:systematic-debugging`.
+- [x] **Step 9: Record and close.** Done 2026-10-20 (maintainer's report plus names, counts and hashes read on Fedora). New accounts: Fedora `80000002` (reused), CachyOS `80000003`. Orphans weren't recovered; the panic backups hold them.
   - `docs/progress/roadmap.md` Phase 1: "M1a reached on <date>", plus anything surprising.
   - `docs/specs/emulator-profiles.md` §Linux paths: process detection seen live for the Flatpak and `cemu-bin`.
   - `docs/specs/players-and-accounts.md`: the second account's id as Cemu assigned it, and the orphan outcome.
-  - `docs/specs/storage-backends.md` §Google Drive (live): the first real repo (object counts and timings, if notable).
-  - `CHANGELOG.md` `[Unreleased]`: "First sync between two PCs through Google Drive (CLI)".
+  - `docs/specs/storage-backends.md` §Tested capabilities: an R2 (live) note on the first real repo (object counts and timings, if notable).
+  - `CHANGELOG.md` `[Unreleased]`: "First sync between two PCs through Cloudflare R2 (CLI)".
   - Tick this plan and set the board row to Done (awaiting cleanup). Run `cargo xtask docs-check`, then commit `docs(progress): record the M1a test day` with the trailer, and push.
 
 ---

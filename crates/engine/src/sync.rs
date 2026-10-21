@@ -13,6 +13,7 @@ use leemusync_core::{DeviceId, PlayerId, StreamId, VersionId};
 
 use crate::discover::{Discovery, save_folder};
 use crate::profiles::Install;
+use crate::progress::Meter;
 use crate::restore::{self, Ctx, Source};
 use crate::snapshot::{self, Quick};
 use crate::upload::{UploadMeta, upload};
@@ -79,6 +80,34 @@ fn stream_keys(
         }
     }
     keys
+}
+
+/// The report for a stream left alone because its emulator is running (I3).
+fn skipped(
+    config: &RepoConfig,
+    device: DeviceId,
+    player: PlayerId,
+    emulator: &str,
+    game: &str,
+) -> StreamReport {
+    StreamReport {
+        player: config
+            .players
+            .get(&player)
+            .map(|p| p.name.clone())
+            .unwrap_or_default(),
+        emulator: emulator.to_owned(),
+        game: game.to_owned(),
+        account: config
+            .account_of(device, player, emulator)
+            .map(str::to_owned),
+        action: StreamAction::Skipped,
+        version: None,
+        heads: vec![],
+        done: false,
+        files: 0,
+        bytes: 0,
+    }
 }
 
 impl Engine {
@@ -167,22 +196,7 @@ impl Engine {
             let keys = stream_keys(&config, device, &profile.id, &discovery);
             for (player, game) in keys {
                 let report = if running {
-                    StreamReport {
-                        player: config
-                            .players
-                            .get(&player)
-                            .map(|p| p.name.clone())
-                            .unwrap_or_default(),
-                        emulator: profile.id.clone(),
-                        game: game.clone(),
-                        account: config
-                            .account_of(device, player, &profile.id)
-                            .map(str::to_owned),
-                        action: StreamAction::Skipped,
-                        version: None,
-                        heads: vec![],
-                        done: false,
-                    }
+                    skipped(&config, device, player, &profile.id, &game)
                 } else {
                     self.sync_stream(
                         &profile,
@@ -262,7 +276,10 @@ impl Engine {
             version: None,
             heads: vec![],
             done: false,
+            files: 0,
+            bytes: 0,
         };
+        let meter = Meter::new(self.progress.clone(), &report.player, &profile.id, game);
         let versions = self.fetch_graph(&stream, warnings).await?;
         let graph: Graph = versions
             .iter()
@@ -375,7 +392,7 @@ impl Engine {
                     base_files: &row.base_files,
                     note: None,
                 };
-                let v = upload(repo, s, meta, &self.failpoints).await?;
+                let v = upload(repo, s, meta, &self.failpoints, &meter).await?;
                 report.version = Some(v.id.to_string());
                 row.base = Some(v.id);
                 row.base_files.clone_from(&v.files);
@@ -396,6 +413,7 @@ impl Engine {
                     process_names: &names,
                     max_file_bytes: profile.max_file_bytes(),
                     fp: &self.failpoints,
+                    meter: &meter,
                 };
                 restore::restore(&ctx, &stream, &folder, Source::Remote(v), "pre-restore").await?;
                 report.version = Some(h.to_string());
@@ -405,6 +423,7 @@ impl Engine {
             }
         }
         report.done = true;
+        (report.files, report.bytes) = meter.transferred();
         self.state.put_stream(&row)?;
         Ok(report)
     }

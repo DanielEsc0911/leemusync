@@ -36,6 +36,10 @@ pub fn secret_gdrive_refresh(device: DeviceId) -> String {
 pub fn secret_gdrive_client(device: DeviceId) -> String {
     format!("device-{device}-gdrive-client-secret")
 }
+#[must_use]
+pub fn secret_s3_key(device: DeviceId) -> String {
+    format!("device-{device}-s3-secret-access-key")
+}
 
 /// Secret Service on Linux (`KWallet` or GNOME Keyring), Keychain, Credential Manager.
 pub struct KeyringSecrets;

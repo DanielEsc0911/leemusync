@@ -36,7 +36,7 @@ Implemented in `crates/engine/src/restore.rs`; crash tests at every journal step
 
 ## Upload procedure
 1. Take a snapshot (quiet, consistent read, [sync-model §Snapshot rules](sync-model.md#snapshot-rules)) into local history.
-2. Upload missing blobs (create-only, idempotent: the same content gives the same id).
+2. Upload the blobs the base version doesn't already reference (its manifest was committed after them, so they're on the remote), once per blob id, 4 at a time (create-only, idempotent: the same content gives the same id). A blob already on the remote is read back and verified, never overwritten.
 3. Write the manifest (create-only) — this is the commit point.
 4. Update `base`. A crash anywhere → retry. Orphaned blobs are collected by GC after the grace period.
 
@@ -66,7 +66,7 @@ Implemented in `crates/engine/src/{snapshot,upload}.rs`. Local history pruning i
 - **On shutdown or logout:** finish the current atomic step, journal the rest, and release leases if the network allows.
 
 ## Network
-Offline → queue locally and keep working. Transient errors → exponential backoff with jitter (1 s → 5 min). Auth errors → stop that backend and notify. Uploads are idempotent (content-addressed).
+Offline → queue locally and keep working. Transient errors → exponential backoff with jitter (1 s → 5 min). Auth errors → stop that backend and notify. Uploads are idempotent (content-addressed). Inside one sync the store retries each request (storage-backends §Interface); the daemon's 1 s → 5 min backoff is for whole syncs that still fail (Phase 2). Blobs upload 4 at a time.
 
 ## Budgets
 Targets for the daemon on desktop. Measured in Phase 1/2 benchmarks and enforced in CI on regression.

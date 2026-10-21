@@ -29,7 +29,7 @@ serde_json = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "test-util"] }
 
 # The live Drive test keeps its tokens in the OS keystore. Linux: libdbus built from source (vendored), no system package.
 [target.'cfg(target_os = "linux")'.dev-dependencies]
