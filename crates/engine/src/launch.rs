@@ -71,7 +71,9 @@ mod tests {
     #[test]
     fn builds_argv_with_the_game_path_as_one_element() {
         let dir = tempfile::tempdir().unwrap();
-        let game = "/games/Zelda BotW; echo pwned/game.wux";
+        // Absolute on every OS: a Unix-style `/games/…` isn't absolute on Windows.
+        let game = dir.path().join("Zelda BotW; echo pwned").join("game.wux");
+        let game = game.to_str().unwrap();
         let e = engine(
             dir.path(),
             &["flatpak", "run", "info.cemu.Cemu"],
