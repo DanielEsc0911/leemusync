@@ -103,6 +103,11 @@ impl PlayPrompt for Prompt {
     }
 }
 
+/// Absolute on every OS: a Unix-style `/games/…` isn't absolute on Windows.
+fn game_path(root: &std::path::Path) -> PathBuf {
+    root.join("games").join("botw.wux")
+}
+
 /// Points `[emulators.cemu]` at a fake exe and game, then reopens with short play timings.
 fn launchable(pc: Pc) -> Pc {
     let path = Locations::under(&pc.root).config_dir.join("config.toml");
@@ -112,7 +117,7 @@ fn launchable(pc: Pc) -> Pc {
         EmulatorOverride {
             root: None,
             exe: vec!["/usr/bin/cemu".into()],
-            games: [(GAME.to_owned(), PathBuf::from("/games/botw.wux"))].into(),
+            games: [(GAME.to_owned(), game_path(&pc.root))].into(),
         },
     );
     c.save(&path).unwrap();
@@ -185,7 +190,11 @@ async fn a_handoff_starts_b_from_a_s_version_sc2() {
     assert_eq!(r.lease, PlayLease::Held);
     assert_eq!(
         *la.argv.lock().unwrap(),
-        ["/usr/bin/cemu", "-g", "/games/botw.wux"]
+        [
+            OsString::from("/usr/bin/cemu"),
+            "-g".into(),
+            game_path(&t.a.root).into_os_string()
+        ]
     );
     assert_eq!(lock_files(&t.remote), 0, "A released");
 
