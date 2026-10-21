@@ -83,7 +83,7 @@ async fn held(repo: &Repo, o: &Observed, stale: bool) -> Acquire {
 
 impl Engine {
     /// Device clock in Unix ms, shifted in tests.
-    fn lease_now(&self) -> i64 {
+    pub(crate) fn lease_now(&self) -> i64 {
         i64::try_from(now_ms())
             .unwrap_or(i64::MAX)
             .saturating_add(self.clock_shift_ms)
@@ -155,6 +155,7 @@ impl Engine {
             ttl_ms: self.config.leases.ttl_ms(),
         };
         repo.put_lease(&stream, &ours).await?;
+        self.failpoints.hit("lease.after_write")?;
         self.failpoints.pause("lease.after_write").await;
         let mut again = Vec::new();
         let live: Vec<Observed> = self
@@ -218,6 +219,40 @@ impl Engine {
         self.ensure_repo().await?;
         let me = self.device_id();
         self.repo_ref()?.delete_lease(&stream, &me).await
+    }
+
+    /// Deletes this device's leases on every stream of `game` (`lease release --force`).
+    /// Returns how many were deleted; other devices' leases are never touched.
+    ///
+    /// # Errors
+    /// Storage errors; `NotSetUp` without a repo.
+    pub async fn lease_release_game(&mut self, game: &str) -> Result<u32, EngineError> {
+        self.ensure_repo().await?;
+        let game = game.to_lowercase();
+        let me = self.device_id();
+        let config = repo_config::load(self.repo_ref()?, &self.state)
+            .await?
+            .config;
+        let mut warnings = Vec::new();
+        let mut released = 0;
+        for pid in config.players.keys() {
+            for (emu, g) in config.games_of(*pid) {
+                if g != game {
+                    continue;
+                }
+                let stream = self.repo_ref()?.stream_id(*pid, &emu, &g);
+                let ours = self
+                    .leases_of(&stream, &mut warnings)
+                    .await?
+                    .iter()
+                    .any(|s| s.observed.lease.device == me);
+                if ours {
+                    self.repo_ref()?.delete_lease(&stream, &me).await?;
+                    released += 1;
+                }
+            }
+        }
+        Ok(released)
     }
 
     /// Every lease on every stream of the repo config.

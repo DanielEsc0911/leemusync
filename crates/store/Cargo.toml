@@ -11,6 +11,10 @@ publish = false
 [lints]
 workspace = true
 
+[features]
+# Test-only request faults (src/faults.rs). Never enabled by a release build.
+faults = []
+
 [dependencies]
 opendal = { workspace = true }
 thiserror = { workspace = true }

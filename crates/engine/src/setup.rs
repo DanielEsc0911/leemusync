@@ -190,6 +190,15 @@ impl Engine {
 
     /// The configured storage. Drive credentials come from the keystore.
     pub(crate) fn store(&self) -> Result<Store, EngineError> {
+        let store = self.plain_store()?;
+        #[cfg(feature = "failpoints")]
+        if let Some(f) = &self.store_faults {
+            return Ok(Store::faulty(store, f.clone()));
+        }
+        Ok(store)
+    }
+
+    fn plain_store(&self) -> Result<Store, EngineError> {
         match &self.config.backend {
             None => Err(EngineError::NotSetUp("backend")),
             Some(BackendConfig::Fs { path }) => Ok(Store::fs(path)?),

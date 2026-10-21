@@ -11,12 +11,17 @@ pub struct I18n {
 
 impl I18n {
     pub fn from_env() -> Self {
+        Self::new(Self::env_lang())
+    }
+
+    /// `es` or `en`, from the locale environment variables.
+    pub fn env_lang() -> &'static str {
         let lang = ["LC_ALL", "LC_MESSAGES", "LANG", "LANGUAGE"]
             .iter()
             .filter_map(|k| std::env::var(k).ok())
             .find(|v| !v.is_empty())
             .unwrap_or_default();
-        Self::new(if lang.starts_with("es") { "es" } else { "en" })
+        if lang.starts_with("es") { "es" } else { "en" }
     }
 
     pub fn new(lang: &str) -> Self {

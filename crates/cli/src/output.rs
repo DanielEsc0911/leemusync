@@ -4,8 +4,8 @@ use fluent_bundle::FluentValue;
 use std::time::Duration;
 
 use leemusync_api::{
-    API_VERSION, DoctorReport, ErrorBody, ErrorReport, HistoryReport, ScanReport, StatusReport,
-    StreamAction, SyncReport, Warning,
+    API_VERSION, ConflictInfo, DoctorReport, ErrorBody, ErrorReport, HistoryReport, LeaseInfo,
+    PlayReport, ScanReport, StatusReport, StreamAction, SyncReport, Warning,
 };
 use leemusync_engine::EngineError;
 use serde::Serialize;
@@ -37,7 +37,9 @@ fn detail(e: &EngineError) -> String {
         | EngineError::NotGranted(d)
         | EngineError::Secrets(d)
         | EngineError::Data(d)
-        | EngineError::Busy(d) => d.clone(),
+        | EngineError::Busy(d)
+        | EngineError::NeedsDecision(d)
+        | EngineError::LeaseHeld(d) => d.clone(),
         EngineError::Store(s) => s.message().to_owned(),
         EngineError::Crypto(c) => c.to_string(),
         EngineError::NotSetUp(d) | EngineError::Injected(d) => (*d).to_owned(),
@@ -172,6 +174,95 @@ pub fn sync(t: &I18n, r: &SyncReport, color: bool, elapsed: Option<Duration>) {
             t,
             "sync-elapsed",
             &[("secs", s(format!("{:.1}", e.as_secs_f64())))],
+        );
+    }
+}
+
+/// After `play`: how the emulator exited, then the upload's stream line and warnings.
+pub fn play(t: &I18n, emulator: &str, r: &PlayReport, color: bool) {
+    line(
+        t,
+        "play-done",
+        &[
+            ("emulator", s(emulator.to_owned())),
+            ("code", FluentValue::from(r.exit_code)),
+        ],
+    );
+    let st = &r.uploaded;
+    let action = paint(
+        st.action,
+        t.t(&format!("action-{}", snake(&st.action)), &[]),
+        color,
+    );
+    let mut args = vec![
+        ("player", s(st.player.clone())),
+        ("game", s(st.game.clone())),
+        ("action", s(action)),
+    ];
+    let key = if st.files > 0 {
+        args.push(("files", FluentValue::from(st.files)));
+        args.push(("size", s(crate::progress::mb(st.bytes))));
+        "sync-line-moved"
+    } else {
+        "sync-line"
+    };
+    line(t, key, &args);
+    warnings(t, &r.warnings);
+}
+
+/// Every conflict with its heads, numbered as `play` asks.
+pub fn conflicts(t: &I18n, list: &[ConflictInfo]) {
+    if list.is_empty() {
+        line(t, "conflicts-none", &[]);
+    }
+    for c in list {
+        line(
+            t,
+            "conflict-stream",
+            &[
+                ("player", s(c.player.clone())),
+                ("emulator", s(c.emulator.clone())),
+                ("game", s(c.game.clone())),
+            ],
+        );
+        for (i, h) in c.heads.iter().enumerate() {
+            println!(
+                "  {}",
+                t.t(
+                    "conflict-head",
+                    &[
+                        ("n", FluentValue::from(i + 1)),
+                        ("version", s(h.version.clone())),
+                        ("device", s(h.device_name.clone())),
+                        ("files", FluentValue::from(h.files)),
+                    ],
+                )
+            );
+        }
+    }
+}
+
+pub fn leases(t: &I18n, list: &[LeaseInfo], now_ms: i64) {
+    if list.is_empty() {
+        line(t, "lease-none", &[]);
+    }
+    for l in list {
+        let ago = now_ms.saturating_sub(l.renewed_at_ms).max(0) / 1000;
+        line(
+            t,
+            if l.live {
+                "lease-line"
+            } else {
+                "lease-line-stale"
+            },
+            &[
+                ("player", s(l.player.clone())),
+                ("emulator", s(l.emulator.clone())),
+                ("game", s(l.game.clone())),
+                ("device", s(l.device.clone())),
+                ("ago", FluentValue::from(ago)),
+                ("ours", s(if l.ours { "yes" } else { "no" })),
+            ],
         );
     }
 }

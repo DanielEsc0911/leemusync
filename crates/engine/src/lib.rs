@@ -11,6 +11,7 @@ mod launch;
 mod lease;
 mod local_config;
 mod locations;
+mod play;
 mod process;
 mod profiles;
 mod progress;
@@ -30,18 +31,20 @@ mod upload;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use leemusync_core::{DeviceId, VersionId};
+use leemusync_core::DeviceId;
 use leemusync_crypto::KdfParams;
 
 pub use accounts::{MapChoice, MapOutcome};
 pub use error::EngineError;
 pub use failpoints::Failpoints;
 pub use lease::{Acquire, LeaseHandle};
+pub use leemusync_core::VersionId;
 pub use local_config::{
     BackendConfig, ConflictPolicy, DeviceSection, EmulatorOverride, LeaseSettings, LocalConfig,
 };
 pub use locations::Locations;
-pub use process::{FakeProbe, ProcessProbe, SysinfoProbe};
+pub use play::{LeaseChoice, PlayPrompt};
+pub use process::{Child, FakeProbe, Launcher, OsLauncher, ProcessProbe, SysinfoProbe};
 pub use progress::ProgressSink;
 pub use secrets::{KeyringSecrets, MemorySecrets, SecretStore};
 pub use setup::{GdriveLogin, JoinSecret, S3Backend};
@@ -84,6 +87,11 @@ pub struct Engine {
     takeovers: std::sync::Mutex<std::collections::BTreeMap<leemusync_core::StreamId, DeviceId>>,
     /// Test-only shift of the lease clock (`shift_lease_clock_ms`).
     clock_shift_ms: i64,
+    /// Renew, lease-poll and quiet-period intervals for `play` (shortened in tests).
+    play_timings: play::Timings,
+    /// Test-only request faults for every store opened (`set_store_faults`).
+    #[cfg(feature = "failpoints")]
+    store_faults: Option<leemusync_store::Faults>,
 }
 
 impl Engine {
@@ -113,6 +121,9 @@ impl Engine {
             repo: None,
             takeovers: std::sync::Mutex::default(),
             clock_shift_ms: 0,
+            #[cfg(feature = "failpoints")]
+            store_faults: None,
+            play_timings: play::Timings::default(),
         };
         // A running emulator only postpones recovery (to `sync`/`restore`); the CLI still starts.
         match engine.recover_journal() {
@@ -145,6 +156,20 @@ impl Engine {
     #[cfg(any(test, feature = "failpoints"))]
     pub fn arm_failpoint(&self, name: &'static str) {
         self.failpoints.arm(name);
+    }
+
+    /// Test-only: abort the process at failpoint `name` (crash matrix, `tests/kill.rs`).
+    #[cfg(any(test, feature = "failpoints"))]
+    pub fn arm_kill(&self, name: &'static str) {
+        self.failpoints.arm_kill(name);
+    }
+
+    /// Test-only: every store this engine opens from now on injects `faults` (network
+    /// matrix). Drops the open repo so the next operation reopens it through the faulty store.
+    #[cfg(feature = "failpoints")]
+    pub fn set_store_faults(&mut self, faults: Option<leemusync_store::Faults>) {
+        self.store_faults = faults;
+        self.repo = None;
     }
 
     fn save_config(&self) -> Result<(), EngineError> {
