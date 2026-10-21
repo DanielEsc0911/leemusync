@@ -39,6 +39,11 @@ help-accounts-recover = Keep an orphaned save as a player's first version.
 help-accounts-recover-emulator = The emulator id, for example cemu.
 help-accounts-recover-account = The orphaned folder's account id.
 help-accounts-recover-player = The player who gets this save.
+help-accounts-create = Create a new emulator account for a player on this device, then restore their saves into it.
+help-accounts-create-player = The player's name.
+help-accounts-create-emulator = The emulator id, for example cemu.
+help-accounts-create-name = The account's display name (default: the player's name, cut to fit).
+help-accounts-create-yes = Don't ask for confirmation.
 help-sync = Sync now.
 help-sync-dry_run = Show what would happen without changing anything.
 help-sync-yes = Confirm the first sync on this device.
@@ -103,6 +108,11 @@ error-usage-already_has_save = The player already has a save for { $detail }. Re
 error-usage-folder_empty = That save folder is empty.
 error-usage-not_mapped = The player has no { $detail } account on this device. Run `leemusync accounts map`.
 error-usage-unknown_restore_point = { $detail } is neither a version nor a backup. See `leemusync history`.
+error-usage-cannot_create = LeemuSync can't create { $detail } accounts. Create it in the emulator, then run `leemusync accounts map`.
+error-usage-too_many_accounts = The emulator already has its maximum of { $detail } accounts.
+error-usage-account_exists = Something named { $detail } is already in the accounts folder. Nothing was changed.
+error-usage-bad_account_name = That account name is empty or has characters the emulator can't store.
+error-usage-no_free_account_id = There's no free account id left.
 error-config-repo_mismatch = The repo on the storage isn't the one this device joined.
 error-config-repo_config = The repo's player list is invalid.
 error-config-no_home_dir = Your home folder couldn't be found.
@@ -128,6 +138,7 @@ prompt-first-sync = This is the first sync on this device. Did you back up this 
 prompt-keep-or-replace = Account { $account } already has saves for { $games }. Keep them (they're uploaded and you resolve a conflict) or replace them with { $player }'s latest save (the current files go to local history first)?
 prompt-keep-or-replace-keys = [k]eep / [r]eplace:
 prompt-restore = Replace { $player }'s current files with { $what }? The current files go to local history first.
+prompt-create-account = Create { $emulator } account “{ $name }” for { $player } on this device? { $emulator } must be closed.
 prompt-yes-no = [y/N]:
 answer-yes = y
 answer-keep = k
@@ -148,6 +159,7 @@ players-added = Player { $name } added.
 players-none = No players yet.
 map-done = { $player } now uses { $emulator } account { $account } on this device.
 recover-done = The orphaned save is now { $player }'s first { $game } version.
+create-done = Created { $emulator } account “{ $name }” ({ $account }) for { $player }. Open { $emulator } and select “{ $name }” in Account settings.
 restore-done = Restored { $what } for { $player }. Run `leemusync sync` to upload it.
 sync-line = { $player } · { $game } · { $action }
 sync-line-moved = { $player } · { $game } · { $action } · { $files ->
@@ -160,8 +172,8 @@ progress-uploading = { $player } · { $game } · uploading { $bar } { $done }/{ 
 progress-downloading = { $player } · { $game } · downloading { $bar } { $done }/{ $total } · { $size_done }/{ $size_total } MB · { $rate } MB/s
 dry-run = Dry run: nothing was changed.
 sync-conflicts = { $count ->
-    [one] One save has a conflict. Both versions are kept; resolving comes in the next release.
-   *[other] { $count } saves have a conflict. All versions are kept; resolving comes in the next release.
+    [one] One save has a conflict. Both versions are kept. Run `leemusync conflicts`.
+   *[other] { $count } saves have a conflict. All versions are kept. Run `leemusync conflicts`.
 }
 
 action-nothing = up to date
@@ -187,6 +199,8 @@ warning-restore_rolled_back = An interrupted restore was undone in { $detail }.
 warning-invalid_version = Ignored invalid data in the repo: { $detail }
 warning-setup_incomplete = The repo was created, but this device isn't fully set up ({ $detail }). Run `leemusync join` with your passphrase to finish.
 warning-unreadable_folder = A save folder couldn't be read safely and was skipped: { $detail }
+warning-lease_renew_failed = Couldn't renew the lease ({ $detail }); retrying. The game keeps running.
+warning-lease_release_failed = Couldn't release the lease ({ $detail }); it expires on its own.
 
 scan-install = { $emulator } at { $base }
 scan-needs-grant = Allow it: leemusync grant add { $path }
@@ -213,3 +227,62 @@ history-backup = local backup { $name }
 doctor-ok = ok
 doctor-fail = FAILED
 doctor-check = { $status } { $name } { $detail }
+
+help-play = Play a game: get the newest save, take the lease, start the emulator, upload when it closes.
+help-play-emulator = The emulator id, for example cemu.
+help-play-game = The game id, for example 101c9400.
+help-play-player = The player (default: the only player in the repo).
+help-play-args = Extra arguments for the emulator, after --.
+help-conflicts = List saves with a conflict and their versions.
+help-resolve = Resolve a conflict by keeping one version (the others stay in history).
+help-resolve-game = The game id, for example 101c9400.
+help-resolve-version = The version id to keep, from `leemusync conflicts`.
+help-resolve-player = The player (needed when several players have a conflict on this game).
+help-lease = Show or release leases (which device is playing what).
+help-lease-status = Show every lease in the repo.
+help-lease-release = Delete this device's lease on a game, for example one a crash left behind.
+help-lease-release-force = Required: confirms you want to delete the lease.
+help-lease-release-game = The game id, for example 101c9400.
+
+play-pulling = Getting the newest save…
+play-waiting = Another device is playing. Waiting for it to finish…
+play-running = { $emulator } is running. Your save uploads when you close it.
+play-uploading = { $emulator } closed. Uploading your save…
+play-ctrl-c = The game is still running. Close it there; LeemuSync then uploads your save.
+play-done = { $emulator } exited with code { $code }.
+prompt-lease-held = { $device } is playing this save (last seen { $ago } s ago).
+prompt-lease-stale = { $device } was playing this save but stopped answering { $ago } s ago.
+prompt-lease-keys = [w]ait / [p]lay anyway (a conflict if both save):
+prompt-lease-keys-stale = [w]ait / [t]ake over / [p]lay anyway:
+answer-wait = w
+answer-play-anyway = p
+answer-take-over = t
+prompt-conflict = { $game } has a conflict. Which version do you want to play?
+prompt-conflict-pick = Version number:
+conflicts-none = No conflicts.
+conflict-stream = { $player } · { $emulator } · { $game }
+conflict-head = { $n }. { $version } · { $device } · { $files ->
+    [one] 1 file
+   *[other] { $files } files
+}
+resolve-done = Kept { $version } for { $player } · { $game }. The other versions stay in history.
+lease-none = No leases.
+lease-line = { $player } · { $emulator } · { $game } · { $device }, { $ago } s ago{ $ours ->
+    [yes] {" "}(this device)
+   *[no] {""}
+}
+lease-line-stale = { $player } · { $emulator } · { $game } · { $device }, expired { $ago } s ago{ $ours ->
+    [yes] {" "}(this device)
+   *[no] {""}
+}
+lease-released = { $count ->
+    [0] This device has no lease on { $game }.
+    [one] Released this device's lease on { $game }.
+   *[other] Released { $count } leases of this device on { $game }.
+}
+error-lease_held = { $detail } is playing this save. Run `leemusync play` in a terminal to wait or play anyway.
+error-needs_decision = { $detail } has a conflict. Run `leemusync conflicts`, then `leemusync resolve`.
+error-usage-player_needed = Choose the player with --as <name>.
+error-usage-version_invalid = { $detail } isn't a version id. Run `leemusync conflicts` to see them.
+error-usage-no_conflict = { $detail } has no conflict.
+error-usage-lease_live = That lease is live; it can't be taken over.

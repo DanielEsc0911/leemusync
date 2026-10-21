@@ -34,18 +34,20 @@ Verified on Cemu 2.6 (Linux Flatpak) against the [v2.6 source][cemu-acc], 2026-1
 ### Creating a Cemu account (SP8)
 Cemu builds a new account from two inputs, a persistent id and a Mii name ([Account.cpp][cemu-acc] `Account(persistent_id, mii_name)` and `Save()`, called from [GeneralSettings2.cpp][cemu-gs] `OnAccountCreate`). Everything else is generated or left empty, so LeemuSync can create an account the same way, with no template account:
 
-| Key | Value Cemu writes |
+| Key (file order) | Value Cemu writes |
 |---|---|
 | `PersistentId` | the id, 8 hex digits. Next free id = max(`persisid.dat` `PersistentIdHead` + 1, highest account id + 1), at least `80000001`. At most 12 accounts |
-| `Uuid` | 16 random bytes, 32 hex digits |
 | `TransferableIdBase` | `2000004` followed by the last 8 hex digits of `Uuid` |
-| `MiiData` | 96 bytes, 192 hex digits: a fixed default Mii, the name as 10 UTF-16LE units at byte `0x1A`, and a counter at bytes 4–7 raised from 0 until the CRC-16 (polynomial `0x1021`, Cemu's `FFLCalculateCRC16`) of the 96 bytes is 0. Same name → same bytes |
+| `Uuid` | 16 random bytes, 32 hex digits |
+| `MiiData` | 96 bytes, 192 hex digits: a fixed default Mii, the name as 10 UTF-16LE units at byte `0x1A`, and a big-endian counter at bytes 4–7 raised from 0 until the CRC-16 (polynomial `0x1021`, Cemu's `FFLCalculateCRC16`) of the 96 bytes is 0. Same name → same bytes |
 | `MiiName` | the name, as in [Cemu accounts](#cemu-accounts-sp7). Up to 10 UTF-16 units |
-| `AccountId`, `EmailAddress` | empty |
-| `BirthYear`, `BirthMonth`, `BirthDay`, `Gender`, `Country`, `SimpleAddressId`, `PrincipalId`, `IsPasswordCacheEnabled` | `0` |
+| `AccountId` | empty |
+| `BirthYear`, `BirthMonth`, `BirthDay`, `Gender` | `0` |
+| `EmailAddress` | empty |
+| `Country`, `SimpleAddressId`, `PrincipalId`, `IsPasswordCacheEnabled` | `0` |
 | `AccountPasswordCache` | 64 zeros |
 
-Keys are written in this order, after the `AccountInstance_20120705` line, one per line. Cemu lists every folder under `act/` whose name is 8 hex digits ≥ `80000001` and whose `account.dat` parses with a non-empty `MiiName` and non-zero `MiiData`. On every start it rewrites `persisid.dat` itself.
+The file is the `AccountInstance_20120705` line, then the keys in this order, one per line, each line ending in `\n` including the last ([Account.cpp][cemu-acc] `Account::Save()`).
 
 **Evidence (2026-10-20, Fedora 44, Cemu 2.6 Flatpak, scratch data tree, live data untouched):** a throwaway script outside the repo wrote `SP8 Test` as `80000002`. Cemu listed it (log: `IOSU_ACT: using account SP8 Test in first slot`), BotW US booted with it, and an in-game save created `00050000/101c9400/user/80000002/` (`option.sav`, `0/`, `1/`, `tracker/`). Cemu then created `sp8cemu` itself as `80000003`. Its `MiiData` matched the script's output for the same name byte for byte, and it had the same keys in the same order, with the same values except the per-account ones (id, `Uuid`, `TransferableIdBase`, name and `MiiData`). Its `TransferableIdBase` ended in its `Uuid`'s last 8 hex digits.
 
@@ -54,11 +56,12 @@ Keys are written in this order, after the `AccountInstance_20120705` line, one p
 - Copying an existing account as a template would also copy its online fields (`AccountId`, `PrincipalId`, password cache). So LeemuSync never copies one ([D32](../decisions.md#d32-new-cemu-accounts-are-generated-like-cemu-does-never-copied-2026-10-20)).
 - Flatpak overrides `XDG_DATA_HOME` and `XDG_CONFIG_HOME` given with `flatpak run --env`. A scratch Cemu needs `flatpak run --filesystem=<scratch> --command=sh info.cemu.Cemu -c "export XDG_DATA_HOME=… XDG_CONFIG_HOME=…; exec Cemu-wrapper"`. Flatpak's `/tmp` is private, so the scratch tree can't be there.
 
-**Design (option c, built in the next Phase 1 plan):**
-- **Profile data, not code (P3).** A new `accounts.create` profile section describes the file: id rule and counter file, header line, max accounts, name length, and the key list in order. Each value is a template built from generic primitives in core: the id, random bytes, hex slices of another value, the name in UTF-16 (as hex, or as bytes at an offset), a fixed byte block, and a CRC-16 fix-up (polynomial, which bytes to vary, target 0). Cemu's table above becomes data in `profiles/cemu.toml`. Field names are settled in that plan.
+**Design (option c, built in [phase-1b-play](../progress/plans/phase-1b-play.md) Task 6):**
+- **Profile data, not code (P3).** A new `accounts.create` profile section describes the file: id rule and counter file, header line, max accounts, name length, and the key list in order. Each value is a template built from generic primitives in core: the id, random bytes, hex slices of another value, the name in UTF-16 (as hex, or as bytes at an offset), a fixed byte block, and a CRC-16 fix-up (polynomial, which bytes to vary, target 0). Cemu's table above becomes data in `profiles/cemu.toml`.
+- **Fields (`[accounts.create]`, `crates/core/src/account_template.rs`).** `id = { format = "hex8", min, counter_file, counter_key }` (the counter file is read, never written), `max_accounts`, `name_max_utf16`, `header`, `file` (written as `[accounts].root/<id>/<file>`), `[accounts.create.vars]` and `[[accounts.create.keys]]`. Each key has a text `value`, or a hex `bytes` block with optional `put_utf16le = { at, units, from }` and `crc16 = { poly, vary = [start, end], target }`. `vars` are computed before any key is written, so a key can use a value that a later key prints (`TransferableIdBase` uses `uuid`); they may only use `{id}`, `{name}` and `{random:N}`. Templates use a closed set: `{id}` (8 hex digits), `{name}`, `{<var>}`, `{random:N}` (N random bytes as hex, vars only), `{slice:<var>:A:B}` (hex characters A..B), `{utf16hex:<var>:UNITS}` (UTF-16 units as 4 hex digits each, NUL-padded). Anything else fails profile validation (B2). The name is cut to `name_max_utf16` units at a character boundary, so a non-BMP character (a surrogate pair) is dropped whole rather than split. Golden test: `profiles/fixtures/cemu/account-create/`, hand-built in `Save()` order around the `sp8cemu` `MiiData` that Cemu wrote in SP8 ([V-ACC-4](#verify)).
 - **Safety (B2, B3).** Only while the emulator isn't running. The new account folder must not exist. The file is written to a temp name, synced, then renamed. Nothing else is written: not `persisid.dat` (Cemu rewrites it), not `settings.xml`, not other accounts.
 - **Flow (P5).** `leemusync accounts create <player> cemu [--name <mii name>]` and the same action in the UI. The name defaults to the player's name, cut to 10 UTF-16 units. The CLI and UI then map the new account to the player and restore the player's latest version through the normal restore.
-- **Confirmation.** Before writing: "Create Cemu account “Ana” (80000003) on this device? Cemu must be closed." After writing: "Created. Open Cemu and select “Ana” in Account settings." Spanish strings go through [i18n](i18n.md#terminology).
+- **Confirmation.** Before writing: "Create cemu account “Ana” for Ana on this device? cemu must be closed." (`--yes` skips it; the id is picked at write time and shown after). After writing: "Created cemu account “Ana” (80000003) for Ana. Open cemu and select “Ana” in Account settings." Spanish strings go through [i18n](i18n.md#terminology).
 
 ### The same-ID trap
 Every Cemu install creates its first account as `80000001`. Two machines with differently *named* accounts usually still share that id, so syncing raw folders would mix two players' saves. LeemuSync never syncs by account id. Each device maps a player to its own local id:
@@ -108,4 +111,5 @@ Swapping works the same way, but at container granularity: the whole memory card
 
 ## Verify
 - **V-ACC-1** Same Cemu layout and `account.dat` format on Windows and macOS. Deferred by the maintainer on 2026-10-08 (spike SP7 device pass). The second Linux install (CachyOS) is done ([above](#cemu-accounts-sp7)).
+- **V-ACC-4** Capture a Cemu-written `account.dat` from a scratch tree on the M1b test day ([phase-1b-play](../progress/plans/phase-1b-play.md) Task 9 B1) and replace the hand-built golden fixtures in `profiles/fixtures/cemu/account-create/` (the SP8 scratch tree was deleted).
 - **V-ACC-2** RPCS3 and Yuzu-family layouts (Phase 6 profile work).

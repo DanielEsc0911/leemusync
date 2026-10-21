@@ -44,3 +44,82 @@ normalize = ["lowercase"]
 # Arguments only: the executable is the user's (config.toml `[emulators.cemu] exe`). Verify V-PLAY-1.
 [launch]
 args = ["-g", "{game_path}"]
+
+# New accounts, written the way Cemu 2.6 `Account::Save()` does (Account.cpp; SP8, D32).
+# Spec: docs/specs/players-and-accounts.md#creating-a-cemu-account-sp8. The folder is [accounts].root/<id>/.
+[accounts.create]
+id = { format = "hex8", min = "80000001", counter_file = "persisid.dat", counter_key = "PersistentIdHead" }
+max_accounts = 12
+name_max_utf16 = 10
+header = "AccountInstance_20120705"
+file = "account.dat"
+
+[accounts.create.vars]
+uuid = "{random:16}"
+
+[[accounts.create.keys]]
+key = "PersistentId"
+value = "{id}"
+
+[[accounts.create.keys]]
+key = "TransferableIdBase"
+value = "2000004{slice:uuid:24:32}"
+
+[[accounts.create.keys]]
+key = "Uuid"
+value = "{uuid}"
+
+# Cemu's default Mii; the name goes in at 0x1A, then bytes 4..8 are a counter fixing the CRC to 0.
+[[accounts.create.keys]]
+key = "MiiData"
+bytes = "010001100100010003003433010001000100010001000100010000000000000000000000000000000000000000000100010001000100010001000106010001000100010001000100010001000100010001000100010001000100010001000100"
+put_utf16le = { at = 26, units = 10, from = "name" }
+crc16 = { poly = 0x1021, vary = [4, 8], target = 0 }
+
+[[accounts.create.keys]]
+key = "MiiName"
+value = "{utf16hex:name:11}"
+
+[[accounts.create.keys]]
+key = "AccountId"
+value = ""
+
+[[accounts.create.keys]]
+key = "BirthYear"
+value = "0"
+
+[[accounts.create.keys]]
+key = "BirthMonth"
+value = "0"
+
+[[accounts.create.keys]]
+key = "BirthDay"
+value = "0"
+
+[[accounts.create.keys]]
+key = "Gender"
+value = "0"
+
+[[accounts.create.keys]]
+key = "EmailAddress"
+value = ""
+
+[[accounts.create.keys]]
+key = "Country"
+value = "0"
+
+[[accounts.create.keys]]
+key = "SimpleAddressId"
+value = "0"
+
+[[accounts.create.keys]]
+key = "PrincipalId"
+value = "0"
+
+[[accounts.create.keys]]
+key = "IsPasswordCacheEnabled"
+value = "0"
+
+[[accounts.create.keys]]
+key = "AccountPasswordCache"
+value = "0000000000000000000000000000000000000000000000000000000000000000"

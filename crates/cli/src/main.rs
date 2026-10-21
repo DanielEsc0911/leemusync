@@ -2,6 +2,7 @@
 
 mod i18n;
 mod output;
+mod play;
 mod progress;
 mod prompt;
 
@@ -12,7 +13,7 @@ use clap::{CommandFactory as _, FromArgMatches as _, Parser, Subcommand};
 use leemusync_api::StreamAction;
 use leemusync_engine::{
     BackendConfig, Engine, EngineEnv, EngineError, JoinSecret, Locations, MapChoice, MapOutcome,
-    S3Backend, SyncOptions,
+    S3Backend, SyncOptions, VersionId,
 };
 
 use crate::i18n::{I18n, s};
@@ -71,6 +72,35 @@ enum Cmd {
         yes: bool,
     },
     Doctor,
+    Play {
+        emulator: String,
+        game: String,
+        #[arg(long = "as")]
+        player: Option<String>,
+        #[arg(last = true)]
+        args: Vec<std::ffi::OsString>,
+    },
+    Conflicts,
+    Resolve {
+        game: String,
+        version: String,
+        #[arg(long = "as")]
+        player: Option<String>,
+    },
+    Lease {
+        #[command(subcommand)]
+        cmd: LeaseCmd,
+    },
+}
+
+#[derive(Subcommand)]
+enum LeaseCmd {
+    Status,
+    Release {
+        #[arg(long, required = true)]
+        force: bool,
+        game: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -131,6 +161,14 @@ enum AccountsCmd {
         account: String,
         #[arg(long)]
         player: String,
+    },
+    Create {
+        player: String,
+        emulator: String,
+        #[arg(long)]
+        name: Option<String>,
+        #[arg(long)]
+        yes: bool,
     },
 }
 
@@ -211,6 +249,149 @@ async fn gdrive_login(engine: &mut Engine, t: &I18n, client_id: &str) -> Result<
     Ok(())
 }
 
+/// `--as <player>`, or the only player in the repo.
+async fn player_of(engine: &mut Engine, given: Option<&String>) -> Result<String, EngineError> {
+    if let Some(p) = given {
+        return Ok(p.clone());
+    }
+    let mut players = engine.players_list().await?;
+    if players.len() == 1 {
+        Ok(players.remove(0))
+    } else {
+        Err(EngineError::Usage("player_needed".into()))
+    }
+}
+
+fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
+}
+
+/// `play`, `conflicts`, `resolve` and `lease` (sync-model §Launcher mode, §Conflicts, §Leases).
+#[allow(clippy::too_many_lines)] // one match arm per command, each a few lines
+async fn run_play(engine: &mut Engine, cmd: &Cmd, t: &I18n, json: bool) -> Result<u8, EngineError> {
+    match cmd {
+        Cmd::Play {
+            emulator,
+            game,
+            player,
+            args,
+        } => {
+            let player = player_of(engine, player.as_ref()).await?;
+            let p = play::TermPrompt {
+                lang: I18n::env_lang(),
+                ask: !json && prompt::interactive(),
+                events: !json,
+                emulator: emulator.clone(),
+            };
+            let guard = play::hold_ctrl_c(t, !json);
+            let report = engine
+                .play(
+                    &player,
+                    emulator,
+                    game,
+                    args,
+                    &p,
+                    &leemusync_engine::OsLauncher,
+                )
+                .await;
+            guard.abort();
+            let report = report?;
+            if json {
+                output::json(&report);
+            } else {
+                output::play(t, emulator, &report, output::color_on());
+            }
+        }
+        Cmd::Conflicts => {
+            let (list, warnings) = engine.conflicts().await?;
+            if json {
+                output::json(&serde_json::json!({
+                    "api_version": leemusync_api::API_VERSION,
+                    "conflicts": list,
+                    "warnings": warnings,
+                }));
+            } else {
+                output::conflicts(t, &list);
+                output::warnings(t, &warnings);
+            }
+        }
+        Cmd::Resolve {
+            game,
+            version,
+            player,
+        } => {
+            let keep: VersionId = version
+                .parse()
+                .map_err(|_| EngineError::Usage(format!("version_invalid:{version}")))?;
+            let game = game.to_lowercase();
+            let (list, _) = engine.conflicts().await?;
+            let mut found: Vec<_> = list
+                .iter()
+                .filter(|c| c.game == game && player.as_ref().is_none_or(|p| *p == c.player))
+                .collect();
+            let c = match found.len() {
+                0 => return Err(EngineError::Usage(format!("no_conflict:{game}"))),
+                1 => found.remove(0),
+                _ => return Err(EngineError::Usage("player_needed".into())),
+            };
+            let (report, warnings) = engine.resolve(&c.player, &c.emulator, &game, keep).await?;
+            if json {
+                output::json(&report);
+            } else {
+                output::line(
+                    t,
+                    "resolve-done",
+                    &[
+                        ("player", s(c.player.clone())),
+                        ("game", s(game.clone())),
+                        ("version", s(version.clone())),
+                    ],
+                );
+                output::warnings(t, &warnings);
+            }
+        }
+        Cmd::Lease {
+            cmd: LeaseCmd::Status,
+        } => {
+            let (list, warnings) = engine.lease_status().await?;
+            if json {
+                output::json(&serde_json::json!({
+                    "api_version": leemusync_api::API_VERSION,
+                    "leases": list,
+                    "warnings": warnings,
+                }));
+            } else {
+                output::leases(t, &list, now_ms());
+                output::warnings(t, &warnings);
+            }
+        }
+        Cmd::Lease {
+            cmd: LeaseCmd::Release { game, .. },
+        } => {
+            let released = engine.lease_release_game(game).await?;
+            if json {
+                output::json(&serde_json::json!({
+                    "api_version": leemusync_api::API_VERSION,
+                    "released": released,
+                }));
+            } else {
+                output::line(
+                    t,
+                    "lease-released",
+                    &[
+                        ("game", s(game.to_lowercase())),
+                        ("count", fluent_bundle::FluentValue::from(released)),
+                    ],
+                );
+            }
+        }
+        _ => {}
+    }
+    Ok(0)
+}
+
 #[allow(clippy::too_many_lines)] // one match arm per command, each a few lines
 async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
     let mut engine = Engine::open(env()?)?;
@@ -218,6 +399,9 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
     let mut live = progress::Live::new(json);
     engine.set_progress(live.sink());
     match &cli.command {
+        cmd @ (Cmd::Play { .. } | Cmd::Conflicts | Cmd::Resolve { .. } | Cmd::Lease { .. }) => {
+            return run_play(&mut engine, cmd, t, json).await;
+        }
         Cmd::Init => {
             let pass = prompt::new_passphrase(t)?;
             let (report, recovery) = engine.init(&pass).await?;
@@ -433,6 +617,49 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
                         ("player", s(player.clone())),
                         ("emulator", s(emulator.clone())),
                         ("account", s(account.clone())),
+                    ],
+                );
+            }
+        }
+        Cmd::Accounts {
+            cmd:
+                AccountsCmd::Create {
+                    player,
+                    emulator,
+                    name,
+                    yes,
+                },
+        } => {
+            if !*yes {
+                let shown = name.clone().unwrap_or_else(|| player.clone());
+                let question = t.t(
+                    "prompt-create-account",
+                    &[
+                        ("emulator", s(emulator.clone())),
+                        ("name", s(shown)),
+                        ("player", s(player.clone())),
+                    ],
+                );
+                if json || !prompt::yes(t, &question)? {
+                    return Err(EngineError::Usage(
+                        t.t("error-needs-tty", &[("what", s(question))]),
+                    ));
+                }
+            }
+            let created = live
+                .run(t, engine.create_account(player, emulator, name.as_deref()))
+                .await?;
+            if json {
+                output::json(&created);
+            } else {
+                output::line(
+                    t,
+                    "create-done",
+                    &[
+                        ("emulator", s(emulator.clone())),
+                        ("name", s(created.name.clone())),
+                        ("account", s(created.account.clone())),
+                        ("player", s(player.clone())),
                     ],
                 );
             }
