@@ -22,7 +22,9 @@ fn walkdir(root: &Path, dir: &Path) -> BTreeSet<String> {
         if p.is_dir() {
             out.extend(walkdir(root, &p));
         } else {
-            out.insert(p.strip_prefix(root).unwrap().display().to_string());
+            // `/` on every OS, so the keys match the expected paths below.
+            let rel = p.strip_prefix(root).unwrap().to_string_lossy();
+            out.insert(rel.replace('\\', "/"));
         }
     }
     out
