@@ -30,12 +30,12 @@
 
 **Interfaces:** Produces `pub struct Entry { pub path: String, pub size: u64, pub modified: Option<std::time::SystemTime> }`, filled by `list` and `stat` when the backend reports it (`None` on Drive `list`, V-SYNC-2).
 
-- [ ] **Step 1: failing test.** Conformance: `put` (Overwrite) `locks/a/b`, `stat` and `list` it, assert `modified.is_some()` on `fs`; overwrite after 1.1 s, assert `modified` advanced.
-- [ ] **Step 2:** run `cargo test -p leemusync-store --test conformance`, expect a compile failure (no field).
-- [ ] **Step 3: implement** from OpenDAL `Metadata::last_modified()` (convert to `SystemTime`); for `list`, request the metadata the service returns with the listing and don't add a `stat` per entry.
-- [ ] **Step 4:** tests pass; `cargo clippy -p leemusync-store --all-targets -- -D warnings`.
+- [x] **Step 1: failing test.** Conformance: `put` (Overwrite) `locks/a/b`, `stat` and `list` it, assert `modified.is_some()` on `fs`; overwrite after 1.1 s, assert `modified` advanced.
+- [x] **Step 2:** run `cargo test -p leemusync-store --test conformance`, expect a compile failure (no field).
+- [x] **Step 3: implement** from OpenDAL `Metadata::last_modified()` (convert to `SystemTime`); for `list`, request the metadata the service returns with the listing and don't add a `stat` per entry.
+- [x] **Step 4:** tests pass; `cargo clippy -p leemusync-store --all-targets -- -D warnings`.
 - [ ] **Step 5: spike SP9 (live, maintainer runs the command).** `cargo test -p leemusync-store --test s3_conformance -- --ignored lease_mtime` against R2: overwrite advances `LastModified` in `list` and `stat`; record the offset between R2's time and the local clock (`date -u` vs the returned time) on both PCs. Record the result under V-SYNC-1. Until it's recorded, Task 2 uses the device-clock fallback (2 min skew tolerance).
-- [ ] **Step 6:** specs (W1), `just check`, commit `feat(store): report object modified time`.
+- [x] **Step 6:** specs (W1), `just check`, commit `feat(store): report object modified time`.
 
 ### Task 2: leases in `core` and `engine`
 
