@@ -7,6 +7,7 @@ mod error;
 mod failpoints;
 pub mod fsx;
 mod grants;
+mod launch;
 mod lease;
 mod local_config;
 mod locations;

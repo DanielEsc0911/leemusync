@@ -95,9 +95,9 @@ Session length and emulator version from the spec's list are left out: M1a manif
 
 The executable is a user-given argv prefix, so Flatpak works as `exe = ["flatpak", "run", "info.cemu.Cemu"]` and native as `exe = ["/usr/bin/cemu"]`. Cemu's args: `launch.args = ["-g", "{game_path}"]` (Verify V-PLAY-1).
 
-- [ ] **Step 1: failing tests.** Profile parse accepts `launch.args` with `{game_path}`, rejects unknown variables and any field naming an executable; local config round-trips `exe` and `games`; building argv refuses an empty `exe` and never joins into one string.
-- [ ] **Step 2:** implement `Engine::launch_argv(emulator, game) -> Result<Vec<OsString>, EngineError>`.
-- [ ] **Step 3:** pass, clippy, specs, `just check`, commit `feat(profiles): describe how to launch a game`.
+- [x] **Step 1: failing tests.** Profile parse accepts `launch.args` with `{game_path}`, rejects unknown variables and any field naming an executable; local config round-trips `exe` and `games`; building argv refuses an empty `exe` and never joins into one string.
+- [x] **Step 2:** implement `Engine::launch_argv(emulator, game) -> Result<Vec<OsString>, EngineError>`.
+- [x] **Step 3:** pass, clippy, specs, `just check`, commit `feat(profiles): describe how to launch a game`.
 
 ### Task 5: `engine` launcher mode (`play`)
 

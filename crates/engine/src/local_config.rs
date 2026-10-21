@@ -93,6 +93,13 @@ pub enum BackendConfig {
 #[serde(deny_unknown_fields)]
 pub struct EmulatorOverride {
     pub root: Option<PathBuf>,
+    /// The argv prefix that starts the emulator, chosen by the user, never by a profile:
+    /// `["/usr/bin/cemu"]` or `["flatpak", "run", "info.cemu.Cemu"]`. Never run through a shell.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub exe: Vec<String>,
+    /// Game file per title id (lowercase), for `{game_path}` in the profile's `launch.args`.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub games: BTreeMap<String, PathBuf>,
 }
 
 /// `toml`'s `Display` quotes the offending source line, which can hold a secret pasted by
@@ -177,9 +184,35 @@ mod tests {
             "cemu".into(),
             EmulatorOverride {
                 root: Some(PathBuf::from("/opt/cemu")),
+                exe: vec!["flatpak".into(), "run".into(), "info.cemu.Cemu".into()],
+                games: BTreeMap::from([(
+                    "101c9500".into(),
+                    PathBuf::from("/games/Zelda BotW/game.wux"),
+                )]),
             },
         );
         c
+    }
+
+    #[test]
+    fn emulator_exe_and_games_round_trip_and_default_to_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        let c = sample();
+        c.save(&path).unwrap();
+        assert_eq!(LocalConfig::load(&path).unwrap(), Some(c.clone()));
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(
+            text.contains("exe = [\"flatpak\", \"run\", \"info.cemu.Cemu\"]"),
+            "{text}"
+        );
+        let mut bare = c;
+        bare.emulators
+            .insert("cemu".into(), EmulatorOverride::default());
+        bare.save(&path).unwrap();
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(!text.contains("exe") && !text.contains("games"), "{text}");
+        assert_eq!(LocalConfig::load(&path).unwrap(), Some(bare));
     }
 
     #[test]
