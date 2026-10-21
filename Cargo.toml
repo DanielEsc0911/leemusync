@@ -29,7 +29,7 @@ rustls = { version = "0.23.46", default-features = false, features = ["ring", "s
 rustls-platform-verifier = "0.7.1"
 url = "2.5.8"
 base64 = "0.22.1"
-sha2 = "0.10.9"
+sha2 = "0.11.1"
 keyring = { version = "3.6.3", default-features = false }
 rusqlite = { version = "0.37.0", features = ["bundled"] }
 directories = "6.0.0"
