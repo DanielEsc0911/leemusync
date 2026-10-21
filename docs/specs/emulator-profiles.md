@@ -44,6 +44,7 @@ The engine derives the tier. Profiles don't declare it ([D9](../decisions.md#d9-
 | `saves.include` / `saves.exclude` | [glob] | Files that belong to a stream |
 | `saves.max_file_mb` | int, default `64` | Per-file size limit for snapshots (disk-fill guard) |
 | `accounts` | {root, id_regex, name_file?, name_key?} | Account discovery (multi-user emulators) |
+| `accounts.create` | planned, next Phase 1 plan | How to write a new account as data ([players-and-accounts](players-and-accounts.md#creating-a-cemu-account-sp8)) |
 | `game_key` | {from, normalize[]} | Which capture identifies the game, and how to normalise it |
 | `compat` | [string] | Compat groups whose files are interchangeable |
 | `states` | {pattern, include} | Save states (opt-in, [D15](../decisions.md#d15-save-states-are-opt-in-2026-10-07)) |
