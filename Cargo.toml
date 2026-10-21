@@ -23,6 +23,8 @@ tokio = "1.53.3"
 futures-util = { version = "0.3.34", default-features = false, features = ["alloc"] }
 opendal = { version = "0.59.5", default-features = false, features = ["services-gdrive", "services-fs", "services-s3", "executors-tokio"] }
 tempfile = "3.27.0"
+# Benches only (crates/engine/benches). No plotters/rayon.
+criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }
 opendal-http-transport-reqwest = { version = "0.59.5", default-features = false, features = ["rustls-no-provider"] }
 reqwest = { version = "0.13.5", default-features = false, features = ["rustls-no-provider", "form", "json"] }
 rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12"] }

@@ -2,6 +2,8 @@
 //! Spec: docs/specs/storage-backends.md.
 
 mod error;
+#[cfg(any(test, feature = "faults"))]
+mod faults;
 mod gdrive;
 pub mod http;
 pub mod oauth;
@@ -16,6 +18,8 @@ use opendal::services::Fs;
 use opendal::{Buffer, Operator};
 
 pub use error::{ErrorClass, StoreError};
+#[cfg(any(test, feature = "faults"))]
+pub use faults::{Fault, Faults};
 pub use gdrive::GdriveConfig;
 pub use redact::redact;
 pub use s3::S3Config;
@@ -47,8 +51,8 @@ pub struct Store {
     inner: Inner,
     caps: Capabilities,
     policy: RetryPolicy,
-    #[cfg(test)]
-    faults: test_faults::Faults,
+    #[cfg(any(test, feature = "faults"))]
+    faults: faults::Faults,
 }
 
 #[derive(Clone)]
@@ -78,14 +82,27 @@ impl Store {
             inner,
             caps: Capabilities { native_create_only },
             policy: RetryPolicy::default(),
-            #[cfg(test)]
-            faults: test_faults::Faults::default(),
+            #[cfg(any(test, feature = "faults"))]
+            faults: faults::Faults::default(),
         }
     }
 
     #[must_use]
     pub fn capabilities(&self) -> Capabilities {
         self.caps
+    }
+
+    /// Test-only: `inner` with injected request faults from `plan` and millisecond retries.
+    #[cfg(feature = "faults")]
+    #[must_use]
+    pub fn faulty(mut inner: Store, plan: Faults) -> Store {
+        inner.faults = plan;
+        inner.policy = RetryPolicy {
+            attempts: 3,
+            base: std::time::Duration::from_millis(1),
+            cap: std::time::Duration::from_millis(4),
+        };
+        inner
     }
 
     /// Google Drive with the user's OAuth client and refresh token (D26, D27).
@@ -181,7 +198,7 @@ impl Store {
         ours: &Buffer,
         exists: StoreError,
     ) -> Result<(), StoreError> {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "faults"))]
         self.faults.count_read();
         match self.op().await?.read(path).await {
             Ok(found) if found.to_bytes() == ours.to_bytes() => Ok(()),
@@ -269,9 +286,9 @@ impl Store {
     /// Test failpoint before an attempt: `Err` to fail now, `true` to fail after the real call.
     #[allow(clippy::unnecessary_wraps, clippy::unused_self)]
     fn fault(&self) -> Result<bool, StoreError> {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "faults"))]
         return self.faults.before();
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "faults")))]
         Ok(false)
     }
 
@@ -287,51 +304,6 @@ impl Store {
 
 fn modified(meta: &opendal::Metadata) -> Option<std::time::SystemTime> {
     meta.last_modified().map(std::time::SystemTime::from)
-}
-
-#[cfg(test)]
-mod test_faults {
-    use std::collections::VecDeque;
-    use std::sync::atomic::{AtomicU32, Ordering};
-    use std::sync::{Arc, Mutex};
-
-    use crate::{ErrorClass, StoreError};
-
-    #[derive(Clone, Copy, Debug)]
-    pub(crate) enum Fault {
-        /// Fail before touching the backend.
-        Transient,
-        /// Do the real call, then report `Transient` (a lost response).
-        TransientAfterWrite,
-    }
-
-    #[derive(Clone, Default)]
-    pub(crate) struct Faults {
-        queue: Arc<Mutex<VecDeque<Fault>>>,
-        reads: Arc<AtomicU32>,
-    }
-
-    impl Faults {
-        pub(crate) fn push(&self, f: Fault, n: usize) {
-            self.queue.lock().unwrap().extend(std::iter::repeat_n(f, n));
-        }
-
-        pub(crate) fn before(&self) -> Result<bool, StoreError> {
-            match self.queue.lock().unwrap().pop_front() {
-                Some(Fault::Transient) => Err(StoreError::new(ErrorClass::Transient, "injected")),
-                Some(Fault::TransientAfterWrite) => Ok(true),
-                None => Ok(false),
-            }
-        }
-
-        pub(crate) fn count_read(&self) {
-            self.reads.fetch_add(1, Ordering::SeqCst);
-        }
-
-        pub(crate) fn reads(&self) -> u32 {
-            self.reads.load(Ordering::SeqCst)
-        }
-    }
 }
 
 fn check_path(path: &str) -> Result<(), StoreError> {
@@ -358,7 +330,7 @@ fn check_path(path: &str) -> Result<(), StoreError> {
 
 #[cfg(test)]
 mod tests {
-    use super::test_faults::Fault;
+    use super::faults::Fault;
     use super::*;
     use std::time::Duration;
 
