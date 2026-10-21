@@ -149,6 +149,14 @@ map-done = { $player } ahora usa la cuenta { $account } de { $emulator } en este
 recover-done = La partida huérfana ahora es la primera versión de { $game } de { $player }.
 restore-done = Se restauró { $what } para { $player }. Ejecuta `leemusync sync` para subirla.
 sync-line = { $player } · { $game } · { $action }
+sync-line-moved = { $player } · { $game } · { $action } · { $files ->
+    [one] 1 archivo
+   *[other] { $files } archivos
+}, { $size } MB
+sync-elapsed = Listo en { $secs } s.
+progress-checking = { $player } · { $game } · revisando…
+progress-uploading = { $player } · { $game } · subiendo { $bar } { $done }/{ $total } · { $size_done }/{ $size_total } MB · { $rate } MB/s
+progress-downloading = { $player } · { $game } · descargando { $bar } { $done }/{ $total } · { $size_done }/{ $size_total } MB · { $rate } MB/s
 dry-run = Prueba: no se cambió nada.
 sync-conflicts = { $count ->
     [one] Una partida guardada tiene un conflicto. Se conservan ambas versiones; resolverlo llega en la próxima versión.

@@ -14,6 +14,6 @@
 | Plan | Phase | Status | Updated |
 |---|---|---|---|
 | [phase-0-foundations](plans/phase-0-foundations.md) | 0 | In progress (Tasks 1–5 done; SP7 Linux done; SP6 in progress, Google Drive live done; SP1 in progress, Fedora, Android emulator and CachyOS done; SP3 skipped until an Android device is available; next M1 sync Fedora ↔ CachyOS) | 2026-10-18 |
-| [phase-1-first-sync](plans/phase-1-first-sync.md) | 1 | In progress (Tasks 1–17 and 17b (S3/R2) done; Task 18 Part A next: Fedora alone on Cloudflare R2 (D31), then both PCs; Task 8 Step 8 and Task 17b Step 6 live runs are the maintainer's; Task 19 is manual) | 2026-10-20 |
+| [phase-1-first-sync](plans/phase-1-first-sync.md) | 1 | In progress (Tasks 1–17, 17b (S3/R2), 17c (retries) and 17d (only new blobs, live progress) done; Task 18 Part A done on Fedora with R2 (D31), Part B (CachyOS joins) next; Task 8 Step 8, Task 17b Step 6 and Task 17d Step 7 live runs are the maintainer's; Task 19 is manual) | 2026-10-20 |
 
 Status values: Not started · In progress · Blocked (reason) · Done (awaiting cleanup).

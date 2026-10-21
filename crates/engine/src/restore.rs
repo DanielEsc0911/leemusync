@@ -7,11 +7,13 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-use leemusync_api::{Warning, WarningCode};
+use futures_util::{StreamExt, TryStreamExt, stream};
+use leemusync_api::{TransferPhase, Warning, WarningCode};
 use leemusync_core::manifest::Version;
 use leemusync_core::{RelPath, StreamId};
 use serde::{Deserialize, Serialize};
 
+use crate::progress::Meter;
 use crate::repo::Repo;
 use crate::{
     EngineError, Failpoints, JournalEntry, ProcessProbe, State, fsx, grants, history_dir,
@@ -19,6 +21,9 @@ use crate::{
 };
 
 const KIND: &str = "restore";
+
+/// Blob downloads in flight at once.
+const PARALLEL_BLOBS: usize = 4;
 
 /// What to restore: a version from the repo, or a local-history folder.
 pub(crate) enum Source<'a> {
@@ -36,6 +41,7 @@ pub(crate) struct Ctx<'a> {
     /// The profile's per-file limit (security §File-system confinement).
     pub max_file_bytes: u64,
     pub fp: &'a Failpoints,
+    pub meter: &'a Meter,
 }
 
 /// The journal entry's data: everything `recover` needs without the engine.
@@ -64,18 +70,31 @@ async fn stage(
     match source {
         Source::Remote(v) => {
             let repo = ctx.repo.ok_or(EngineError::NotSetUp("repo"))?;
-            for f in &v.files {
-                let rel = f.path.as_str();
-                if f.size > ctx.max_file_bytes {
-                    return Err(too_large(rel));
-                }
-                // `get_blob` checks the AEAD tag and the keyed content hash.
-                let data = repo.get_blob(&f.blob).await?;
-                if u64::try_from(data.len()).ok() != Some(f.size) {
-                    return Err(EngineError::Data(format!("wrong_size:{rel}")));
-                }
-                fsx::write_atomic(&staging.join(rel), &data)?;
+            if let Some(f) = v.files.iter().find(|f| f.size > ctx.max_file_bytes) {
+                return Err(too_large(f.path.as_str()));
             }
+            ctx.meter.begin(
+                TransferPhase::Downloading,
+                u32::try_from(v.files.len()).unwrap_or(u32::MAX),
+                v.files.iter().map(|f| f.size).sum(),
+            );
+            stream::iter(&v.files)
+                .map(|f| async move {
+                    let rel = f.path.as_str();
+                    // `get_blob` checks the AEAD tag and the keyed content hash.
+                    let data = repo.get_blob(&f.blob).await?;
+                    if u64::try_from(data.len()).ok() != Some(f.size) {
+                        return Err(EngineError::Data(format!("wrong_size:{rel}")));
+                    }
+                    fsx::write_atomic(&staging.join(rel), &data)?;
+                    Ok(f.size)
+                })
+                .buffer_unordered(PARALLEL_BLOBS)
+                .try_for_each(|size| {
+                    ctx.meter.advance(size);
+                    async { Ok(()) }
+                })
+                .await?;
             Ok(v.files.iter().map(|f| f.path.as_str().to_owned()).collect())
         }
         Source::Local(dir) => {
@@ -395,7 +414,7 @@ mod tests {
             base_files: &[],
             note: None,
         };
-        let version = crate::upload::upload(&repo, &snap, meta, &Failpoints::default())
+        let version = crate::upload::upload(&repo, &snap, meta, &Failpoints::default(), &NO_METER)
             .await
             .unwrap();
         let target = root.join("grant/user/80000001");
@@ -411,6 +430,8 @@ mod tests {
             target,
         }
     }
+
+    static NO_METER: std::sync::LazyLock<Meter> = std::sync::LazyLock::new(Meter::none);
 
     fn read_tree(dir: &Path) -> Vec<(String, Vec<u8>)> {
         fsx::list_files(dir)
@@ -436,6 +457,7 @@ mod tests {
             process_names: &[],
             max_file_bytes: 1 << 20,
             fp,
+            meter: &NO_METER,
         }
     }
 
@@ -741,6 +763,7 @@ mod tests {
                 process_names: &[],
                 max_file_bytes: 1 << 20,
                 fp: &fp,
+                meter: &NO_METER,
             };
             fp.arm("restore.mid_swap");
             let r = restore(

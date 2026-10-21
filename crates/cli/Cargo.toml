@@ -20,7 +20,7 @@ fluent-bundle = { workspace = true }
 rpassword = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-tokio = { workspace = true, features = ["rt-multi-thread"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
 unic-langid = { workspace = true }
 zeroize = { workspace = true }
 

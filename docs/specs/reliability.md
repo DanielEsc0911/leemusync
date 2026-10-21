@@ -36,7 +36,7 @@ Implemented in `crates/engine/src/restore.rs`; crash tests at every journal step
 
 ## Upload procedure
 1. Take a snapshot (quiet, consistent read, [sync-model §Snapshot rules](sync-model.md#snapshot-rules)) into local history.
-2. Upload missing blobs (create-only, idempotent: the same content gives the same id).
+2. Upload the blobs the base version doesn't already reference (its manifest was committed after them, so they're on the remote), once per blob id, 4 at a time (create-only, idempotent: the same content gives the same id). A blob already on the remote is read back and verified, never overwritten.
 3. Write the manifest (create-only) — this is the commit point.
 4. Update `base`. A crash anywhere → retry. Orphaned blobs are collected by GC after the grace period.
 

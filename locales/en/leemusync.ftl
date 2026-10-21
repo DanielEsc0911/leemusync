@@ -150,6 +150,14 @@ map-done = { $player } now uses { $emulator } account { $account } on this devic
 recover-done = The orphaned save is now { $player }'s first { $game } version.
 restore-done = Restored { $what } for { $player }. Run `leemusync sync` to upload it.
 sync-line = { $player } · { $game } · { $action }
+sync-line-moved = { $player } · { $game } · { $action } · { $files ->
+    [one] 1 file
+   *[other] { $files } files
+}, { $size } MB
+sync-elapsed = Done in { $secs } s.
+progress-checking = { $player } · { $game } · checking…
+progress-uploading = { $player } · { $game } · uploading { $bar } { $done }/{ $total } · { $size_done }/{ $size_total } MB · { $rate } MB/s
+progress-downloading = { $player } · { $game } · downloading { $bar } { $done }/{ $total } · { $size_done }/{ $size_total } MB · { $rate } MB/s
 dry-run = Dry run: nothing was changed.
 sync-conflicts = { $count ->
     [one] One save has a conflict. Both versions are kept; resolving comes in the next release.

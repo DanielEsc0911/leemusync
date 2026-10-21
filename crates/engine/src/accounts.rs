@@ -5,6 +5,7 @@ use leemusync_api::{StreamAction, StreamReport};
 use leemusync_core::PlayerId;
 
 use crate::discover::save_folder;
+use crate::progress::Meter;
 use crate::snapshot;
 use crate::upload::{UploadMeta, upload};
 use crate::{Engine, EngineError, StreamRow, fsx, history_dir, now_ms, repo_config};
@@ -172,7 +173,8 @@ impl Engine {
                 self.config.device.name
             )),
         };
-        let v = upload(repo, &snap, meta, &self.failpoints).await?;
+        let meter = Meter::new(self.progress.clone(), player, &profile.id, &save.game);
+        let v = upload(repo, &snap, meta, &self.failpoints, &meter).await?;
         let game = save.game.clone();
         repo_config::update(self.repo_ref()?, &self.state, device, |c| {
             c.add_game(pid, &profile.id, &game);
@@ -188,6 +190,8 @@ impl Engine {
             version: Some(v.id.to_string()),
             heads: vec![v.id.to_string()],
             done: true,
+            files: meter.transferred().0,
+            bytes: meter.transferred().1,
         })
     }
 }

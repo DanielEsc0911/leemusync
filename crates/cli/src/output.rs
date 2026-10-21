@@ -1,9 +1,11 @@
 //! Human (Fluent) or `--json` output. JSON goes to stdout; human results to stdout, problems to stderr.
 
 use fluent_bundle::FluentValue;
+use std::time::Duration;
+
 use leemusync_api::{
     API_VERSION, DoctorReport, ErrorBody, ErrorReport, HistoryReport, ScanReport, StatusReport,
-    SyncReport, Warning,
+    StreamAction, SyncReport, Warning,
 };
 use leemusync_engine::EngineError;
 use serde::Serialize;
@@ -87,22 +89,89 @@ pub fn warnings(t: &I18n, warnings: &[Warning]) {
     }
 }
 
-pub fn sync(t: &I18n, r: &SyncReport) {
+/// ANSI colors on stdout: only for a terminal, and never with `NO_COLOR` set (no-color.org).
+pub fn color_on() -> bool {
+    use std::io::IsTerminal;
+    color_allowed(
+        std::env::var_os("NO_COLOR"),
+        std::io::stdout().is_terminal(),
+    )
+}
+
+fn color_allowed(no_color: Option<std::ffi::OsString>, tty: bool) -> bool {
+    tty && no_color.is_none_or(|v| v.is_empty())
+}
+
+/// Green when the stream is settled, yellow when it waits on the user, red for a conflict.
+fn paint(action: StreamAction, text: String, color: bool) -> String {
+    let code = match action {
+        StreamAction::Nothing
+        | StreamAction::Adopt
+        | StreamAction::FastForward
+        | StreamAction::Upload => "32",
+        StreamAction::Skipped | StreamAction::NeedsAccount | StreamAction::LocalMissing => "33",
+        StreamAction::UploadThenConflict | StreamAction::Conflict | StreamAction::RemoteBehind => {
+            "31"
+        }
+    };
+    if color {
+        format!("\x1b[{code}m{text}\x1b[0m")
+    } else {
+        text
+    }
+}
+
+fn pad(text: &str, width: usize) -> String {
+    format!(
+        "{text}{}",
+        " ".repeat(width.saturating_sub(text.chars().count()))
+    )
+}
+
+/// One aligned line per stream, then warnings. `elapsed` is shown when given.
+pub fn sync(t: &I18n, r: &SyncReport, color: bool, elapsed: Option<Duration>) {
+    let pw = r
+        .streams
+        .iter()
+        .map(|st| st.player.chars().count())
+        .max()
+        .unwrap_or(0);
+    let gw = r
+        .streams
+        .iter()
+        .map(|st| st.game.chars().count())
+        .max()
+        .unwrap_or(0);
     for st in &r.streams {
-        let action = t.t(&format!("action-{}", snake(&st.action)), &[]);
-        line(
-            t,
-            "sync-line",
-            &[
-                ("player", s(st.player.clone())),
-                ("game", s(st.game.clone())),
-                ("action", s(action)),
-            ],
+        let action = paint(
+            st.action,
+            t.t(&format!("action-{}", snake(&st.action)), &[]),
+            color,
         );
+        let mut args = vec![
+            ("player", s(pad(&st.player, pw))),
+            ("game", s(pad(&st.game, gw))),
+            ("action", s(action)),
+        ];
+        let key = if st.files > 0 {
+            args.push(("files", FluentValue::from(st.files)));
+            args.push(("size", s(crate::progress::mb(st.bytes))));
+            "sync-line-moved"
+        } else {
+            "sync-line"
+        };
+        line(t, key, &args);
     }
     warnings(t, &r.warnings);
     if r.dry_run {
         line(t, "dry-run", &[]);
+    }
+    if let Some(e) = elapsed {
+        line(
+            t,
+            "sync-elapsed",
+            &[("secs", s(format!("{:.1}", e.as_secs_f64())))],
+        );
     }
 }
 
@@ -229,6 +298,31 @@ pub fn doctor(t: &I18n, r: &DoctorReport) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn color_needs_a_terminal_and_no_no_color() {
+        assert!(color_allowed(None, true));
+        assert!(color_allowed(Some("".into()), true));
+        assert!(!color_allowed(Some("1".into()), true));
+        assert!(!color_allowed(None, false));
+    }
+
+    #[test]
+    fn actions_are_painted_only_when_asked() {
+        assert_eq!(paint(StreamAction::Upload, "up".into(), false), "up");
+        assert_eq!(
+            paint(StreamAction::Upload, "up".into(), true),
+            "\x1b[32mup\x1b[0m"
+        );
+        assert!(paint(StreamAction::Conflict, "c".into(), true).starts_with("\x1b[31m"));
+        assert!(paint(StreamAction::Skipped, "s".into(), true).starts_with("\x1b[33m"));
+    }
+
+    #[test]
+    fn pad_counts_characters_not_bytes() {
+        assert_eq!(pad("Ana", 5), "Ana  ");
+        assert_eq!(pad("Íñigo", 5), "Íñigo");
+    }
 
     #[test]
     fn engine_keys_get_their_own_message_and_data_stays_data() {

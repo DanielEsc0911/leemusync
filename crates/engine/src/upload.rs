@@ -1,10 +1,14 @@
 //! Upload procedure: blobs (create-only, idempotent) → manifest (commit point)
 //! (reliability §Upload procedure).
 
+use std::collections::BTreeSet;
+
 use futures_util::{StreamExt, TryStreamExt, stream};
+use leemusync_api::TransferPhase;
 use leemusync_core::manifest::{EmulatorRef, FORMAT, FileEntry, Meta, Version};
 use leemusync_core::{DeviceId, PlayerId, StreamId, VersionId};
 
+use crate::progress::Meter;
 use crate::repo::Repo;
 use crate::snapshot::Snapshot;
 use crate::{EngineError, Failpoints, new_version_id, now_ms};
@@ -34,9 +38,10 @@ fn read_checked(repo: &Repo, snap: &Snapshot, f: &FileEntry) -> Result<Vec<u8>, 
     Ok(data)
 }
 
-/// Uploads every blob from the local history copy (verified against the snapshot's size and
-/// blob id first, I6), 4 at a time, then writes the manifest. A failure before the manifest leaves only
-/// orphaned blobs, which GC collects; retrying is safe.
+/// Uploads the blobs the base version doesn't already reference (its manifest was committed
+/// after them, so they're on the remote), once per blob id and 4 at a time, then writes the
+/// manifest. Every history file is first checked against the snapshot's size and blob id (I6).
+/// A failure before the manifest leaves only orphaned blobs, which GC collects; retrying is safe.
 ///
 /// Errors: `Data("history_changed:<path>")` if the history copy no longer matches the snapshot;
 /// `Data("blob_corrupt:<id>")` if a blob already on the remote is damaged;
@@ -46,14 +51,28 @@ pub(crate) async fn upload(
     snap: &Snapshot,
     meta: UploadMeta<'_>,
     fp: &Failpoints,
+    meter: &Meter,
 ) -> Result<Version, EngineError> {
     for f in &snap.files {
         read_checked(repo, snap, f)?;
     }
-    stream::iter(&snap.files)
-        .map(|f| async move { repo.put_blob(&read_checked(repo, snap, f)?).await })
+    let mut seen: BTreeSet<_> = meta.base_files.iter().map(|f| f.blob).collect();
+    let new: Vec<&FileEntry> = snap.files.iter().filter(|f| seen.insert(f.blob)).collect();
+    meter.begin(
+        TransferPhase::Uploading,
+        u32::try_from(new.len()).unwrap_or(u32::MAX),
+        new.iter().map(|f| f.size).sum(),
+    );
+    stream::iter(new)
+        .map(|f| async move {
+            repo.put_blob(&read_checked(repo, snap, f)?).await?;
+            Ok::<_, EngineError>(f.size)
+        })
         .buffer_unordered(PARALLEL_BLOBS)
-        .try_for_each(|_| async { Ok(()) })
+        .try_for_each(|size| {
+            meter.advance(size);
+            async { Ok(()) }
+        })
         .await?;
     fp.hit("upload.before_manifest")?;
     let changed = snap
@@ -130,7 +149,7 @@ mod tests {
         let fp = Failpoints::default();
         fp.arm("upload.before_manifest");
         assert!(matches!(
-            upload(&repo, &snap, meta(), &fp).await,
+            upload(&repo, &snap, meta(), &fp, &Meter::none()).await,
             Err(EngineError::Injected(_))
         ));
         assert!(
@@ -142,7 +161,9 @@ mod tests {
             b"opt",
             "the blob already went up"
         );
-        let v = upload(&repo, &snap, meta(), &fp).await.unwrap();
+        let v = upload(&repo, &snap, meta(), &fp, &Meter::none())
+            .await
+            .unwrap();
         assert_eq!(repo.list_versions(&stream).await.unwrap(), vec![v.id]);
         assert_eq!(v.meta.changed_files, 1);
     }
@@ -177,7 +198,7 @@ mod tests {
             base_files: &[],
             note: None,
         };
-        let v = upload(&repo, &snap, meta, &Failpoints::default())
+        let v = upload(&repo, &snap, meta, &Failpoints::default(), &Meter::none())
             .await
             .unwrap();
         assert_eq!(repo.list_versions(&stream).await.unwrap(), vec![v.id]);
@@ -192,6 +213,95 @@ mod tests {
                 format!("save {i}").as_bytes()
             );
         }
+    }
+
+    fn meta_on(base: &[FileEntry]) -> UploadMeta<'_> {
+        UploadMeta {
+            stream: StreamId(Hash32([7; 32])),
+            parents: vec![],
+            device: DeviceId(VersionId::from_parts(1, [1; 10])),
+            player: PlayerId(VersionId::from_parts(2, [2; 10])),
+            emulator: "cemu",
+            base_files: base,
+            note: None,
+        }
+    }
+
+    fn blob_count(remote: &std::path::Path) -> usize {
+        fn walk(d: &std::path::Path) -> usize {
+            std::fs::read_dir(d).map_or(0, |rd| {
+                rd.flatten()
+                    .map(|e| {
+                        if e.path().is_dir() {
+                            walk(&e.path())
+                        } else {
+                            1
+                        }
+                    })
+                    .sum()
+            })
+        }
+        walk(&remote.join("leemusync/blobs"))
+    }
+
+    #[tokio::test]
+    async fn only_blobs_missing_from_the_base_go_up_once_each() {
+        use std::sync::{Arc, Mutex};
+        let dir = tempfile::tempdir().unwrap();
+        let remote = dir.path().join("remote");
+        let store = leemusync_store::Store::fs(&remote).unwrap();
+        let fast = leemusync_crypto::KdfParams {
+            m_kib: 19_456,
+            t: 1,
+            p: 1,
+        };
+        let (repo, _, _) = Repo::create(store, "p", fast).await.unwrap();
+        let src = dir.path().join("save");
+        std::fs::create_dir_all(&src).unwrap();
+        for i in 0..10 {
+            std::fs::write(src.join(format!("slot{i}.sav")), format!("save {i}")).unwrap();
+        }
+        let take = |n: &str| {
+            crate::snapshot::take(&src, &dir.path().join(n), 1024, &|d| repo.blob_id(d))
+                .unwrap()
+                .unwrap()
+        };
+        let first = take("h1");
+        let v1 = upload(
+            &repo,
+            &first,
+            meta_on(&[]),
+            &Failpoints::default(),
+            &Meter::none(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(blob_count(&remote), 10, "a first upload sends every blob");
+
+        // Two new files with the same content, and one changed file.
+        std::fs::write(src.join("new_a.sav"), b"same").unwrap();
+        std::fs::write(src.join("new_b.sav"), b"same").unwrap();
+        std::fs::write(src.join("slot0.sav"), b"changed").unwrap();
+        let second = take("h2");
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let s2 = seen.clone();
+        let sink: crate::ProgressSink = Arc::new(move |p| s2.lock().unwrap().push(p.clone()));
+        let meter = Meter::new(Some(sink), "Ana", "cemu", "g");
+        upload(
+            &repo,
+            &second,
+            meta_on(&v1.files),
+            &Failpoints::default(),
+            &meter,
+        )
+        .await
+        .unwrap();
+        assert_eq!(blob_count(&remote), 12, "only `same` and `changed` went up");
+        assert_eq!(meter.transferred(), (2, 11));
+        let last = seen.lock().unwrap().last().unwrap().clone();
+        assert_eq!(last.phase, leemusync_api::TransferPhase::Uploading);
+        assert_eq!((last.files_done, last.files_total), (2, 2));
+        assert_eq!((last.bytes_done, last.bytes_total), (11, 11));
     }
 
     #[tokio::test]
@@ -222,7 +332,7 @@ mod tests {
             base_files: &snap.files,
             note: None,
         };
-        let result = upload(&repo, &snap, meta, &Failpoints::default()).await;
+        let result = upload(&repo, &snap, meta, &Failpoints::default(), &Meter::none()).await;
         assert!(matches!(result, Err(EngineError::Data(_))));
         assert!(
             repo.list_versions(&stream).await.unwrap().is_empty(),
@@ -266,7 +376,7 @@ mod tests {
             base_files: &[],
             note: None,
         };
-        let result = upload(&repo, &snap, meta, &Failpoints::default()).await;
+        let result = upload(&repo, &snap, meta, &Failpoints::default(), &Meter::none()).await;
         let expected = format!("blob_corrupt:{}", snap.files[0].blob);
         assert!(matches!(result, Err(EngineError::Data(d)) if d == expected));
         assert!(

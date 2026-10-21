@@ -38,6 +38,46 @@ pub struct StreamReport {
     pub heads: Vec<String>,
     /// True when the stream finished its work in this run.
     pub done: bool,
+    /// Files this run uploaded or downloaded for the stream.
+    #[serde(default)]
+    pub files: u32,
+    /// Bytes this run uploaded or downloaded for the stream (plaintext sizes).
+    #[serde(default)]
+    pub bytes: u64,
+}
+
+/// Live progress of one stream during a sync or restore: the `TransferProgress` event
+/// (architecture §Engine API). Not part of any report.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TransferProgress {
+    /// Player name as the user sees it.
+    pub player: String,
+    /// Emulator profile id.
+    pub emulator: String,
+    /// Game id (emulator-specific title id).
+    pub game: String,
+    /// What the stream is doing now.
+    pub phase: TransferPhase,
+    /// Files finished in this phase.
+    pub files_done: u32,
+    /// Files this phase will transfer.
+    pub files_total: u32,
+    /// Bytes finished in this phase (plaintext sizes).
+    pub bytes_done: u64,
+    /// Bytes this phase will transfer (plaintext sizes).
+    pub bytes_total: u64,
+}
+
+/// The step a stream is in while it syncs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TransferPhase {
+    /// Reading the remote and the local save folder.
+    Checking,
+    /// Sending new blobs.
+    Uploading,
+    /// Fetching and verifying blobs for a restore.
+    Downloading,
 }
 
 /// What a sync run decided for one stream.
@@ -293,6 +333,8 @@ mod tests {
                 version: None,
                 heads: vec![],
                 done: false,
+                files: 2,
+                bytes: 300,
             }],
             warnings: vec![Warning {
                 code: WarningCode::OrphanedSave,
@@ -302,9 +344,13 @@ mod tests {
         let json = serde_json::to_string(&r).unwrap();
         assert_eq!(
             json,
-            r#"{"api_version":1,"dry_run":true,"streams":[{"player":"A","emulator":"cemu","game":"101c9400","account":"80000001","action":"upload_then_conflict","version":null,"heads":[],"done":false}],"warnings":[{"code":"orphaned_save","detail":"80000002"}]}"#
+            r#"{"api_version":1,"dry_run":true,"streams":[{"player":"A","emulator":"cemu","game":"101c9400","account":"80000001","action":"upload_then_conflict","version":null,"heads":[],"done":false,"files":2,"bytes":300}],"warnings":[{"code":"orphaned_save","detail":"80000002"}]}"#
         );
         assert_eq!(serde_json::from_str::<SyncReport>(&json).unwrap(), r);
+        // Reports from before `files`/`bytes` still parse.
+        let old = json.replace(r#","files":2,"bytes":300"#, "");
+        let parsed = serde_json::from_str::<SyncReport>(&old).unwrap();
+        assert_eq!((parsed.streams[0].files, parsed.streams[0].bytes), (0, 0));
         // StreamAction and WarningCode are Copy: values can be taken out of borrowed reports.
         let a = r.streams[0].action;
         assert_eq!(a, StreamAction::UploadThenConflict);
