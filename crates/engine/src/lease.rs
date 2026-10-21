@@ -83,7 +83,7 @@ async fn held(repo: &Repo, o: &Observed, stale: bool) -> Acquire {
 
 impl Engine {
     /// Device clock in Unix ms, shifted in tests.
-    fn lease_now(&self) -> i64 {
+    pub(crate) fn lease_now(&self) -> i64 {
         i64::try_from(now_ms())
             .unwrap_or(i64::MAX)
             .saturating_add(self.clock_shift_ms)

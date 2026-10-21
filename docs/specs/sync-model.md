@@ -1,6 +1,6 @@
 # Sync model
 
-> **Status:** Partial (leases, play sessions and retention are still open) · **Related:** [rules](../rules.md) (B2, B3, P3), [reliability](reliability.md), [security](security.md), [players-and-accounts](players-and-accounts.md), [emulator-profiles](emulator-profiles.md), [storage-backends](storage-backends.md), [glossary](../glossary.md) · **Code:** `crates/core/src/{manifest,heads,reconcile,config}.rs`, `crates/engine/src/{repo,repo_config}.rs`, `crates/engine/src/sync.rs`, `crates/core/src/lease.rs`, `crates/engine/src/lease.rs`, `crates/engine/src/resolve.rs`
+> **Status:** Partial (leases, play sessions and retention are still open) · **Related:** [rules](../rules.md) (B2, B3, P3), [reliability](reliability.md), [security](security.md), [players-and-accounts](players-and-accounts.md), [emulator-profiles](emulator-profiles.md), [storage-backends](storage-backends.md), [glossary](../glossary.md) · **Code:** `crates/core/src/{manifest,heads,reconcile,config}.rs`, `crates/engine/src/{repo,repo_config}.rs`, `crates/engine/src/sync.rs`, `crates/core/src/lease.rs`, `crates/engine/src/lease.rs`, `crates/engine/src/resolve.rs`, `crates/engine/src/{play,process}.rs`
 
 ## Purpose
 How saves move between devices without loss: what is synced (streams), how history is stored (versions), how divergence is detected (heads), and how simultaneous play is coordinated (leases, play sessions).
@@ -65,6 +65,15 @@ Advisory per-stream locks so two devices don't play the same player's save at on
 7. Release the lease.
 
 Steps 2 and 6 drive the live status surfaces ([status-and-notifications](ui/status-and-notifications.md)).
+
+M1b (`Engine::play`, `PlayReport`):
+- Refused with `emulator_running` if the emulator is already open (the profile's process names), checked before the pull and again right before launch (I3).
+- Steps 2 and 6 are a sync of that one stream. A conflict at step 2 asks the player for a head (a resolution version) or "play this device's copy".
+- Held lease: **wait** polls every 10 s, **play anyway** plays without a lease (a divergence becomes a conflict, D6), **take over** works only on a stale lease.
+- The emulator's blocking wait runs on its own thread while the engine renews every 60 s. A failed renewal is a `lease_renew_failed` warning and is retried; it never stops the game.
+- Step 6 waits until no save file changed for the quiet period, then snapshots and uploads; no change uploads nothing.
+- Release runs on every path once the lease is taken, errors included. A failed release is a `lease_release_failed` warning. If LeemuSync itself is killed mid-game, the lease goes stale after its TTL and the next acquire on this device overwrites it.
+- A failed upload after exit keeps the files and the stream's base, so the next sync sees them as changed and uploads them (B3).
 
 ### Watch mode (fallback)
 - **Desktop:** the profile's process names mark when the emulator is running. On the first save change, LeemuSync takes the lease for that stream. When the emulator exits (or files go quiet): snapshot, upload, release.
