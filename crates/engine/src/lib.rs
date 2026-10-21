@@ -16,6 +16,7 @@ mod progress;
 mod query;
 mod repo;
 mod repo_config;
+mod resolve;
 mod restore;
 mod scan;
 mod secrets;
@@ -36,7 +37,7 @@ pub use error::EngineError;
 pub use failpoints::Failpoints;
 pub use lease::{Acquire, LeaseHandle};
 pub use local_config::{
-    BackendConfig, DeviceSection, EmulatorOverride, LeaseSettings, LocalConfig,
+    BackendConfig, ConflictPolicy, DeviceSection, EmulatorOverride, LeaseSettings, LocalConfig,
 };
 pub use locations::Locations;
 pub use process::{FakeProbe, ProcessProbe, SysinfoProbe};

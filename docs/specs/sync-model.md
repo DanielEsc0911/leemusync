@@ -1,6 +1,6 @@
 # Sync model
 
-> **Status:** Partial (leases, play sessions and retention are still open) · **Related:** [rules](../rules.md) (B2, B3, P3), [reliability](reliability.md), [security](security.md), [players-and-accounts](players-and-accounts.md), [emulator-profiles](emulator-profiles.md), [storage-backends](storage-backends.md), [glossary](../glossary.md) · **Code:** `crates/core/src/{manifest,heads,reconcile,config}.rs`, `crates/engine/src/{repo,repo_config}.rs`, `crates/engine/src/sync.rs`, `crates/core/src/lease.rs`, `crates/engine/src/lease.rs`
+> **Status:** Partial (leases, play sessions and retention are still open) · **Related:** [rules](../rules.md) (B2, B3, P3), [reliability](reliability.md), [security](security.md), [players-and-accounts](players-and-accounts.md), [emulator-profiles](emulator-profiles.md), [storage-backends](storage-backends.md), [glossary](../glossary.md) · **Code:** `crates/core/src/{manifest,heads,reconcile,config}.rs`, `crates/engine/src/{repo,repo_config}.rs`, `crates/engine/src/sync.rs`, `crates/core/src/lease.rs`, `crates/engine/src/lease.rs`, `crates/engine/src/resolve.rs`
 
 ## Purpose
 How saves move between devices without loss: what is synced (streams), how history is stored (versions), how divergence is detected (heads), and how simultaneous play is coordinated (leases, play sessions).
@@ -39,9 +39,9 @@ With no `base` yet: no local files and one head → fast-forward. Local files an
 
 ## Conflicts
 - Never merged automatically; saves are opaque binary ([D7](../decisions.md#d7-no-game-save-format-parsing-in-core-2026-10-07)).
-- The player sees each head with device, player, time, session length, changed files, size and emulator version.
-- Choosing writes a **resolution version**: content of the chosen head, parents = all heads. The others stay in history and can be restored any time.
-- Policy setting `conflict_policy = "ask" | "newest"` (default `ask`). `newest` still writes a resolution version and keeps the others.
+- The player sees each head with device, player, time, session length, changed files, size and emulator version. M1b (`Engine::conflicts`, `HeadInfo`) shows device, player, time, files, size and changed files; session length and emulator version wait for manifest fields that record them.
+- Choosing writes a **resolution version**: content of the chosen head, parents = all heads. The others stay in history and can be restored any time. The resolution reuses the chosen head's blobs (nothing is re-uploaded) and is committed create-only like any manifest; it is then restored on this device with the current files backed up to local history first (`<ms>-pre-resolve`, I1). A crash after the commit is safe: the next sync fast-forwards to it with backup. Choosing a version that isn't a head, or a stream without a conflict, is a usage error.
+- Policy setting `conflict_policy = "ask" | "newest"` (default `ask`). `newest` still writes a resolution version and keeps the others. "Newest" is the head with the latest `created_at`, which is its writer's clock (ties: the larger version id); `sync` reports the stream as `Resolved`.
 - While a conflict is unresolved, the device keeps its local files. Launcher mode asks for a choice before starting that game, or the player can "play this device's copy".
 
 ## Leases
