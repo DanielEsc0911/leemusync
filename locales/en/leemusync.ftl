@@ -172,8 +172,8 @@ progress-uploading = { $player } · { $game } · uploading { $bar } { $done }/{ 
 progress-downloading = { $player } · { $game } · downloading { $bar } { $done }/{ $total } · { $size_done }/{ $size_total } MB · { $rate } MB/s
 dry-run = Dry run: nothing was changed.
 sync-conflicts = { $count ->
-    [one] One save has a conflict. Both versions are kept; resolving comes in the next release.
-   *[other] { $count } saves have a conflict. All versions are kept; resolving comes in the next release.
+    [one] One save has a conflict. Both versions are kept. Run `leemusync conflicts`.
+   *[other] { $count } saves have a conflict. All versions are kept. Run `leemusync conflicts`.
 }
 
 action-nothing = up to date
@@ -227,3 +227,62 @@ history-backup = local backup { $name }
 doctor-ok = ok
 doctor-fail = FAILED
 doctor-check = { $status } { $name } { $detail }
+
+help-play = Play a game: get the newest save, take the lease, start the emulator, upload when it closes.
+help-play-emulator = The emulator id, for example cemu.
+help-play-game = The game id, for example 101c9400.
+help-play-player = The player (default: the only player in the repo).
+help-play-args = Extra arguments for the emulator, after --.
+help-conflicts = List saves with a conflict and their versions.
+help-resolve = Resolve a conflict by keeping one version (the others stay in history).
+help-resolve-game = The game id, for example 101c9400.
+help-resolve-version = The version id to keep, from `leemusync conflicts`.
+help-resolve-player = The player (needed when several players have a conflict on this game).
+help-lease = Show or release leases (which device is playing what).
+help-lease-status = Show every lease in the repo.
+help-lease-release = Delete this device's lease on a game, for example one a crash left behind.
+help-lease-release-force = Required: confirms you want to delete the lease.
+help-lease-release-game = The game id, for example 101c9400.
+
+play-pulling = Getting the newest save…
+play-waiting = Another device is playing. Waiting for it to finish…
+play-running = { $emulator } is running. Your save uploads when you close it.
+play-uploading = { $emulator } closed. Uploading your save…
+play-ctrl-c = The game is still running. Close it there; LeemuSync then uploads your save.
+play-done = { $emulator } exited with code { $code }.
+prompt-lease-held = { $device } is playing this save (last seen { $ago } s ago).
+prompt-lease-stale = { $device } was playing this save but stopped answering { $ago } s ago.
+prompt-lease-keys = [w]ait / [p]lay anyway (a conflict if both save):
+prompt-lease-keys-stale = [w]ait / [t]ake over / [p]lay anyway:
+answer-wait = w
+answer-play-anyway = p
+answer-take-over = t
+prompt-conflict = { $game } has a conflict. Which version do you want to play?
+prompt-conflict-pick = Version number:
+conflicts-none = No conflicts.
+conflict-stream = { $player } · { $emulator } · { $game }
+conflict-head = { $n }. { $version } · { $device } · { $files ->
+    [one] 1 file
+   *[other] { $files } files
+}
+resolve-done = Kept { $version } for { $player } · { $game }. The other versions stay in history.
+lease-none = No leases.
+lease-line = { $player } · { $emulator } · { $game } · { $device }, { $ago } s ago{ $ours ->
+    [yes] {" "}(this device)
+   *[no] {""}
+}
+lease-line-stale = { $player } · { $emulator } · { $game } · { $device }, expired { $ago } s ago{ $ours ->
+    [yes] {" "}(this device)
+   *[no] {""}
+}
+lease-released = { $count ->
+    [0] This device has no lease on { $game }.
+    [one] Released this device's lease on { $game }.
+   *[other] Released { $count } leases of this device on { $game }.
+}
+error-lease_held = { $detail } is playing this save. Run `leemusync play` in a terminal to wait or play anyway.
+error-needs_decision = { $detail } has a conflict. Run `leemusync conflicts`, then `leemusync resolve`.
+error-usage-player_needed = Choose the player with --as <name>.
+error-usage-version_invalid = { $detail } isn't a version id. Run `leemusync conflicts` to see them.
+error-usage-no_conflict = { $detail } has no conflict.
+error-usage-lease_live = That lease is live; it can't be taken over.

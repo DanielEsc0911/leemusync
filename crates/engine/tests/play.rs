@@ -90,16 +90,16 @@ impl Prompt {
 }
 
 impl PlayPrompt for Prompt {
-    fn lease_held(&self, _by: &str, _ago: u64, _stale: bool) -> LeaseChoice {
+    fn lease_held(&self, _by: &str, _ago: u64, _stale: bool) -> Result<LeaseChoice, EngineError> {
         self.asked.fetch_add(1, Ordering::SeqCst);
         if let Some(p) = &self.unlock {
             let _ = std::fs::remove_file(p);
         }
-        self.choice
+        Ok(self.choice)
     }
 
-    fn conflict(&self, _c: &ConflictInfo) -> Option<VersionId> {
-        None
+    fn conflict(&self, _c: &ConflictInfo) -> Result<Option<VersionId>, EngineError> {
+        Ok(None)
     }
 }
 

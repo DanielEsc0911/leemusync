@@ -145,3 +145,48 @@ fn backend_s3_asks_for_the_secret_at_a_prompt_only() {
         "nothing saved without the secret"
     );
 }
+
+#[test]
+fn play_commands_fail_with_the_spec_exit_codes() {
+    let root = tempfile::tempdir().unwrap();
+    let out = run(
+        root.path(),
+        "en_US.UTF-8",
+        &["--json", "resolve", "101c9400", "not-a-version"],
+    );
+    assert_eq!(out.status.code(), Some(2), "a bad version is a usage error");
+    let json: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(json["error"]["code"], "usage");
+    let en = run(root.path(), "en_US.UTF-8", &["resolve", "101c9400", "nope"]);
+    let es = run(root.path(), "es_MX.UTF-8", &["resolve", "101c9400", "nope"]);
+    assert!(
+        String::from_utf8_lossy(&en.stderr).contains("nope isn't a version id"),
+        "{en:?}"
+    );
+    assert!(
+        String::from_utf8_lossy(&es.stderr).contains("nope no es un id de versión"),
+        "{es:?}"
+    );
+    // Without a terminal and without --yes nothing is created.
+    let out = run(
+        root.path(),
+        "en_US.UTF-8",
+        &["accounts", "create", "P", "cemu"],
+    );
+    assert_eq!(out.status.code(), Some(2));
+    // `--force` is required to release a lease.
+    let out = run(
+        root.path(),
+        "en_US.UTF-8",
+        &["lease", "release", "101c9400"],
+    );
+    assert_eq!(out.status.code(), Some(2));
+    for args in [
+        &["--json", "conflicts"][..],
+        &["--json", "lease", "status"],
+        &["--json", "play", "cemu", "101c9400"],
+    ] {
+        let out = run(root.path(), "en_US.UTF-8", args);
+        assert_eq!(out.status.code(), Some(2), "{args:?}: no repo yet");
+    }
+}

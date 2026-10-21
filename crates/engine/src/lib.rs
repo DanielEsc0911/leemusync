@@ -31,13 +31,14 @@ mod upload;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use leemusync_core::{DeviceId, VersionId};
+use leemusync_core::DeviceId;
 use leemusync_crypto::KdfParams;
 
 pub use accounts::{MapChoice, MapOutcome};
 pub use error::EngineError;
 pub use failpoints::Failpoints;
 pub use lease::{Acquire, LeaseHandle};
+pub use leemusync_core::VersionId;
 pub use local_config::{
     BackendConfig, ConflictPolicy, DeviceSection, EmulatorOverride, LeaseSettings, LocalConfig,
 };

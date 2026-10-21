@@ -109,6 +109,7 @@ async fn a_held_lease_is_reported_with_the_holder_and_released_by_it_only() {
 
     // B's forced release only ever deletes B's own lease.
     t.b.engine.lease_release_forced(t.stream).await.unwrap();
+    assert_eq!(t.b.engine.lease_release_game(GAME).await.unwrap(), 0);
     assert_eq!(lock_files(&t.remote, t.stream), vec![lower(&t.a)]);
     t.a.engine.lease_release(h).await.unwrap();
     assert_eq!(lock_files(&t.remote, t.stream), Vec::<String>::new());
@@ -118,6 +119,9 @@ async fn a_held_lease_is_reported_with_the_holder_and_released_by_it_only() {
             .await
             .unwrap();
     ours(got);
+    // `lease release --force <game>`: B's own lease, by game id in any case.
+    assert_eq!(t.b.engine.lease_release_game("101C9400").await.unwrap(), 1);
+    assert_eq!(lock_files(&t.remote, t.stream), Vec::<String>::new());
 }
 
 #[tokio::test]

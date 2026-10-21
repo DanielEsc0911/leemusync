@@ -171,8 +171,8 @@ progress-uploading = { $player } · { $game } · subiendo { $bar } { $done }/{ $
 progress-downloading = { $player } · { $game } · descargando { $bar } { $done }/{ $total } · { $size_done }/{ $size_total } MB · { $rate } MB/s
 dry-run = Prueba: no se cambió nada.
 sync-conflicts = { $count ->
-    [one] Una partida guardada tiene un conflicto. Se conservan ambas versiones; resolverlo llega en la próxima versión.
-   *[other] { $count } partidas guardadas tienen un conflicto. Se conservan todas las versiones; resolverlos llega en la próxima versión.
+    [one] Una partida guardada tiene un conflicto. Se conservan ambas versiones. Ejecuta `leemusync conflicts`.
+   *[other] { $count } partidas guardadas tienen un conflicto. Se conservan todas las versiones. Ejecuta `leemusync conflicts`.
 }
 
 action-nothing = al día
@@ -226,3 +226,62 @@ history-backup = copia local { $name }
 doctor-ok = ok
 doctor-fail = FALLÓ
 doctor-check = { $status } { $name } { $detail }
+
+help-play = Juega: trae la partida guardada más reciente, toma el bloqueo, abre el emulador y sube la partida al cerrarlo.
+help-play-emulator = El id del emulador, por ejemplo cemu.
+help-play-game = El id del juego, por ejemplo 101c9400.
+help-play-player = El jugador (por defecto, el único jugador del repo).
+help-play-args = Argumentos extra para el emulador, después de --.
+help-conflicts = Muestra las partidas guardadas con conflicto y sus versiones.
+help-resolve = Resuelve un conflicto conservando una versión (las demás quedan en el historial).
+help-resolve-game = El id del juego, por ejemplo 101c9400.
+help-resolve-version = El id de la versión que se conserva, de `leemusync conflicts`.
+help-resolve-player = El jugador (necesario si varios jugadores tienen un conflicto en este juego).
+help-lease = Muestra o libera bloqueos (qué dispositivo está jugando qué).
+help-lease-status = Muestra todos los bloqueos del repo.
+help-lease-release = Borra el bloqueo de este dispositivo en un juego, por ejemplo uno que dejó un cierre inesperado.
+help-lease-release-force = Obligatorio: confirma que quieres borrar el bloqueo.
+help-lease-release-game = El id del juego, por ejemplo 101c9400.
+
+play-pulling = Trayendo la partida guardada más reciente…
+play-waiting = Otro dispositivo está jugando. Esperando a que termine…
+play-running = { $emulator } está abierto. Tu partida se sube cuando lo cierres.
+play-uploading = Se cerró { $emulator }. Subiendo tu partida…
+play-ctrl-c = El juego sigue abierto. Ciérralo ahí; luego LeemuSync sube tu partida.
+play-done = { $emulator } terminó con el código { $code }.
+prompt-lease-held = { $device } está jugando esta partida (visto hace { $ago } s).
+prompt-lease-stale = { $device } estaba jugando esta partida pero dejó de responder hace { $ago } s.
+prompt-lease-keys = [e]sperar / [j]ugar de todos modos (habrá conflicto si ambos guardan):
+prompt-lease-keys-stale = [e]sperar / [t]omar el bloqueo / [j]ugar de todos modos:
+answer-wait = e
+answer-play-anyway = j
+answer-take-over = t
+prompt-conflict = { $game } tiene un conflicto. ¿Qué versión quieres jugar?
+prompt-conflict-pick = Número de versión:
+conflicts-none = No hay conflictos.
+conflict-stream = { $player } · { $emulator } · { $game }
+conflict-head = { $n }. { $version } · { $device } · { $files ->
+    [one] 1 archivo
+   *[other] { $files } archivos
+}
+resolve-done = Se conservó { $version } para { $player } · { $game }. Las otras versiones quedan en el historial.
+lease-none = No hay bloqueos.
+lease-line = { $player } · { $emulator } · { $game } · { $device }, hace { $ago } s{ $ours ->
+    [yes] {" "}(este dispositivo)
+   *[no] {""}
+}
+lease-line-stale = { $player } · { $emulator } · { $game } · { $device }, venció hace { $ago } s{ $ours ->
+    [yes] {" "}(este dispositivo)
+   *[no] {""}
+}
+lease-released = { $count ->
+    [0] Este dispositivo no tiene un bloqueo en { $game }.
+    [one] Se liberó el bloqueo de este dispositivo en { $game }.
+   *[other] Se liberaron { $count } bloqueos de este dispositivo en { $game }.
+}
+error-lease_held = { $detail } está jugando esta partida. Ejecuta `leemusync play` en una terminal para esperar o jugar de todos modos.
+error-needs_decision = { $detail } tiene un conflicto. Ejecuta `leemusync conflicts` y luego `leemusync resolve`.
+error-usage-player_needed = Elige el jugador con --as <nombre>.
+error-usage-version_invalid = { $detail } no es un id de versión. Ejecuta `leemusync conflicts` para verlos.
+error-usage-no_conflict = { $detail } no tiene conflictos.
+error-usage-lease_live = Ese bloqueo está activo; no se puede tomar.

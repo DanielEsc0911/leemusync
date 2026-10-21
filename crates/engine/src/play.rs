@@ -35,11 +35,23 @@ pub enum LeaseChoice {
 }
 
 /// Questions `play` asks the player. The CLI answers them; tests script them.
+/// An `Err` (e.g. `LeaseHeld`, `NeedsDecision` when there is no terminal) stops `play` before launch.
 pub trait PlayPrompt: Send + Sync {
     /// `by` holds the lease, last renewed `renewed_ago_s` ago; `stale` once it expired.
-    fn lease_held(&self, by: &str, renewed_ago_s: u64, stale: bool) -> LeaseChoice;
+    ///
+    /// # Errors
+    /// Whatever stops `play`, returned as is.
+    fn lease_held(
+        &self,
+        by: &str,
+        renewed_ago_s: u64,
+        stale: bool,
+    ) -> Result<LeaseChoice, EngineError>;
     /// The stream has a conflict: the head to keep, or `None` to play this device's copy.
-    fn conflict(&self, c: &ConflictInfo) -> Option<VersionId>;
+    ///
+    /// # Errors
+    /// Whatever stops `play`, returned as is.
+    fn conflict(&self, c: &ConflictInfo) -> Result<Option<VersionId>, EngineError>;
     /// Live status for each step; ignored by default.
     fn event(&self, _e: PlayEvent) {}
 }
@@ -116,6 +128,7 @@ impl Engine {
     /// `EmulatorRunning` if the emulator is already open (I3); `Usage` for an unknown player,
     /// a mapping or install that is missing, or `TakeOver` of a live lease; launch, storage
     /// and file errors. The lease, once taken, is released before any error returns.
+    #[allow(clippy::too_many_lines)] // the launcher-mode steps in order, each a few lines
     pub async fn play(
         &mut self,
         player: &str,
@@ -149,7 +162,11 @@ impl Engine {
             let ours = conflicts
                 .iter()
                 .find(|c| c.player == player && c.emulator == emulator && c.game == game);
-            if let Some(keep) = ours.and_then(|c| prompt.conflict(c)) {
+            let keep = match ours {
+                Some(c) => prompt.conflict(c)?,
+                None => None,
+            };
+            if let Some(keep) = keep {
                 let (r, w) = self.resolve(player, emulator, &game, keep).await?;
                 warnings.extend(w);
                 pulled = r;
@@ -178,7 +195,7 @@ impl Engine {
                     ..
                 } => {
                     let ago = self.lease_now().saturating_sub(renewed_at_ms).max(0) / 1000;
-                    match prompt.lease_held(&device_name, ago.unsigned_abs(), stale) {
+                    match prompt.lease_held(&device_name, ago.unsigned_abs(), stale)? {
                         LeaseChoice::Wait => {
                             prompt.event(PlayEvent::WaitingForLease);
                             tokio::time::sleep(self.play_timings.poll).await;

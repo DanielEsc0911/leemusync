@@ -20,7 +20,8 @@ pub trait Child: Send {
     fn wait(&mut self) -> std::io::Result<i32>;
 }
 
-/// `std::process::Command` with argv[0] as the program and no shell (B2).
+/// `std::process::Command` with argv[0] as the program and no shell (B2). On Unix the
+/// emulator gets its own process group, so Ctrl-C in the terminal never reaches it.
 pub struct OsLauncher;
 
 impl Launcher for OsLauncher {
@@ -28,7 +29,11 @@ impl Launcher for OsLauncher {
         let (exe, rest) = argv
             .split_first()
             .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "empty argv"))?;
-        let child = std::process::Command::new(exe).args(rest).spawn()?;
+        let mut cmd = std::process::Command::new(exe);
+        cmd.args(rest);
+        #[cfg(unix)]
+        std::os::unix::process::CommandExt::process_group(&mut cmd, 0);
+        let child = cmd.spawn()?;
         Ok(Box::new(OsChild(child)))
     }
 }

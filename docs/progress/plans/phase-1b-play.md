@@ -163,8 +163,8 @@ impl Engine { pub async fn create_account(&mut self, player: &str, emulator: &st
 
 Commands as the spec table: `play <emulator> <game> [--as <player>] [-- <args>]`, `conflicts`, `resolve <game> <version> [--as <player>]`, `lease status`, `lease release --force <game>`, `accounts create <player> <emulator> [--name <mii name>]` with the spec's two confirmation messages. Exit codes: 4 when a conflict needs a decision and there's no terminal; 5 when the lease is held and there's no terminal (no silent `PlayAnyway`). `--json` everywhere; prompts never shown with `--json` (fail with 4/5 instead).
 
-- [ ] **Step 1: failing tests** (`assert_cmd`, `LEEMUSYNC_TEST_ROOT`): `conflicts --json` lists heads; `resolve` with a bad version → exit 2; `play` with a held lease and no TTY → exit 5; `accounts create` without a TTY and without `--yes` → exit 2; en and es output for each new message.
-- [ ] **Step 2:** implement; pass; `cargo xtask i18n-check`; spec; `just check`; commit `feat(cli): add play, conflicts, resolve, lease and accounts create`.
+- [x] **Step 1: failing tests** (`assert_cmd`, `LEEMUSYNC_TEST_ROOT`): `conflicts --json` lists heads; `resolve` with a bad version → exit 2; `play` with a held lease and no TTY → exit 5; `accounts create` without a TTY and without `--yes` → exit 2; en and es output for each new message.
+- [x] **Step 2:** implement; pass; `cargo xtask i18n-check`; spec; `just check`; commit `feat(cli): add play, conflicts, resolve, lease and accounts create`.
 
 ### Task 8: SC5 fault matrix and budget measurements
 

@@ -220,6 +220,40 @@ impl Engine {
         self.repo_ref()?.delete_lease(&stream, &me).await
     }
 
+    /// Deletes this device's leases on every stream of `game` (`lease release --force`).
+    /// Returns how many were deleted; other devices' leases are never touched.
+    ///
+    /// # Errors
+    /// Storage errors; `NotSetUp` without a repo.
+    pub async fn lease_release_game(&mut self, game: &str) -> Result<u32, EngineError> {
+        self.ensure_repo().await?;
+        let game = game.to_lowercase();
+        let me = self.device_id();
+        let config = repo_config::load(self.repo_ref()?, &self.state)
+            .await?
+            .config;
+        let mut warnings = Vec::new();
+        let mut released = 0;
+        for pid in config.players.keys() {
+            for (emu, g) in config.games_of(*pid) {
+                if g != game {
+                    continue;
+                }
+                let stream = self.repo_ref()?.stream_id(*pid, &emu, &g);
+                let ours = self
+                    .leases_of(&stream, &mut warnings)
+                    .await?
+                    .iter()
+                    .any(|s| s.observed.lease.device == me);
+                if ours {
+                    self.repo_ref()?.delete_lease(&stream, &me).await?;
+                    released += 1;
+                }
+            }
+        }
+        Ok(released)
+    }
+
     /// Every lease on every stream of the repo config.
     ///
     /// # Errors
