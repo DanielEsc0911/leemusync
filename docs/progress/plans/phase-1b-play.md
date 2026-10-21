@@ -152,10 +152,10 @@ impl Engine { pub async fn create_account(&mut self, player: &str, emulator: &st
     -> Result<api::CreatedAccount, EngineError>; }
 ```
 
-- [ ] **Step 1: golden test.** Add the SP8 evidence as fixture `profiles/fixtures/cemu/account-create/` (the `SP8 Test` and `sp8cemu` files, non-secret: online fields empty): `render` with that file's id, name and `Uuid` bytes reproduces it byte for byte; `MiiData` CRC-16 is 0; same name → same `MiiData`.
-- [ ] **Step 2: rule tests.** `next_id` = max(counter + 1, highest + 1) and ≥ `80000001`; 12 accounts → error; name longer than 10 UTF-16 units is cut, not rejected; unknown template function → profile validation error.
-- [ ] **Step 3: engine tests.** Refuses while the emulator runs (`FakeProbe`) and when the folder exists; writes only `act/<id>/account.dat` (tree diff before/after: one new file); then maps the account to the player and restores the player's latest version (backup-first); the file stays inside the grant.
-- [ ] **Step 4:** implement; pass; clippy; specs (W1; replace "Field names are settled in that plan"), `just check`, commit `feat(accounts): create Cemu accounts from profile data`.
+- [x] **Step 1: golden test.** Add the SP8 evidence as fixture `profiles/fixtures/cemu/account-create/` (the `SP8 Test` and `sp8cemu` files, non-secret: online fields empty): `render` with that file's id, name and `Uuid` bytes reproduces it byte for byte; `MiiData` CRC-16 is 0; same name → same `MiiData`.
+- [x] **Step 2: rule tests.** `next_id` = max(counter + 1, highest + 1) and ≥ `80000001`; 12 accounts → error; name longer than 10 UTF-16 units is cut, not rejected; unknown template function → profile validation error.
+- [x] **Step 3: engine tests.** Refuses while the emulator runs (`FakeProbe`) and when the folder exists; writes only `act/<id>/account.dat` (tree diff before/after: one new file); then maps the account to the player and restores the player's latest version (backup-first); the file stays inside the grant.
+- [x] **Step 4:** implement; pass; clippy; specs (W1; replace "Field names are settled in that plan"), `just check`, commit `feat(accounts): create Cemu accounts from profile data`.
 
 ### Task 7: CLI: `play`, `conflicts`, `resolve`, `lease`, `accounts create`
 
@@ -180,7 +180,7 @@ Commands as the spec table: `play <emulator> <game> [--as <player>] [-- <args>]`
 Maintainer, Fedora + CachyOS, R2 repo from M1a, release binaries from this branch on both. Record surprises in the roadmap and the specs (W1).
 
 - [ ] **B0: Set up.** On each PC: `leemusync` config `[emulators.cemu] exe` (Flatpak on Fedora, `/usr/bin/cemu` on CachyOS) and `games.101c9400 = "<BotW path>"`. `leemusync sync`, `leemusync doctor`: all ok.
-- [ ] **B1: Account creation.** On the PC missing a player's account: `leemusync accounts create "<player>" cemu`, confirm, open Cemu, select the account, check BotW shows that player's save. Delete the hand-made M1a accounts only if the maintainer wants to.
+- [ ] **B1: Account creation.** On the PC missing a player's account: `leemusync accounts create "<player>" cemu`, confirm, open Cemu, select the account, check BotW shows that player's save. **V-ACC-4:** first, in a scratch Cemu tree, create one account in Cemu itself and keep its `account.dat` (online fields empty) to replace the hand-built fixtures in `profiles/fixtures/cemu/account-create/`. Delete the hand-made M1a accounts only if the maintainer wants to.
 - [ ] **B2: SC1.** Each player runs `leemusync play cemu 101c9400 --as "<player>"` on a different PC at the same time, plays 10 min, quits. Both syncs upload; `leemusync conflicts` is empty; `lease status` empty.
 - [ ] **B3: SC2.** Player 1 plays on Fedora, quits, then `play` on CachyOS: the game starts with the progress just made.
 - [ ] **B4: SC3.** Same player starts `play` on both PCs; on the second choose "play anyway"; save on both; quit. `leemusync conflicts` shows 2 heads; `resolve` one; the other is still in `history` and `restore` brings it back.

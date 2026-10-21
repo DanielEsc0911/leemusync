@@ -132,6 +132,14 @@ enum AccountsCmd {
         #[arg(long)]
         player: String,
     },
+    Create {
+        player: String,
+        emulator: String,
+        #[arg(long)]
+        name: Option<String>,
+        #[arg(long)]
+        yes: bool,
+    },
 }
 
 /// Sets every command's and argument's help from `help-<path>[-<arg id>]` (P6).
@@ -433,6 +441,49 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
                         ("player", s(player.clone())),
                         ("emulator", s(emulator.clone())),
                         ("account", s(account.clone())),
+                    ],
+                );
+            }
+        }
+        Cmd::Accounts {
+            cmd:
+                AccountsCmd::Create {
+                    player,
+                    emulator,
+                    name,
+                    yes,
+                },
+        } => {
+            if !*yes {
+                let shown = name.clone().unwrap_or_else(|| player.clone());
+                let question = t.t(
+                    "prompt-create-account",
+                    &[
+                        ("emulator", s(emulator.clone())),
+                        ("name", s(shown)),
+                        ("player", s(player.clone())),
+                    ],
+                );
+                if json || !prompt::yes(t, &question)? {
+                    return Err(EngineError::Usage(
+                        t.t("error-needs-tty", &[("what", s(question))]),
+                    ));
+                }
+            }
+            let created = live
+                .run(t, engine.create_account(player, emulator, name.as_deref()))
+                .await?;
+            if json {
+                output::json(&created);
+            } else {
+                output::line(
+                    t,
+                    "create-done",
+                    &[
+                        ("emulator", s(emulator.clone())),
+                        ("name", s(created.name.clone())),
+                        ("account", s(created.account.clone())),
+                        ("player", s(player.clone())),
                     ],
                 );
             }
