@@ -93,7 +93,7 @@ pub fn seal(key: &Key, aad: &[u8], plaintext: &[u8]) -> Result<Vec<u8>, CryptoEr
         XChaCha20Poly1305::new_from_slice(key.as_bytes()).map_err(|_| CryptoError::Encrypt)?;
     let ct = cipher
         .encrypt(
-            XNonce::from_slice(&nonce),
+            &XNonce::from(nonce),
             Payload {
                 msg: plaintext,
                 aad,
@@ -117,7 +117,10 @@ pub fn open(key: &Key, aad: &[u8], sealed: &[u8]) -> Result<Vec<u8>, CryptoError
     let cipher =
         XChaCha20Poly1305::new_from_slice(key.as_bytes()).map_err(|_| CryptoError::Decrypt)?;
     cipher
-        .decrypt(XNonce::from_slice(nonce), Payload { msg: ct, aad })
+        .decrypt(
+            &XNonce::try_from(nonce).map_err(|_| CryptoError::Malformed)?,
+            Payload { msg: ct, aad },
+        )
         .map_err(|_| CryptoError::Decrypt)
 }
 
