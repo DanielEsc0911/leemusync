@@ -71,6 +71,9 @@ How it was measured:
 - **Images** (pulled 2026-10-08): `docker.io/chrislusf/seaweedfs@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d`, `docker.io/rustfs/rustfs@sha256:1803faef57627e2d9c2e7d89d655d712ddded5389040054987163043fecb6a3c`, `docker.io/library/nextcloud@sha256:f4e0ee28ac9e54cad6e04e148489d79a609acba86dfbff69c8f666d50f96e414`, `docker.io/atmoz/sftp@sha256:0960390462a4441dbb63698d7c185b76a41ffcee7b78ff4adf275f3e66f9c475`.
 - **MinIO couldn't be tested:** on 2026-10-08 `docker.io/minio/minio` (latest and a pinned `RELEASE.` tag) returned "access denied", `quay.io/minio/minio` returned "unauthorized", and `dl.min.io` returned HTTP 410. SeaweedFS and RustFS stood in as S3 servers.
 
+### Cloudflare R2 (live)
+The first real repo ([D31](../decisions.md#d31-cloudflare-r2-replaces-google-drive-for-the-first-real-test-2026-10-20)), M1a test day, 2026-10-20: bucket in the maintainer's account, S3 adapter with static keys. The first push (~320 files) failed once on a blob `PutObject` with `500 InternalError … Please try again`, and the rerun passed; the store now retries transient errors ([Interface](#interface)). Before Task 17d a sync after a short play session took 52 s, because every blob was sent again and read back. Afterwards the repo held 5 versions for one player and 2 for the other, all in one line per player, made from both PCs.
+
 ### Google Drive (live)
 Run 2026-10-08 on Fedora 44 x86_64 with OpenDAL 0.59.4 `gdrive` (Drive API v3) on the maintainer's personal Google account. Scope `drive.file` only. OAuth client type "Desktop app", consent screen in Testing status. Two independent `Operator`s. Rounds were reduced for Drive quotas: race 20 rounds, list-after-write 5 rounds of 10 files. Test root `/leemusync-sp6-test/<run id>/`.
 

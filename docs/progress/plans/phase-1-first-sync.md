@@ -9347,7 +9347,7 @@ Found in Task 17c Step 7: a sync after a short play session took 52 s and printe
 
 **Part A: Fedora alone, play and sync.** Use `./target/release/leemusync` from the repo (the system rpm is older). Cemu closed unless a step says otherwise.
 
-- [ ] **A1: Set up.**
+- [x] **A1: Set up.**
 
     ```sh
     alias leemusync="$PWD/target/release/leemusync"
@@ -9360,10 +9360,10 @@ Found in Task 17c Step 7: a sync after a short play session took 52 s and printe
     leemusync doctor                                 # all ok
     ```
 
-- [ ] **A2: First push.** `leemusync sync --dry-run` (expect `uploaded` for BotW), then `leemusync sync` (answer yes: the panic backup exists). `leemusync history "<Fedora player>" cemu 101c9400` shows 1 version. Run `leemusync sync` again: `up to date`.
-- [ ] **A3: Play.** Open Cemu, play BotW and save in game. While it's open, run `leemusync sync`: BotW is skipped with "emulator running", and `doctor` shows `cemu running running`. Close Cemu.
-- [ ] **A4: Second push.** `leemusync sync --dry-run` (expect `uploaded`), `leemusync sync`, then `history`: 2 versions, the newest is the head and its parent is the first. Record object counts and timings from the R2 dashboard if notable.
-- [ ] **A5: Check without copying.** Compare names and hashes of `user/80000001` with what `history` reports (files and bytes of the head). Open Cemu once more and confirm the save is where you left it.
+- [x] **A2: First push.** `leemusync sync --dry-run` (expect `uploaded` for BotW), then `leemusync sync` (answer yes: the panic backup exists). `leemusync history "<Fedora player>" cemu 101c9400` shows 1 version. Run `leemusync sync` again: `up to date`.
+- [x] **A3: Play.** Open Cemu, play BotW and save in game. While it's open, run `leemusync sync`: BotW is skipped with "emulator running", and `doctor` shows `cemu running running`. Close Cemu.
+- [x] **A4: Second push.** `leemusync sync --dry-run` (expect `uploaded`), `leemusync sync`, then `history`: 2 versions, the newest is the head and its parent is the first. Record object counts and timings from the R2 dashboard if notable.
+- [x] **A5: Check without copying.** Compare names and hashes of `user/80000001` with what `history` reports (files and bytes of the head). Open Cemu once more and confirm the save is where you left it.
 - [ ] **A6 (optional): Restore round trip.** `leemusync restore "<Fedora player>" cemu 101c9400 <first version id>`, then check it in Cemu and close it. A `sync` now uploads that old state as a new version on top. To go back, `restore … <the A4 version id>` and `sync` again. History is never rewritten, and every pre-restore copy is in `~/.local/share/leemusync/history/`.
 
 **Part B: both PCs** (after Part A; rewritten 2026-10-20). The repo already exists on R2 from Part A, so CachyOS **joins** it. The Fedora player (named in Part A; `leemusync players list` shows the exact name) gets a new Cemu account on CachyOS, and the CachyOS player gets a new one on Fedora. Use each PC's own release binary built from the branch below. Cemu is closed unless a step says otherwise.
@@ -9371,7 +9371,7 @@ Found in Task 17c Step 7: a sync after a short play session took 52 s and printe
 
 Done by the maintainer, with an agent on each PC if wanted. It needs Tasks 1–17 merged to `main` and `just check` green. Real saves are only read and written by `leemusync`, after the panic backups exist. Agents never copy saves anywhere else and never record save contents. Names, sizes and hashes are fine to record.
 
-- [ ] **Step 1: Panic backups.**
+- [x] **Step 1: Panic backups.**
   - **CachyOS laptop:** done on 2026-10-18 at `~/Documents/panic/botw-cachyos-2026-10-18/` (170 files sha256-verified, `RESTORE.md` inside). Check it's still there. If BotW was played on CachyOS since, take a fresh one with the commands below, using `S=~/.local/share/Cemu/mlc01/usr/save` and `D=~/Documents/panic/botw-cachyos-$(date +%F)`.
   - **Fedora PC:** done on 2026-10-19 at `~/Documents/panic/botw-fedora-2026-10-19/` (339 files sha256-verified, `act/` diffed, `RESTORE.md` inside). The backup still holds the `80000002` account: the maintainer deleted it in Cemu right after. Afterwards only `system/act/80000002/` was gone, `persisid.dat` was unchanged, and every save file still matched `SHA256SUMS`, so `user/80000002/` (20 files) is now an orphan, as on CachyOS. Commands used (Cemu Flatpak). Close Cemu (`pgrep -a -i cemu` prints nothing), then:
 
@@ -9388,7 +9388,7 @@ Done by the maintainer, with an agent on each PC if wanted. It needs Tasks 1–1
     ```
 
     Expected: `all OK`, `accounts OK`, and a list of user folders (note whether an orphaned `80000002` is there). Copy `RESTORE.md` from the CachyOS backup and change `S=` to the Flatpak path above. If `80000002` hasn't been deleted on Fedora yet, take this backup first.
-- [ ] **Step 2: Build on CachyOS.** Task 17d isn't on `main` yet, so build the branch:
+- [x] **Step 2: Build on CachyOS.** Task 17d isn't on `main` yet, so build the branch:
 
     ```sh
     git fetch && git switch feat/store-s3 && git pull --ff-only
@@ -9398,7 +9398,7 @@ Done by the maintainer, with an agent on each PC if wanted. It needs Tasks 1–1
     ```
 
     On Fedora, rebuild the same commit too, so both PCs run the same code.
-- [ ] **Step 3: CachyOS joins, maps its own player and pushes first.** Nothing is restored on CachyOS until its own save is safely in the repo.
+- [x] **Step 3: CachyOS joins, maps its own player and pushes first.** Nothing is restored on CachyOS until its own save is safely in the repo.
 
     ```sh
     leemusync backend add s3 --endpoint https://<account id>.r2.cloudflarestorage.com --bucket lemusync --access-key-id <id>
@@ -9413,7 +9413,7 @@ Done by the maintainer, with an agent on each PC if wanted. It needs Tasks 1–1
     ```
 
     `accounts map` must not ask keep or replace here (the CachyOS player has no versions yet). If it does, stop: the wrong player name was typed.
-- [ ] **Step 4: Keep CachyOS's orphan.** Before Cemu creates any account, because it may reuse id `80000002` and its folder still holds the orphan's files:
+- [x] **Step 4: Keep CachyOS's orphan.** Before Cemu creates any account, because it may reuse id `80000002` and its folder still holds the orphan's files:
 
     ```sh
     leemusync players add "Old CachyOS"
@@ -9421,12 +9421,12 @@ Done by the maintainer, with an agent on each PC if wanted. It needs Tasks 1–1
     ```
 
     To skip it instead, the panic backup already holds it.
-- [ ] **Step 5: New account for the Fedora player on CachyOS.**
+- [x] **Step 5: New account for the Fedora player on CachyOS.**
   1. Open Cemu, create an account (account settings, under General settings in 2.6; check the menu on the day), close Cemu. LeemuSync can't create it yet: that's option c, behind SP8 (Task 19).
   2. `leemusync scan` to see its id (`80000002` if Cemu reuses it, else `80000003`; record which in Step 9).
   3. `leemusync accounts map "<Fedora player>" cemu <new id>`. If it asks keep or replace (the folder holds the orphan's files), choose **replace**: those files go to local history first and Step 4 already put them in the repo.
   4. `leemusync sync --dry-run` (Fedora player: `restored the latest version`; CachyOS player: `up to date`), then `leemusync sync`. The progress line shows the download.
-- [ ] **Step 6: Back on Fedora, the CachyOS player.**
+- [x] **Step 6: Back on Fedora, the CachyOS player.**
 
     ```sh
     leemusync sync                                   # pulls the config; CachyOS and Old CachyOS players show "no account on this device"
@@ -9435,14 +9435,14 @@ Done by the maintainer, with an agent on each PC if wanted. It needs Tasks 1–1
     ```
 
     Then create an account in Cemu, close it, `leemusync scan`, `leemusync accounts map "<CachyOS player>" cemu <new id>` (**replace** if asked), `leemusync sync --dry-run` (expect `restored the latest version`), `leemusync sync`. "Old CachyOS" stays at `no account on this device` on Fedora, and "Old Fedora" on CachyOS: expected.
-- [ ] **Step 7: Check.**
+- [x] **Step 7: Check.**
   - Open Cemu on each PC, pick each account in turn, load BotW, and confirm it's the right save (location and play time). Close Cemu.
   - While Cemu is open, run `leemusync doctor` once on each PC. Expect `cemu running running`, which confirms process detection for the Flatpak and the native package.
   - Run `leemusync sync` on both PCs. Expect `up to date` everywhere, with nothing transferred.
   - Compare names and hashes only, without copying files. On each PC, for each account folder: `(cd <save>/00050000/101c9400/user/<id> && find . -type f -exec sha256sum {} + | sort -k2)`. CachyOS's new account must match Fedora's `80000001`, and Fedora's new account must match CachyOS's `80000001`.
   - **Handoff once:** play as the Fedora player on CachyOS, save, close Cemu, `sync` (uploaded, only the changed files). On Fedora, `sync` (restored the latest version), then load it in Cemu.
-- [ ] **Step 8: If anything looks wrong**, stop syncing, follow `RESTORE.md` on that PC, and keep `~/.local/share/leemusync/history/` (it holds every pre-restore backup). Debug with `superpowers:systematic-debugging`.
-- [ ] **Step 9: Record and close.**
+- [x] **Step 8: If anything looks wrong**, stop syncing, follow `RESTORE.md` on that PC, and keep `~/.local/share/leemusync/history/` (it holds every pre-restore backup). Debug with `superpowers:systematic-debugging`.
+- [x] **Step 9: Record and close.** Done 2026-10-20 (maintainer's report plus names, counts and hashes read on Fedora). New accounts: Fedora `80000002` (reused), CachyOS `80000003`. Orphans weren't recovered; the panic backups hold them.
   - `docs/progress/roadmap.md` Phase 1: "M1a reached on <date>", plus anything surprising.
   - `docs/specs/emulator-profiles.md` §Linux paths: process detection seen live for the Flatpak and `cemu-bin`.
   - `docs/specs/players-and-accounts.md`: the second account's id as Cemu assigned it, and the orphan outcome.
