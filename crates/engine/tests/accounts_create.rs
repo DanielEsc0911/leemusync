@@ -124,16 +124,19 @@ async fn refuses_when_the_folder_exists() {
         "{err}"
     );
     assert_eq!(tree(&cachy.cemu), before);
-    std::fs::remove_file(act.join("80000002")).unwrap();
-    std::os::unix::fs::symlink(&outside, act.join("80000002")).unwrap();
-    let err = cachy
-        .engine
-        .create_account("Ana", "cemu", None)
-        .await
-        .unwrap_err();
-    assert!(
-        matches!(err, EngineError::Usage(ref k) if k.starts_with("account_exists")),
-        "{err}"
-    );
-    assert!(tree(&outside).is_empty(), "never writes through a link");
+    #[cfg(unix)]
+    {
+        std::fs::remove_file(act.join("80000002")).unwrap();
+        std::os::unix::fs::symlink(&outside, act.join("80000002")).unwrap();
+        let err = cachy
+            .engine
+            .create_account("Ana", "cemu", None)
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, EngineError::Usage(ref k) if k.starts_with("account_exists")),
+            "{err}"
+        );
+        assert!(tree(&outside).is_empty(), "never writes through a link");
+    }
 }
