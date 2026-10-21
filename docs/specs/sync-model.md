@@ -1,6 +1,6 @@
 # Sync model
 
-> **Status:** Partial (leases, play sessions and retention are still open) · **Related:** [rules](../rules.md) (B2, B3, P3), [reliability](reliability.md), [security](security.md), [players-and-accounts](players-and-accounts.md), [emulator-profiles](emulator-profiles.md), [storage-backends](storage-backends.md), [glossary](../glossary.md) · **Code:** `crates/core/src/{manifest,heads,reconcile,config}.rs`, `crates/engine/src/{repo,repo_config}.rs`, `crates/engine/src/sync.rs`
+> **Status:** Partial (leases, play sessions and retention are still open) · **Related:** [rules](../rules.md) (B2, B3, P3), [reliability](reliability.md), [security](security.md), [players-and-accounts](players-and-accounts.md), [emulator-profiles](emulator-profiles.md), [storage-backends](storage-backends.md), [glossary](../glossary.md) · **Code:** `crates/core/src/{manifest,heads,reconcile,config}.rs`, `crates/engine/src/{repo,repo_config}.rs`, `crates/engine/src/sync.rs`, `crates/core/src/lease.rs`, `crates/engine/src/lease.rs`, `crates/engine/src/resolve.rs`
 
 ## Purpose
 How saves move between devices without loss: what is synced (streams), how history is stored (versions), how divergence is detected (heads), and how simultaneous play is coordinated (leases, play sessions).
@@ -39,18 +39,19 @@ With no `base` yet: no local files and one head → fast-forward. Local files an
 
 ## Conflicts
 - Never merged automatically; saves are opaque binary ([D7](../decisions.md#d7-no-game-save-format-parsing-in-core-2026-10-07)).
-- The player sees each head with device, player, time, session length, changed files, size and emulator version.
-- Choosing writes a **resolution version**: content of the chosen head, parents = all heads. The others stay in history and can be restored any time.
-- Policy setting `conflict_policy = "ask" | "newest"` (default `ask`). `newest` still writes a resolution version and keeps the others.
+- The player sees each head with device, player, time, session length, changed files, size and emulator version. M1b (`Engine::conflicts`, `HeadInfo`) shows device, player, time, files, size and changed files; session length and emulator version wait for manifest fields that record them.
+- Choosing writes a **resolution version**: content of the chosen head, parents = all heads. The others stay in history and can be restored any time. The resolution reuses the chosen head's blobs (nothing is re-uploaded) and is committed create-only like any manifest; it is then restored on this device with the current files backed up to local history first (`<ms>-pre-resolve`, I1). A crash after the commit is safe: the next sync fast-forwards to it with backup. Choosing a version that isn't a head, or a stream without a conflict, is a usage error.
+- Policy setting `conflict_policy = "ask" | "newest"` (default `ask`). `newest` still writes a resolution version and keeps the others. "Newest" is the head with the latest `created_at`, which is its writer's clock (ties: the larger version id); `sync` reports the stream as `Resolved`.
 - While a conflict is unresolved, the device keeps its local files. Launcher mode asks for a choice before starting that game, or the player can "play this device's copy".
 
 ## Leases
 Advisory per-stream locks so two devices don't play the same player's save at once ([D6](../decisions.md#d6-leases-are-advisory-divergence-detection-is-the-safety-net-2026-10-07)).
-- Object `locks/<streamId>/<deviceId>` (encrypted) holds `{device, player, session, acquired_at, renewed_at, ttl}`. Each device writes only its own file.
-- **Acquire:** list leases. Any live lease from another device → warn ("BotW is in use on Desktop, active 2 min ago"). Otherwise write our lease and list again. If another live lease appeared meanwhile, the earliest `(acquired_at, device id)` wins and the other device backs off.
-- **Renew** every 60 s. **TTL** 5 min (configurable). **Release** at session end by deleting our lease.
-- **Liveness** uses the backend's server-side modified time when the backend reports it; otherwise device clocks with 2 min skew tolerance.
-- **Stale** (expired) leases can be taken over after confirmation. The takeover is recorded in the next version's `meta`.
+- Object `locks/<streamId>/<deviceId>` (encrypted, AAD `lease\0<streamId>\0<deviceId>`) holds JSON `{format: 1, device, player, session, acquired_at_ms, renewed_at_ms, ttl_ms}` (device-clock Unix ms; `session` is a random id per acquisition). Each device writes only its own file, and it is the only object besides `repo.json` that is overwritten.
+- **Acquire:** list leases. Any live lease from another device → warn ("BotW is in use on Desktop, active 2 min ago"). Otherwise write our lease and list again. If another live lease appeared meanwhile, the earliest `(acquired_at, device id)` wins and the other device deletes its own lease and backs off.
+- **Renew** every 60 s. **TTL** 5 min (`config.toml` `[leases] ttl_secs`, 120–86400). **Release** at session end by deleting our lease; a forced release deletes only this device's lease.
+- **Liveness:** a lease is live until its last renewal + TTL + 2 min skew. The last renewal is the backend's server-side modified time when the backend reports it (`Entry.modified`), otherwise the holder's `renewed_at_ms`.
+- **Stale** (expired) leases can be taken over after confirmation (`takeover`). The stale file stays; it is its device's to delete. The takeover is recorded in the next version's `meta` (`takeover: true`, `takeover_from: <deviceId>`).
+- A lease that doesn't decrypt, parse, or names another device than its object name is ignored with a `lease_unreadable` warning and never trusted (B2).
 - Leases never weaken safety. Anything they miss becomes a conflict, never a loss.
 
 ## Play sessions
@@ -109,7 +110,7 @@ A separate stream kind (`state`), opt-in per emulator or game. The manifest reco
 Snapshots queue in local history and upload when the device is back online. Parents are kept as they were, so divergence is still detected.
 
 ## Verify
-- **V-SYNC-1** Server-side modified time for lease liveness. Local services are answered: `s3` (SeaweedFS, RustFS), `webdav` (Nextcloud), `sftp` and `fs` return it from `stat` and `list`, and a renewal (overwrite) advances it, at 1 s granularity on the network services ([storage-backends §Tested capabilities](storage-backends.md#tested-capabilities-sp6)). Clock skew on a real remote server and the cloud providers are pending accounts (SP6).
+- **V-SYNC-1** Server-side modified time for lease liveness. Local services are answered: `s3` (SeaweedFS, RustFS), `webdav` (Nextcloud), `sftp` and `fs` return it from `stat` and `list`, and a renewal (overwrite) advances it, at 1 s granularity on the network services ([storage-backends §Tested capabilities](storage-backends.md#tested-capabilities-sp6)). Clock skew on a real remote server and the cloud providers are pending accounts (SP6). R2: `store::Entry.modified` is wired; SP9 (`cargo test -p leemusync-store --test s3_conformance -- --ignored lease_mtime`) measures it, and until it's recorded leases use the device-clock fallback (2 min skew tolerance).
 - **V-SYNC-2** Listing delay and consistency on Google Drive, Dropbox and OneDrive (SP6). Google Drive data point 2026-10-08: listings were consistent on the first list in 5/5 rounds of 10 files (small sample). Drive `list` entries carry no mtime, so lease liveness on Drive can't come from listing mtimes; it needs a `stat` per lease or the lease's own `renewed_at` ([storage-backends §Google Drive (live)](storage-backends.md#google-drive-live)).
 
 ## Open questions

@@ -137,6 +137,9 @@ pub struct StreamId(pub Hash32);
 pub struct PlayerId(pub VersionId);
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId(pub VersionId);
+/// Random id of one play session (one lease acquisition).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SessionId(pub VersionId);
 
 string_serde!(VersionId, |v: &VersionId| v.to_string(), |t: &str| {
     t.parse::<VersionId>()
@@ -154,6 +157,9 @@ string_serde!(PlayerId, |v: &PlayerId| v.0.to_string(), |t: &str| t
 string_serde!(DeviceId, |v: &DeviceId| v.0.to_string(), |t: &str| t
     .parse()
     .map(DeviceId));
+string_serde!(SessionId, |v: &SessionId| v.0.to_string(), |t: &str| t
+    .parse()
+    .map(SessionId));
 
 impl fmt::Display for BlobId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -166,6 +172,11 @@ impl fmt::Display for StreamId {
     }
 }
 impl fmt::Display for PlayerId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+impl fmt::Display for SessionId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
     }

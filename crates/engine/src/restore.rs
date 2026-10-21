@@ -413,6 +413,7 @@ mod tests {
             emulator: "cemu",
             base_files: &[],
             note: None,
+            takeover_from: None,
         };
         let version = crate::upload::upload(&repo, &snap, meta, &Failpoints::default(), &NO_METER)
             .await

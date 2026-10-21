@@ -21,6 +21,45 @@ pub struct LocalConfig {
     pub grants: Vec<PathBuf>,
     #[serde(default)]
     pub emulators: BTreeMap<String, EmulatorOverride>,
+    #[serde(default)]
+    pub leases: LeaseSettings,
+    /// What `sync` does with a conflict (sync-model §Conflicts).
+    #[serde(default)]
+    pub conflict_policy: ConflictPolicy,
+}
+
+/// `conflict_policy`: `ask` leaves conflicts for the player; `newest` resolves them to the
+/// newest head. Either way nothing is lost: the other heads stay in history.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConflictPolicy {
+    #[default]
+    Ask,
+    Newest,
+}
+
+/// `[leases]` (sync-model §Leases).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LeaseSettings {
+    /// Lease lifetime; at least two renewals (120 s), at most a day.
+    pub ttl_secs: u64,
+}
+
+impl Default for LeaseSettings {
+    fn default() -> Self {
+        Self { ttl_secs: 300 }
+    }
+}
+
+impl LeaseSettings {
+    pub const MIN_TTL_SECS: u64 = 120;
+    pub const MAX_TTL_SECS: u64 = 86_400;
+
+    #[must_use]
+    pub fn ttl_ms(&self) -> i64 {
+        i64::try_from(self.ttl_secs.saturating_mul(1000)).unwrap_or(i64::MAX)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -54,6 +93,13 @@ pub enum BackendConfig {
 #[serde(deny_unknown_fields)]
 pub struct EmulatorOverride {
     pub root: Option<PathBuf>,
+    /// The argv prefix that starts the emulator, chosen by the user, never by a profile:
+    /// `["/usr/bin/cemu"]` or `["flatpak", "run", "info.cemu.Cemu"]`. Never run through a shell.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub exe: Vec<String>,
+    /// Game file per title id (lowercase), for `{game_path}` in the profile's `launch.args`.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub games: BTreeMap<String, PathBuf>,
 }
 
 /// `toml`'s `Display` quotes the offending source line, which can hold a secret pasted by
@@ -81,6 +127,8 @@ impl LocalConfig {
             backend: None,
             grants: Vec::new(),
             emulators: BTreeMap::new(),
+            leases: LeaseSettings::default(),
+            conflict_policy: ConflictPolicy::Ask,
         }
     }
 
@@ -97,6 +145,14 @@ impl LocalConfig {
             return Err(EngineError::Config(format!(
                 "unsupported config_version {}",
                 config.config_version
+            )));
+        }
+        let ttl = config.leases.ttl_secs;
+        if !(LeaseSettings::MIN_TTL_SECS..=LeaseSettings::MAX_TTL_SECS).contains(&ttl) {
+            return Err(EngineError::Config(format!(
+                "leases.ttl_secs must be {}..={}",
+                LeaseSettings::MIN_TTL_SECS,
+                LeaseSettings::MAX_TTL_SECS
             )));
         }
         Ok(Some(config))
@@ -128,9 +184,35 @@ mod tests {
             "cemu".into(),
             EmulatorOverride {
                 root: Some(PathBuf::from("/opt/cemu")),
+                exe: vec!["flatpak".into(), "run".into(), "info.cemu.Cemu".into()],
+                games: BTreeMap::from([(
+                    "101c9500".into(),
+                    PathBuf::from("/games/Zelda BotW/game.wux"),
+                )]),
             },
         );
         c
+    }
+
+    #[test]
+    fn emulator_exe_and_games_round_trip_and_default_to_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        let c = sample();
+        c.save(&path).unwrap();
+        assert_eq!(LocalConfig::load(&path).unwrap(), Some(c.clone()));
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(
+            text.contains("exe = [\"flatpak\", \"run\", \"info.cemu.Cemu\"]"),
+            "{text}"
+        );
+        let mut bare = c;
+        bare.emulators
+            .insert("cemu".into(), EmulatorOverride::default());
+        bare.save(&path).unwrap();
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(!text.contains("exe") && !text.contains("games"), "{text}");
+        assert_eq!(LocalConfig::load(&path).unwrap(), Some(bare));
     }
 
     #[test]
@@ -191,6 +273,51 @@ mod tests {
             matches!(LocalConfig::load(&path), Err(EngineError::Config(_))),
             "no secrets in config.toml"
         );
+    }
+
+    #[test]
+    fn conflict_policy_defaults_to_ask_and_parses_newest() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        let text = toml::to_string(&sample()).unwrap();
+        assert!(text.contains("conflict_policy = \"ask\""), "{text}");
+        std::fs::write(&path, text.replace("conflict_policy = \"ask\"\n", "")).unwrap();
+        assert_eq!(
+            LocalConfig::load(&path).unwrap().unwrap().conflict_policy,
+            ConflictPolicy::Ask
+        );
+        std::fs::write(&path, text.replace("\"ask\"", "\"newest\"")).unwrap();
+        assert_eq!(
+            LocalConfig::load(&path).unwrap().unwrap().conflict_policy,
+            ConflictPolicy::Newest
+        );
+        std::fs::write(&path, text.replace("\"ask\"", "\"merge\"")).unwrap();
+        assert!(LocalConfig::load(&path).is_err());
+    }
+
+    #[test]
+    fn lease_ttl_defaults_and_is_bounded() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        let good = toml::to_string(&sample()).unwrap();
+        assert!(good.contains("[leases]\nttl_secs = 300"), "{good}");
+        let without = good.replace("[leases]\nttl_secs = 300\n", "");
+        std::fs::write(&path, &without).unwrap();
+        assert_eq!(
+            LocalConfig::load(&path).unwrap().unwrap().leases.ttl_secs,
+            300
+        );
+        for bad in ["119", "86401"] {
+            std::fs::write(
+                &path,
+                good.replace("ttl_secs = 300", &format!("ttl_secs = {bad}")),
+            )
+            .unwrap();
+            assert!(matches!(
+                LocalConfig::load(&path),
+                Err(EngineError::Config(_))
+            ));
+        }
     }
 
     #[test]

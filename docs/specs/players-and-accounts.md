@@ -1,6 +1,6 @@
 # Players and accounts
 
-> **Status:** Partial · **Related:** [rules](../rules.md) (P3, P5), [sync-model](sync-model.md), [emulator-profiles](emulator-profiles.md), [glossary](../glossary.md), [navigation](ui/navigation.md) · **Code:** `crates/core/src/config.rs`, `crates/engine/src/accounts.rs`
+> **Status:** Partial · **Related:** [rules](../rules.md) (P3, P5, B2, B3), [sync-model](sync-model.md), [emulator-profiles](emulator-profiles.md), [glossary](../glossary.md), [navigation](ui/navigation.md) · **Code:** `crates/core/src/config.rs`, `crates/engine/src/accounts.rs`, `profiles/cemu.toml`
 
 ## Purpose
 Map people (players) to emulator user folders on every device, so each player's saves stay separate and follow them from machine to machine.
@@ -28,7 +28,37 @@ Verified on Cemu 2.6 (Linux Flatpak) against the [v2.6 source][cemu-acc], 2026-1
 - **BotW title ids** ([WiiUBrew title database][wiiubrew]): JP `00050000-101C9300` (`WUP-P-ALZJ`), US `00050000-101C9400` (`WUP-P-ALZE`), EU `00050000-101C9500` (`WUP-P-ALZP`). Updates use high part `0005000E`, DLC `0005000C`. Cemu writes folder names in lowercase.
 
 [cemu-acc]: https://github.com/cemu-project/Cemu/blob/v2.6/src/Cafe/Account/Account.cpp
+[cemu-gs]: https://github.com/cemu-project/Cemu/blob/v2.6/src/gui/GeneralSettings2.cpp
 [wiiubrew]: https://wiiubrew.org/wiki/Title_database
+
+### Creating a Cemu account (SP8)
+Cemu builds a new account from two inputs, a persistent id and a Mii name ([Account.cpp][cemu-acc] `Account(persistent_id, mii_name)` and `Save()`, called from [GeneralSettings2.cpp][cemu-gs] `OnAccountCreate`). Everything else is generated or left empty, so LeemuSync can create an account the same way, with no template account:
+
+| Key | Value Cemu writes |
+|---|---|
+| `PersistentId` | the id, 8 hex digits. Next free id = max(`persisid.dat` `PersistentIdHead` + 1, highest account id + 1), at least `80000001`. At most 12 accounts |
+| `Uuid` | 16 random bytes, 32 hex digits |
+| `TransferableIdBase` | `2000004` followed by the last 8 hex digits of `Uuid` |
+| `MiiData` | 96 bytes, 192 hex digits: a fixed default Mii, the name as 10 UTF-16LE units at byte `0x1A`, and a counter at bytes 4–7 raised from 0 until the CRC-16 (polynomial `0x1021`, Cemu's `FFLCalculateCRC16`) of the 96 bytes is 0. Same name → same bytes |
+| `MiiName` | the name, as in [Cemu accounts](#cemu-accounts-sp7). Up to 10 UTF-16 units |
+| `AccountId`, `EmailAddress` | empty |
+| `BirthYear`, `BirthMonth`, `BirthDay`, `Gender`, `Country`, `SimpleAddressId`, `PrincipalId`, `IsPasswordCacheEnabled` | `0` |
+| `AccountPasswordCache` | 64 zeros |
+
+Keys are written in this order, after the `AccountInstance_20120705` line, one per line. Cemu lists every folder under `act/` whose name is 8 hex digits ≥ `80000001` and whose `account.dat` parses with a non-empty `MiiName` and non-zero `MiiData`. On every start it rewrites `persisid.dat` itself.
+
+**Evidence (2026-10-20, Fedora 44, Cemu 2.6 Flatpak, scratch data tree, live data untouched):** a throwaway script outside the repo wrote `SP8 Test` as `80000002`. Cemu listed it (log: `IOSU_ACT: using account SP8 Test in first slot`), BotW US booted with it, and an in-game save created `00050000/101c9400/user/80000002/` (`option.sav`, `0/`, `1/`, `tracker/`). Cemu then created `sp8cemu` itself as `80000003`. Its `MiiData` matched the script's output for the same name byte for byte, and it had the same keys in the same order, with the same values except the per-account ones (id, `Uuid`, `TransferableIdBase`, name and `MiiData`). Its `TransferableIdBase` ended in its `Uuid`'s last 8 hex digits.
+
+**Quirks:**
+- Cemu's `settings.xml` keeps the active account (`<Account><PersistentId>`, decimal). If that account doesn't exist, Cemu uses the first one and still writes `system/pdm/<old id>/PlayDiary.dat`. LeemuSync doesn't edit `settings.xml`; it tells the player to select the new account in Cemu.
+- Copying an existing account as a template would also copy its online fields (`AccountId`, `PrincipalId`, password cache). So LeemuSync never copies one ([D32](../decisions.md#d32-new-cemu-accounts-are-generated-like-cemu-does-never-copied-2026-10-20)).
+- Flatpak overrides `XDG_DATA_HOME` and `XDG_CONFIG_HOME` given with `flatpak run --env`. A scratch Cemu needs `flatpak run --filesystem=<scratch> --command=sh info.cemu.Cemu -c "export XDG_DATA_HOME=… XDG_CONFIG_HOME=…; exec Cemu-wrapper"`. Flatpak's `/tmp` is private, so the scratch tree can't be there.
+
+**Design (option c, built in the next Phase 1 plan):**
+- **Profile data, not code (P3).** A new `accounts.create` profile section describes the file: id rule and counter file, header line, max accounts, name length, and the key list in order. Each value is a template built from generic primitives in core: the id, random bytes, hex slices of another value, the name in UTF-16 (as hex, or as bytes at an offset), a fixed byte block, and a CRC-16 fix-up (polynomial, which bytes to vary, target 0). Cemu's table above becomes data in `profiles/cemu.toml`. Field names are settled in that plan.
+- **Safety (B2, B3).** Only while the emulator isn't running. The new account folder must not exist. The file is written to a temp name, synced, then renamed. Nothing else is written: not `persisid.dat` (Cemu rewrites it), not `settings.xml`, not other accounts.
+- **Flow (P5).** `leemusync accounts create <player> cemu [--name <mii name>]` and the same action in the UI. The name defaults to the player's name, cut to 10 UTF-16 units. The CLI and UI then map the new account to the player and restore the player's latest version through the normal restore.
+- **Confirmation.** Before writing: "Create Cemu account “Ana” (80000003) on this device? Cemu must be closed." After writing: "Created. Open Cemu and select “Ana” in Account settings." Spanish strings go through [i18n](i18n.md#terminology).
 
 ### The same-ID trap
 Every Cemu install creates its first account as `80000001`. Two machines with differently *named* accounts usually still share that id, so syncing raw folders would mix two players' saves. LeemuSync never syncs by account id. Each device maps a player to its own local id:
@@ -52,7 +82,7 @@ A scan lists the accounts it finds (id, plus the display name if the profile say
 **A player with no account here.** When a player's stream exists in the repo but the player has no account mapped on this device, `sync` reports it and does nothing for that stream. The player chooses:
 - **a. Use an existing account:** `leemusync accounts map <player> cemu <id>`. If that account already has files and the player has a version in the repo, the CLI asks whether to keep them (they're uploaded and become a second head, a conflict) or replace them (`--replace`): the current files go to local history first (I1), then the player's latest version is restored.
 - **b. Create the account in the emulator first,** then `leemusync scan` and `accounts map`.
-- **c. Let LeemuSync create it:** only after spike SP8 proves Cemu accepts it (V-ACC-3).
+- **c. Let LeemuSync create it:** proven in SP8 ([Creating a Cemu account](#creating-a-cemu-account-sp8)). Not built yet.
 
 **Recovering an orphaned save:** `leemusync accounts recover cemu <id> --player <name>` uploads the orphaned folder as the first version of that player's stream. It's refused if the player already has a version of that game, so a recovered save can never replace one. The folder itself is only read.
 
@@ -79,4 +109,3 @@ Swapping works the same way, but at container granularity: the whole memory card
 ## Verify
 - **V-ACC-1** Same Cemu layout and `account.dat` format on Windows and macOS. Deferred by the maintainer on 2026-10-08 (spike SP7 device pass). The second Linux install (CachyOS) is done ([above](#cemu-accounts-sp7)).
 - **V-ACC-2** RPCS3 and Yuzu-family layouts (Phase 6 profile work).
-- **V-ACC-3** Cemu 2.6 accepts an `account.dat` written by LeemuSync from an existing account as the template (new `PersistentId` from `persisid.dat`, new `Uuid`, new `MiiName`): it lists the account and BotW saves under it (spike SP8, [Phase 1 first-sync plan](../progress/plans/phase-1-first-sync.md)).

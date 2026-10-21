@@ -173,6 +173,7 @@ action-local_missing = falta la carpeta de la partida guardada
 action-remote_behind = el repo volvió a un estado anterior; no se cambió nada
 action-needs_account = no hay cuenta en este dispositivo: ejecuta `leemusync accounts map`
 action-skipped = omitida (el emulador está abierto)
+action-resolved = conflicto resuelto; las otras versiones quedan en el historial
 
 warning-emulator_running = { $detail } está abierto, así que se omitieron sus partidas guardadas.
 warning-not_granted = Todavía sin permiso: { $detail }. Ejecuta `leemusync grant add`.

@@ -16,7 +16,7 @@ Resolved with the `directories` crate:
 | Android / iOS | App-private storage | App-private storage |
 
 ## Config file
-- `config.toml`, versioned (`config_version = 1`), per device: device id and name, repo id, backend reference (`kind = "gdrive"` with `root` and `client_id`, or `kind = "fs"` with `path`), grants, emulator root overrides. Later phases add schedule, UI language and notification preferences.
+- `config.toml`, versioned (`config_version = 1`), per device: device id and name, repo id, backend reference (`kind = "gdrive"` with `root` and `client_id`, or `kind = "fs"` with `path`), grants, per-emulator settings `[emulators.<id>]` (`root` override; `exe`, the argv prefix that starts the emulator, e.g. `["/usr/bin/cemu"]` or `["flatpak", "run", "info.cemu.Cemu"]`, never run through a shell; `games."<title id>" = "<absolute path>"`, the file passed as `{game_path}` to the profile's [`launch.args`](emulator-profiles.md#schema-v1)), `[leases] ttl_secs` (lease lifetime, default 300, 120–86400; [sync-model §Leases](sync-model.md#leases)), `conflict_policy = "ask" | "newest"` (default `ask`; [sync-model §Conflicts](sync-model.md#conflicts)). Later phases add schedule, UI language and notification preferences.
 - Shared settings (players, mappings, aliases) live in [repo config](sync-model.md#repo-config), not in this file.
 - The engine validates on load and hot-reloads on change. If the file is invalid, the engine keeps the last good config and reports the error (status `Error`, CLI exit code 3).
 - Secrets are **never** stored here ([security §Credentials](security.md#credentials)).

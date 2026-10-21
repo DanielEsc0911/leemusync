@@ -7,6 +7,8 @@ mod error;
 mod failpoints;
 pub mod fsx;
 mod grants;
+mod launch;
+mod lease;
 mod local_config;
 mod locations;
 mod process;
@@ -15,6 +17,7 @@ mod progress;
 mod query;
 mod repo;
 mod repo_config;
+mod resolve;
 mod restore;
 mod scan;
 mod secrets;
@@ -33,7 +36,10 @@ use leemusync_crypto::KdfParams;
 pub use accounts::{MapChoice, MapOutcome};
 pub use error::EngineError;
 pub use failpoints::Failpoints;
-pub use local_config::{BackendConfig, DeviceSection, EmulatorOverride, LocalConfig};
+pub use lease::{Acquire, LeaseHandle};
+pub use local_config::{
+    BackendConfig, ConflictPolicy, DeviceSection, EmulatorOverride, LeaseSettings, LocalConfig,
+};
 pub use locations::Locations;
 pub use process::{FakeProbe, ProcessProbe, SysinfoProbe};
 pub use progress::ProgressSink;
@@ -74,6 +80,10 @@ pub struct Engine {
     repo: Option<repo::Repo>,
     /// Where `TransferProgress` goes (`set_progress`); nowhere by default.
     progress: Option<ProgressSink>,
+    /// Streams whose stale lease we took over, by previous holder; read by the next upload.
+    takeovers: std::sync::Mutex<std::collections::BTreeMap<leemusync_core::StreamId, DeviceId>>,
+    /// Test-only shift of the lease clock (`shift_lease_clock_ms`).
+    clock_shift_ms: i64,
 }
 
 impl Engine {
@@ -101,6 +111,8 @@ impl Engine {
             failpoints: Failpoints::default(),
             progress: None,
             repo: None,
+            takeovers: std::sync::Mutex::default(),
+            clock_shift_ms: 0,
         };
         // A running emulator only postpones recovery (to `sync`/`restore`); the CLI still starts.
         match engine.recover_journal() {

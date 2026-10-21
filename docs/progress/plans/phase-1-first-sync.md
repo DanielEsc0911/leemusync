@@ -9454,9 +9454,9 @@ Done by the maintainer, with an agent on each PC if wanted. It needs Tasks 1–1
 
 ### Task 19: Spike SP8: Cemu account creation (option c), behind V-ACC-3
 
-Timebox: 1 day, on branch `spike/sp8-cemu-account`. The output is an answer and a design, not shipped code. Anything written here is throwaway unless a later plan adopts it. **Never on live data:** everything runs with a scratch `HOME`.
+Timebox: 1 day, on branch `spike/sp8-cemu-account`. **Done 2026-10-20 on the Fedora PC** instead of the CachyOS laptop: Flatpak Cemu with a scratch `XDG_DATA_HOME`/`XDG_CONFIG_HOME` set inside the sandbox (`--command=sh`; `--env` doesn't work), no `act/` copied. Result: Cemu accepts it; see [players-and-accounts](../../specs/players-and-accounts.md#creating-a-cemu-account-sp8) and D32. The output is an answer and a design, not shipped code. Anything written here is throwaway unless a later plan adopts it. **Never on live data:** everything runs with a scratch `HOME`.
 
-- [ ] **Step 1: Scratch Cemu on the CachyOS laptop.**
+- [x] **Step 1: Scratch Cemu on the CachyOS laptop.**
 
     ```sh
     X=$(mktemp -d)/home && mkdir -p "$X/.local/share" "$X/.config"
@@ -9468,9 +9468,9 @@ Timebox: 1 day, on branch `spike/sp8-cemu-account`. The output is an answer and 
     ```
 
     Make sure `settings.xml`'s `mlc_path` is empty, so the scratch `mlc01` is the one used. Don't copy any `00050000` save folder.
-- [ ] **Step 2: Learn what must change.** Compare two accounts Cemu created itself (create one in the scratch Cemu), by key names and value formats only: which keys differ (`PersistentId`, `Uuid`, `MiiName`, `MiiData`, `AccountId`, `PrincipalId`, `TransferableIdBase`, `SimpleAddressId`, …), and how `persisid.dat` changes. Read `src/Cafe/Account/Account.cpp` at Cemu v2.6 for the same answer from the source.
-- [ ] **Step 3: Write one account by hand** in the scratch tree, from the template rules found in Step 2, with a throwaway script kept outside the repo. Start the scratch Cemu: does it list the account, can BotW start with it, and does a save create `user/<id>/`?
-- [ ] **Step 4: Record.** Put the result in V-ACC-3 ([players-and-accounts §Verify](../../specs/players-and-accounts.md#verify)) with the evidence, and move it into §Cemu accounts if it's proven. If it works, add a short design to that spec: profile fields that describe account creation as data (P3), which keys get new values, and the confirmation the UI shows. The implementation goes into the next Phase 1 plan. If it fails, write down why and leave choices a and b as the only ones. Commit `docs(spike): record SP8 Cemu account creation` with the trailer.
+- [x] **Step 2: Learn what must change.** Compare two accounts Cemu created itself (create one in the scratch Cemu), by key names and value formats only: which keys differ (`PersistentId`, `Uuid`, `MiiName`, `MiiData`, `AccountId`, `PrincipalId`, `TransferableIdBase`, `SimpleAddressId`, …), and how `persisid.dat` changes. Read `src/Cafe/Account/Account.cpp` at Cemu v2.6 for the same answer from the source.
+- [x] **Step 3: Write one account by hand** in the scratch tree, from the template rules found in Step 2, with a throwaway script kept outside the repo. Start the scratch Cemu: does it list the account, can BotW start with it, and does a save create `user/<id>/`?
+- [x] **Step 4: Record.** Put the result in V-ACC-3 ([players-and-accounts §Verify](../../specs/players-and-accounts.md#verify)) with the evidence, and move it into §Cemu accounts if it's proven. If it works, add a short design to that spec: profile fields that describe account creation as data (P3), which keys get new values, and the confirmation the UI shows. The implementation goes into the next Phase 1 plan. If it fails, write down why and leave choices a and b as the only ones. Commit `docs(spike): record SP8 Cemu account creation` with the trailer.
 
 ---
 

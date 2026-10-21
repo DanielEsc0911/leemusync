@@ -108,7 +108,8 @@ fn paint(action: StreamAction, text: String, color: bool) -> String {
         StreamAction::Nothing
         | StreamAction::Adopt
         | StreamAction::FastForward
-        | StreamAction::Upload => "32",
+        | StreamAction::Upload
+        | StreamAction::Resolved => "32",
         StreamAction::Skipped | StreamAction::NeedsAccount | StreamAction::LocalMissing => "33",
         StreamAction::UploadThenConflict | StreamAction::Conflict | StreamAction::RemoteBehind => {
             "31"

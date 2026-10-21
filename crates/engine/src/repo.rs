@@ -7,6 +7,7 @@
 use std::fmt::Write as _;
 
 use leemusync_core::config::ConfigVersion;
+use leemusync_core::lease::Lease;
 use leemusync_core::manifest::Version;
 use leemusync_core::{BlobId, DeviceId, Hash32, PlayerId, StreamId, VersionId};
 use leemusync_crypto::{
@@ -24,6 +25,8 @@ const ALGORITHM: &str = "argon2id";
 const CHECK: &[u8] = b"leemusync-repo-check";
 const CONFIG_DIR: &str = "leemusync/config/versions/";
 const DEVICE_DIR: &str = "leemusync/devices/";
+const MAX_LEASE: usize = 4 * 1024;
+const MAX_DEVICE: usize = 4 * 1024;
 
 /// Upper bounds on what a (possibly hostile) server can make us parse.
 pub(crate) const MAX_REPO_JSON: usize = 64 * 1024;
@@ -141,6 +144,26 @@ fn version_dir(stream: &StreamId) -> String {
 
 fn version_path(stream: &StreamId, id: &VersionId) -> String {
     format!("{}{}", version_dir(stream), lower(id))
+}
+
+fn lease_dir(stream: &StreamId) -> String {
+    format!("leemusync/locks/{stream}/")
+}
+
+pub(crate) fn lease_path(stream: &StreamId, device: &DeviceId) -> String {
+    format!("{}{}", lease_dir(stream), lower(&device.0))
+}
+
+fn lease_aad(stream: &StreamId, device: &DeviceId) -> String {
+    format!("lease\0{stream}\0{device}")
+}
+
+/// One listed lease object. `lease` is `None` when it doesn't decrypt or parse, or names
+/// another device than its object name: such a lease is never trusted (B2).
+pub(crate) struct ListedLease {
+    pub device: DeviceId,
+    pub modified_ms: Option<i64>,
+    pub lease: Option<Lease>,
 }
 
 /// The id at the end of a listed name; names that aren't canonical ids are ignored.
@@ -418,6 +441,73 @@ impl Repo {
             .await
     }
 
+    /// Our own lease is the only object ever overwritten (storage-backends §Interface).
+    pub(crate) async fn put_lease(&self, stream: &StreamId, l: &Lease) -> Result<(), EngineError> {
+        let path = lease_path(stream, &l.device);
+        let json = l.to_json().map_err(|_| data(&path))?;
+        let sealed = seal(
+            &self.keys.object,
+            lease_aad(stream, &l.device).as_bytes(),
+            &json,
+        )?;
+        self.store.put(&path, sealed, PutMode::Overwrite).await?;
+        Ok(())
+    }
+
+    pub(crate) async fn delete_lease(
+        &self,
+        stream: &StreamId,
+        device: &DeviceId,
+    ) -> Result<(), EngineError> {
+        self.store.delete(&lease_path(stream, device)).await?;
+        Ok(())
+    }
+
+    /// Every lease object of `stream`. A lease that vanishes between list and read is skipped.
+    pub(crate) async fn list_leases(
+        &self,
+        stream: &StreamId,
+    ) -> Result<Vec<ListedLease>, EngineError> {
+        let mut out = Vec::new();
+        for entry in self.store.list(&lease_dir(stream)).await? {
+            let Some(id) = last_id(&entry.path) else {
+                continue;
+            };
+            let device = DeviceId(id);
+            let modified_ms = entry.modified.and_then(|t| {
+                t.duration_since(std::time::UNIX_EPOCH)
+                    .ok()
+                    .and_then(|d| i64::try_from(d.as_millis()).ok())
+            });
+            let lease = match self
+                .get_sealed(&entry.path, &lease_aad(stream, &device), MAX_LEASE)
+                .await
+            {
+                Ok(plain) => Lease::from_json(&plain).ok().filter(|l| l.device == device),
+                Err(EngineError::Data(_)) => None,
+                Err(EngineError::Store(e)) if e.class() == ErrorClass::NotFound => continue,
+                Err(e) => return Err(e),
+            };
+            out.push(ListedLease {
+                device,
+                modified_ms,
+                lease,
+            });
+        }
+        Ok(out)
+    }
+
+    /// The device's display name, or `None` if its record is missing or unreadable.
+    pub(crate) async fn device_name(&self, id: &DeviceId) -> Option<String> {
+        let path = format!("{DEVICE_DIR}{}", lower(&id.0));
+        let plain = self
+            .get_sealed(&path, &format!("device\0{id}"), MAX_DEVICE)
+            .await
+            .ok()?;
+        let record: DeviceRecord = serde_json::from_slice(&plain).ok()?;
+        (record.id == *id).then_some(record.name)
+    }
+
     /// Idempotent: a device that joins again keeps its first record.
     pub(crate) async fn put_device(&self, d: &DeviceRecord) -> Result<(), EngineError> {
         let path = format!("{DEVICE_DIR}{}", lower(&d.id.0));
@@ -557,6 +647,7 @@ mod tests {
                 session_secs: None,
                 changed_files: 0,
                 takeover: false,
+                takeover_from: None,
                 note: None,
             },
         };
