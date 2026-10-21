@@ -67,12 +67,16 @@ impl Engine {
         })
     }
 
-    async fn stream_of(
+    /// The stream id and player id of `player`'s save of `game`.
+    ///
+    /// # Errors
+    /// `Usage` for an unknown player; storage errors.
+    pub async fn stream_for(
         &mut self,
         player: &str,
         emulator: &str,
         game: &str,
-    ) -> Result<leemusync_core::StreamId, EngineError> {
+    ) -> Result<(leemusync_core::StreamId, leemusync_core::PlayerId), EngineError> {
         self.ensure_repo().await?;
         let config = repo_config::load(self.repo_ref()?, &self.state)
             .await?
@@ -80,9 +84,20 @@ impl Engine {
         let pid = config
             .player_named(player)
             .ok_or_else(|| EngineError::Usage(format!("unknown_player:{player}")))?;
-        Ok(self
-            .repo_ref()?
-            .stream_id(pid, emulator, &game.to_lowercase()))
+        Ok((
+            self.repo_ref()?
+                .stream_id(pid, emulator, &game.to_lowercase()),
+            pid,
+        ))
+    }
+
+    async fn stream_of(
+        &mut self,
+        player: &str,
+        emulator: &str,
+        game: &str,
+    ) -> Result<leemusync_core::StreamId, EngineError> {
+        Ok(self.stream_for(player, emulator, game).await?.0)
     }
 
     /// # Errors
@@ -112,6 +127,7 @@ impl Engine {
                 bytes: v.files.iter().map(|f| f.size).sum(),
                 parents: v.parents.iter().map(ToString::to_string).collect(),
                 head: heads.contains(&v.id),
+                takeover: v.meta.takeover_from.map(|d| d.to_string()),
             })
             .collect();
         let dir = history_dir(&self.env.locations.data_dir, &stream);

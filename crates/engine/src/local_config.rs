@@ -21,6 +21,32 @@ pub struct LocalConfig {
     pub grants: Vec<PathBuf>,
     #[serde(default)]
     pub emulators: BTreeMap<String, EmulatorOverride>,
+    #[serde(default)]
+    pub leases: LeaseSettings,
+}
+
+/// `[leases]` (sync-model §Leases).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LeaseSettings {
+    /// Lease lifetime; at least two renewals (120 s), at most a day.
+    pub ttl_secs: u64,
+}
+
+impl Default for LeaseSettings {
+    fn default() -> Self {
+        Self { ttl_secs: 300 }
+    }
+}
+
+impl LeaseSettings {
+    pub const MIN_TTL_SECS: u64 = 120;
+    pub const MAX_TTL_SECS: u64 = 86_400;
+
+    #[must_use]
+    pub fn ttl_ms(&self) -> i64 {
+        i64::try_from(self.ttl_secs.saturating_mul(1000)).unwrap_or(i64::MAX)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -81,6 +107,7 @@ impl LocalConfig {
             backend: None,
             grants: Vec::new(),
             emulators: BTreeMap::new(),
+            leases: LeaseSettings::default(),
         }
     }
 
@@ -97,6 +124,14 @@ impl LocalConfig {
             return Err(EngineError::Config(format!(
                 "unsupported config_version {}",
                 config.config_version
+            )));
+        }
+        let ttl = config.leases.ttl_secs;
+        if !(LeaseSettings::MIN_TTL_SECS..=LeaseSettings::MAX_TTL_SECS).contains(&ttl) {
+            return Err(EngineError::Config(format!(
+                "leases.ttl_secs must be {}..={}",
+                LeaseSettings::MIN_TTL_SECS,
+                LeaseSettings::MAX_TTL_SECS
             )));
         }
         Ok(Some(config))
@@ -191,6 +226,31 @@ mod tests {
             matches!(LocalConfig::load(&path), Err(EngineError::Config(_))),
             "no secrets in config.toml"
         );
+    }
+
+    #[test]
+    fn lease_ttl_defaults_and_is_bounded() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        let good = toml::to_string(&sample()).unwrap();
+        assert!(good.contains("[leases]\nttl_secs = 300"), "{good}");
+        let without = good.replace("[leases]\nttl_secs = 300\n", "");
+        std::fs::write(&path, &without).unwrap();
+        assert_eq!(
+            LocalConfig::load(&path).unwrap().unwrap().leases.ttl_secs,
+            300
+        );
+        for bad in ["119", "86401"] {
+            std::fs::write(
+                &path,
+                good.replace("ttl_secs = 300", &format!("ttl_secs = {bad}")),
+            )
+            .unwrap();
+            assert!(matches!(
+                LocalConfig::load(&path),
+                Err(EngineError::Config(_))
+            ));
+        }
     }
 
     #[test]

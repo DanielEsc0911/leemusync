@@ -142,6 +142,8 @@ pub enum WarningCode {
     SetupIncomplete,
     /// A save folder could not be read safely (symlink or I/O error); `detail` is its path.
     UnreadableFolder,
+    /// A lease object didn't decrypt or parse, so it was ignored; `detail` is its device id.
+    LeaseUnreadable,
 }
 
 /// Result of `leemusync scan`: what was found on this machine.
@@ -262,6 +264,30 @@ pub struct HistoryEntry {
     pub parents: Vec<String>,
     /// True when this version is a current head.
     pub head: bool,
+    /// Device id whose stale lease this version's session took over.
+    #[serde(default)]
+    pub takeover: Option<String>,
+}
+
+/// One lease, as `leemusync status` shows it (sync-model §Leases).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LeaseInfo {
+    /// Player name.
+    pub player: String,
+    /// Emulator profile id.
+    pub emulator: String,
+    /// Game id.
+    pub game: String,
+    /// Holder's device id.
+    pub device_id: String,
+    /// Holder's device name (its id when unknown).
+    pub device: String,
+    /// Last renewal, Unix milliseconds on the holder's clock.
+    pub renewed_at_ms: i64,
+    /// False once the lease has expired.
+    pub live: bool,
+    /// True for this device's own lease.
+    pub ours: bool,
 }
 
 /// Result of `leemusync init`. The recovery key is never included.

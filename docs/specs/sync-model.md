@@ -1,6 +1,6 @@
 # Sync model
 
-> **Status:** Partial (leases, play sessions and retention are still open) · **Related:** [rules](../rules.md) (B2, B3, P3), [reliability](reliability.md), [security](security.md), [players-and-accounts](players-and-accounts.md), [emulator-profiles](emulator-profiles.md), [storage-backends](storage-backends.md), [glossary](../glossary.md) · **Code:** `crates/core/src/{manifest,heads,reconcile,config}.rs`, `crates/engine/src/{repo,repo_config}.rs`, `crates/engine/src/sync.rs`
+> **Status:** Partial (leases, play sessions and retention are still open) · **Related:** [rules](../rules.md) (B2, B3, P3), [reliability](reliability.md), [security](security.md), [players-and-accounts](players-and-accounts.md), [emulator-profiles](emulator-profiles.md), [storage-backends](storage-backends.md), [glossary](../glossary.md) · **Code:** `crates/core/src/{manifest,heads,reconcile,config}.rs`, `crates/engine/src/{repo,repo_config}.rs`, `crates/engine/src/sync.rs`, `crates/core/src/lease.rs`, `crates/engine/src/lease.rs`
 
 ## Purpose
 How saves move between devices without loss: what is synced (streams), how history is stored (versions), how divergence is detected (heads), and how simultaneous play is coordinated (leases, play sessions).
@@ -46,11 +46,12 @@ With no `base` yet: no local files and one head → fast-forward. Local files an
 
 ## Leases
 Advisory per-stream locks so two devices don't play the same player's save at once ([D6](../decisions.md#d6-leases-are-advisory-divergence-detection-is-the-safety-net-2026-10-07)).
-- Object `locks/<streamId>/<deviceId>` (encrypted) holds `{device, player, session, acquired_at, renewed_at, ttl}`. Each device writes only its own file.
-- **Acquire:** list leases. Any live lease from another device → warn ("BotW is in use on Desktop, active 2 min ago"). Otherwise write our lease and list again. If another live lease appeared meanwhile, the earliest `(acquired_at, device id)` wins and the other device backs off.
-- **Renew** every 60 s. **TTL** 5 min (configurable). **Release** at session end by deleting our lease.
-- **Liveness** uses the backend's server-side modified time when the backend reports it; otherwise device clocks with 2 min skew tolerance.
-- **Stale** (expired) leases can be taken over after confirmation. The takeover is recorded in the next version's `meta`.
+- Object `locks/<streamId>/<deviceId>` (encrypted, AAD `lease\0<streamId>\0<deviceId>`) holds JSON `{format: 1, device, player, session, acquired_at_ms, renewed_at_ms, ttl_ms}` (device-clock Unix ms; `session` is a random id per acquisition). Each device writes only its own file, and it is the only object besides `repo.json` that is overwritten.
+- **Acquire:** list leases. Any live lease from another device → warn ("BotW is in use on Desktop, active 2 min ago"). Otherwise write our lease and list again. If another live lease appeared meanwhile, the earliest `(acquired_at, device id)` wins and the other device deletes its own lease and backs off.
+- **Renew** every 60 s. **TTL** 5 min (`config.toml` `[leases] ttl_secs`, 120–86400). **Release** at session end by deleting our lease; a forced release deletes only this device's lease.
+- **Liveness:** a lease is live until its last renewal + TTL + 2 min skew. The last renewal is the backend's server-side modified time when the backend reports it (`Entry.modified`), otherwise the holder's `renewed_at_ms`.
+- **Stale** (expired) leases can be taken over after confirmation (`takeover`). The stale file stays; it is its device's to delete. The takeover is recorded in the next version's `meta` (`takeover: true`, `takeover_from: <deviceId>`).
+- A lease that doesn't decrypt, parse, or names another device than its object name is ignored with a `lease_unreadable` warning and never trusted (B2).
 - Leases never weaken safety. Anything they miss becomes a conflict, never a loss.
 
 ## Play sessions

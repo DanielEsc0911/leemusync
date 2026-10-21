@@ -62,11 +62,11 @@ impl Engine {
 ```
 `SessionId` is a new random id in `core::id`. Defaults: renew 60 s, TTL 5 min, skew 2 min (`config.toml` `[leases] ttl_secs`).
 
-- [ ] **Step 1: core tests (proptest where cheap).** Live within TTL; stale after TTL + skew with no server time; server time wins over `renewed_at`; `winner` picks the earliest acquire, ties by device id; encode/decode round-trip; decode rejects unknown `format`.
-- [ ] **Step 2:** run, expect failures; implement `core::lease`; pass.
-- [ ] **Step 3: engine tests** (two `Engine`s on one `Store::fs`, `crates/engine/tests/leases.rs`): A acquires → B gets `HeldElsewhere`; both write within the same instant → after the second list exactly one keeps it and the loser deletes its own file; A's lease past TTL → B gets `stale: true`, `takeover: true` acquires and the next version's `meta.takeover` names A's device; release deletes only our file; a lease object that doesn't decrypt is ignored with a warning, never trusted (B2).
-- [ ] **Step 4:** implement `engine::lease` with `PutMode::Overwrite` for our own lease only. Add `meta.takeover: Option<DeviceId>` to the manifest meta (`#[serde(default)]`).
-- [ ] **Step 5:** pass, clippy, spec **Code:** line, `just check`, commit `feat(engine): add advisory per-stream leases`.
+- [x] **Step 1: core tests (proptest where cheap).** Live within TTL; stale after TTL + skew with no server time; server time wins over `renewed_at`; `winner` picks the earliest acquire, ties by device id; encode/decode round-trip; decode rejects unknown `format`.
+- [x] **Step 2:** run, expect failures; implement `core::lease`; pass.
+- [x] **Step 3: engine tests** (two `Engine`s on one `Store::fs`, `crates/engine/tests/leases.rs`): A acquires → B gets `HeldElsewhere`; both write within the same instant → after the second list exactly one keeps it and the loser deletes its own file; A's lease past TTL → B gets `stale: true`, `takeover: true` acquires and the next version's `meta.takeover` names A's device; release deletes only our file; a lease object that doesn't decrypt is ignored with a warning, never trusted (B2).
+- [x] **Step 4:** implement `engine::lease` with `PutMode::Overwrite` for our own lease only. Add `meta.takeover: Option<DeviceId>` to the manifest meta (`#[serde(default)]`).
+- [x] **Step 5:** pass, clippy, spec **Code:** line, `just check`, commit `feat(engine): add advisory per-stream leases`.
 
 ### Task 3: conflicts listed and resolved
 

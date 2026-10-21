@@ -48,6 +48,9 @@ pub struct Meta {
     pub session_secs: Option<u64>,
     pub changed_files: u32,
     pub takeover: bool,
+    /// The device whose stale lease this version's session took over (sync-model §Leases).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub takeover_from: Option<DeviceId>,
     pub note: Option<String>,
 }
 
@@ -162,6 +165,7 @@ mod tests {
                 session_secs: None,
                 changed_files: 1,
                 takeover: false,
+                takeover_from: None,
                 note: None,
             },
         }

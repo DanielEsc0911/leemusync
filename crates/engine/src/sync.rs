@@ -391,8 +391,10 @@ impl Engine {
                     emulator: &profile.id,
                     base_files: &row.base_files,
                     note: None,
+                    takeover_from: self.pending_takeover(&stream),
                 };
                 let v = upload(repo, s, meta, &self.failpoints, &meter).await?;
+                self.clear_takeover(&stream);
                 report.version = Some(v.id.to_string());
                 row.base = Some(v.id);
                 row.base_files.clone_from(&v.files);

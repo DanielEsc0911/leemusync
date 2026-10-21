@@ -21,6 +21,8 @@ pub(crate) struct UploadMeta<'a> {
     pub emulator: &'a str,
     pub base_files: &'a [FileEntry],
     pub note: Option<String>,
+    /// The device whose stale lease this session took over.
+    pub takeover_from: Option<DeviceId>,
 }
 
 /// Blob uploads in flight at once.
@@ -101,7 +103,8 @@ pub(crate) async fn upload(
         meta: Meta {
             session_secs: None,
             changed_files: u32::try_from(changed).unwrap_or(u32::MAX),
-            takeover: false,
+            takeover: meta.takeover_from.is_some(),
+            takeover_from: meta.takeover_from,
             note: meta.note,
         },
     };
@@ -145,6 +148,7 @@ mod tests {
             emulator: "cemu",
             base_files: &[],
             note: None,
+            takeover_from: None,
         };
         let fp = Failpoints::default();
         fp.arm("upload.before_manifest");
@@ -197,6 +201,7 @@ mod tests {
             emulator: "cemu",
             base_files: &[],
             note: None,
+            takeover_from: None,
         };
         let v = upload(&repo, &snap, meta, &Failpoints::default(), &Meter::none())
             .await
@@ -224,6 +229,7 @@ mod tests {
             emulator: "cemu",
             base_files: base,
             note: None,
+            takeover_from: None,
         }
     }
 
@@ -331,6 +337,7 @@ mod tests {
             emulator: "cemu",
             base_files: &snap.files,
             note: None,
+            takeover_from: None,
         };
         let result = upload(&repo, &snap, meta, &Failpoints::default(), &Meter::none()).await;
         assert!(matches!(result, Err(EngineError::Data(_))));
@@ -375,6 +382,7 @@ mod tests {
             emulator: "cemu",
             base_files: &[],
             note: None,
+            takeover_from: None,
         };
         let result = upload(&repo, &snap, meta, &Failpoints::default(), &Meter::none()).await;
         let expected = format!("blob_corrupt:{}", snap.files[0].blob);
