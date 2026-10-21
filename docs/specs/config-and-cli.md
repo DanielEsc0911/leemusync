@@ -37,6 +37,7 @@ Every command supports `--json` (stable English keys, versioned) and `--help`. H
 | `leemusync lease status` / `lease release --force` | Lease handling |
 | `leemusync players add/list` / `accounts map <player> <emulator> <id> [--keep\|--replace]` | Players and account mappings |
 | `leemusync accounts recover <emulator> <id> --player <name>` | Upload an orphaned save folder as a player's first version |
+| `leemusync accounts create <player> <emulator> [--name <name>] [--yes]` | Write a new emulator account from profile data, map it to the player, then sync to restore their saves ([players-and-accounts](players-and-accounts.md#creating-a-cemu-account-sp8)) |
 | `leemusync scan` | Accounts, save folders, orphaned saves, grants needed |
 | `leemusync devices` | Devices in the repo |
 | `leemusync backend add/test/show` | Storage setup and probe |

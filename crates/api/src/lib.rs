@@ -191,6 +191,23 @@ pub struct AccountReport {
     pub player: Option<String>,
 }
 
+/// Result of `leemusync accounts create`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CreatedAccount {
+    /// Shape version, always `API_VERSION`.
+    pub api_version: u32,
+    /// Emulator profile id.
+    pub emulator: String,
+    /// The new account's id as the emulator names it.
+    pub account: String,
+    /// Display name written into the account (cut to the emulator's limit).
+    pub name: String,
+    /// Player the account is now mapped to.
+    pub player: String,
+    /// The sync that restored the player's saves; `None` before this device's first sync.
+    pub sync: Option<SyncReport>,
+}
+
 /// Save data found for one game and account.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SaveReport {

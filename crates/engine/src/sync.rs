@@ -26,7 +26,7 @@ pub struct SyncOptions {
     pub dry_run: bool,
 }
 
-const FIRST_SYNC: &str = "first_sync_confirmed";
+pub(crate) const FIRST_SYNC: &str = "first_sync_confirmed";
 
 pub(crate) fn action_kind(a: &Action) -> StreamAction {
     match a {
