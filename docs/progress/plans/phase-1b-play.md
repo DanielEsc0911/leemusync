@@ -119,9 +119,9 @@ impl Engine {
 ```
 Steps exactly as the spec: resolve stream → sync that stream (fast-forward with backup; conflict → `prompt.conflict`) → acquire (held → prompt; `Wait` polls every 10 s) → launch → renew every 60 s on a tokio interval while waiting on the child in `spawn_blocking` → on exit wait the quiet period, snapshot, upload → release. Release also runs on error paths. A renewal failure is logged and retried, never kills the game. If the Cemu process is already running before launch, refuse (I3).
 
-- [ ] **Step 1: failing tests** with `FakeLauncher` (writes save files then exits) and a scripted prompt: SC2 handoff (A plays, B plays, B starts from A's version); lease held → `Wait` then A releases → B launches; `PlayAnyway` on both → divergent heads → conflict reported, both versions on the remote (SC3); renewals happen (`tokio::time::pause` + advance 3 min → `renewed_at` moved); a launcher error releases the lease; exit with no changes uploads nothing.
-- [ ] **Step 2:** implement; pass; clippy.
-- [ ] **Step 3:** spec, `just check`, commit `feat(engine): add launcher mode`.
+- [x] **Step 1: failing tests** with `FakeLauncher` (writes save files then exits) and a scripted prompt: SC2 handoff (A plays, B plays, B starts from A's version); lease held → `Wait` then A releases → B launches; `PlayAnyway` on both → divergent heads → conflict reported, both versions on the remote (SC3); renewals happen (`tokio::time::pause` + advance 3 min → `renewed_at` moved); a launcher error releases the lease; exit with no changes uploads nothing.
+- [x] **Step 2:** implement; pass; clippy.
+- [x] **Step 3:** spec, `just check`, commit `feat(engine): add launcher mode`.
 
 ### Task 6: `accounts.create` profile section and account creation
 
@@ -152,10 +152,10 @@ impl Engine { pub async fn create_account(&mut self, player: &str, emulator: &st
     -> Result<api::CreatedAccount, EngineError>; }
 ```
 
-- [ ] **Step 1: golden test.** Add the SP8 evidence as fixture `profiles/fixtures/cemu/account-create/` (the `SP8 Test` and `sp8cemu` files, non-secret: online fields empty): `render` with that file's id, name and `Uuid` bytes reproduces it byte for byte; `MiiData` CRC-16 is 0; same name → same `MiiData`.
-- [ ] **Step 2: rule tests.** `next_id` = max(counter + 1, highest + 1) and ≥ `80000001`; 12 accounts → error; name longer than 10 UTF-16 units is cut, not rejected; unknown template function → profile validation error.
-- [ ] **Step 3: engine tests.** Refuses while the emulator runs (`FakeProbe`) and when the folder exists; writes only `act/<id>/account.dat` (tree diff before/after: one new file); then maps the account to the player and restores the player's latest version (backup-first); the file stays inside the grant.
-- [ ] **Step 4:** implement; pass; clippy; specs (W1; replace "Field names are settled in that plan"), `just check`, commit `feat(accounts): create Cemu accounts from profile data`.
+- [x] **Step 1: golden test.** Add the SP8 evidence as fixture `profiles/fixtures/cemu/account-create/` (the `SP8 Test` and `sp8cemu` files, non-secret: online fields empty): `render` with that file's id, name and `Uuid` bytes reproduces it byte for byte; `MiiData` CRC-16 is 0; same name → same `MiiData`.
+- [x] **Step 2: rule tests.** `next_id` = max(counter + 1, highest + 1) and ≥ `80000001`; 12 accounts → error; name longer than 10 UTF-16 units is cut, not rejected; unknown template function → profile validation error.
+- [x] **Step 3: engine tests.** Refuses while the emulator runs (`FakeProbe`) and when the folder exists; writes only `act/<id>/account.dat` (tree diff before/after: one new file); then maps the account to the player and restores the player's latest version (backup-first); the file stays inside the grant.
+- [x] **Step 4:** implement; pass; clippy; specs (W1; replace "Field names are settled in that plan"), `just check`, commit `feat(accounts): create Cemu accounts from profile data`.
 
 ### Task 7: CLI: `play`, `conflicts`, `resolve`, `lease`, `accounts create`
 
@@ -163,24 +163,24 @@ impl Engine { pub async fn create_account(&mut self, player: &str, emulator: &st
 
 Commands as the spec table: `play <emulator> <game> [--as <player>] [-- <args>]`, `conflicts`, `resolve <game> <version> [--as <player>]`, `lease status`, `lease release --force <game>`, `accounts create <player> <emulator> [--name <mii name>]` with the spec's two confirmation messages. Exit codes: 4 when a conflict needs a decision and there's no terminal; 5 when the lease is held and there's no terminal (no silent `PlayAnyway`). `--json` everywhere; prompts never shown with `--json` (fail with 4/5 instead).
 
-- [ ] **Step 1: failing tests** (`assert_cmd`, `LEEMUSYNC_TEST_ROOT`): `conflicts --json` lists heads; `resolve` with a bad version → exit 2; `play` with a held lease and no TTY → exit 5; `accounts create` without a TTY and without `--yes` → exit 2; en and es output for each new message.
-- [ ] **Step 2:** implement; pass; `cargo xtask i18n-check`; spec; `just check`; commit `feat(cli): add play, conflicts, resolve, lease and accounts create`.
+- [x] **Step 1: failing tests** (`assert_cmd`, `LEEMUSYNC_TEST_ROOT`): `conflicts --json` lists heads; `resolve` with a bad version → exit 2; `play` with a held lease and no TTY → exit 5; `accounts create` without a TTY and without `--yes` → exit 2; en and es output for each new message.
+- [x] **Step 2:** implement; pass; `cargo xtask i18n-check`; spec; `just check`; commit `feat(cli): add play, conflicts, resolve, lease and accounts create`.
 
 ### Task 8: SC5 fault matrix and budget measurements
 
 **Files:** `crates/engine/src/failpoints.rs` (a `Kill` mode that calls `std::process::abort()`), `crates/store/src/lib.rs` (test-only `Store::faulty(inner, plan)` behind feature `faults`: fail the Nth request with a transient or network error), `crates/engine/tests/faults.rs`, `crates/engine/tests/kill.rs` (new: spawns a helper binary), `crates/engine/benches/budgets.rs` (new, criterion), `justfile` (`just bench`), specs `reliability.md` §Budgets (measured column), `testing.md` §Layers.
 
-- [ ] **Step 1: crash matrix.** For every failpoint name (`grep -rn 'hit("' crates/engine/src`, currently `restore.after_backup`, `restore.mid_swap`, `restore.before_done`, `upload.before_manifest`, `upload.after_manifest`, `init.*`, plus Task 2's `lease.*` and Task 3's `resolve.*`): a child process arms it in `Kill` mode and dies; the parent reopens the engine and asserts I1–I6 (local files = old or new version, never mixed; no extra heads; backup present). Add a test that fails when a new failpoint name has no case.
-- [ ] **Step 2: network matrix.** With `Store::faulty`, fail request N for every N in one sync (upload and fast-forward) and in one `play`; assert the sync errors or completes, a rerun converges, and no corruption or false conflict appears.
-- [ ] **Step 3: budgets.** Bench: cold start to ready (`Engine::open` on a populated state DB), rescan of 10 000 files warm, idle RSS of an open engine (read `/proc/self/statm`), release binary size of `leemusync` (no daemon yet: these are the engine-side numbers the daemon will inherit). Record the numbers with date and machine in reliability §Budgets and update V-REL-3. Not enforced in CI yet.
-- [ ] **Step 4:** `just check`, commit `test(engine): crash and network fault matrix, budget benches`.
+- [x] **Step 1: crash matrix.** For every failpoint name (`grep -rn 'hit("' crates/engine/src`, currently `restore.after_backup`, `restore.mid_swap`, `restore.before_done`, `upload.before_manifest`, `upload.after_manifest`, `init.*`, plus Task 2's `lease.*` and Task 3's `resolve.*`): a child process arms it in `Kill` mode and dies; the parent reopens the engine and asserts I1–I6 (local files = old or new version, never mixed; no extra heads; backup present). Add a test that fails when a new failpoint name has no case.
+- [x] **Step 2: network matrix.** With `Store::faulty`, fail request N for every N in one sync (upload and fast-forward) and in one `play`; assert the sync errors or completes, a rerun converges, and no corruption or false conflict appears.
+- [x] **Step 3: budgets.** Bench: cold start to ready (`Engine::open` on a populated state DB), rescan of 10 000 files warm, idle RSS of an open engine (read `/proc/self/statm`), release binary size of `leemusync` (no daemon yet: these are the engine-side numbers the daemon will inherit). Record the numbers with date and machine in reliability §Budgets and update V-REL-3. Not enforced in CI yet.
+- [x] **Step 4:** `just check`, commit `test(engine): crash and network fault matrix, budget benches`.
 
 ### Task 9: Test day M1b on the real PCs (manual runbook)
 
 Maintainer, Fedora + CachyOS, R2 repo from M1a, release binaries from this branch on both. Record surprises in the roadmap and the specs (W1).
 
 - [ ] **B0: Set up.** On each PC: `leemusync` config `[emulators.cemu] exe` (Flatpak on Fedora, `/usr/bin/cemu` on CachyOS) and `games.101c9400 = "<BotW path>"`. `leemusync sync`, `leemusync doctor`: all ok.
-- [ ] **B1: Account creation.** On the PC missing a player's account: `leemusync accounts create "<player>" cemu`, confirm, open Cemu, select the account, check BotW shows that player's save. Delete the hand-made M1a accounts only if the maintainer wants to.
+- [ ] **B1: Account creation.** On the PC missing a player's account: `leemusync accounts create "<player>" cemu`, confirm, open Cemu, select the account, check BotW shows that player's save. **V-ACC-4:** first, in a scratch Cemu tree, create one account in Cemu itself and keep its `account.dat` (online fields empty) to replace the hand-built fixtures in `profiles/fixtures/cemu/account-create/`. Delete the hand-made M1a accounts only if the maintainer wants to.
 - [ ] **B2: SC1.** Each player runs `leemusync play cemu 101c9400 --as "<player>"` on a different PC at the same time, plays 10 min, quits. Both syncs upload; `leemusync conflicts` is empty; `lease status` empty.
 - [ ] **B3: SC2.** Player 1 plays on Fedora, quits, then `play` on CachyOS: the game starts with the progress just made.
 - [ ] **B4: SC3.** Same player starts `play` on both PCs; on the second choose "play anyway"; save on both; quit. `leemusync conflicts` shows 2 heads; `resolve` one; the other is still in `history` and `restore` brings it back.

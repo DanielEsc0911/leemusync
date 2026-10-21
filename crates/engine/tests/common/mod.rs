@@ -5,10 +5,13 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use std::collections::BTreeMap;
+
 use leemusync_engine::{
-    Engine, EngineEnv, FakeProbe, JoinSecret, Locations, MapChoice, MapOutcome, MemorySecrets,
-    SyncOptions, fsx,
+    Engine, EngineEnv, EngineError, FakeProbe, JoinSecret, Locations, MapChoice, MapOutcome,
+    MemorySecrets, SecretStore, SyncOptions, fsx,
 };
+use zeroize::Zeroizing;
 
 pub const FIXTURE: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -23,8 +26,47 @@ pub fn env(root: &Path) -> EngineEnv {
     )
 }
 
+/// A keystore in one JSON file, so it survives a killed process (`tests/kill.rs`). Fake keys only.
+pub struct FileSecrets(PathBuf);
+
+impl FileSecrets {
+    pub fn under(root: &Path) -> Self {
+        Self(root.join("keystore.json"))
+    }
+
+    fn load(&self) -> BTreeMap<String, String> {
+        std::fs::read(&self.0)
+            .ok()
+            .and_then(|b| serde_json::from_slice(&b).ok())
+            .unwrap_or_default()
+    }
+
+    fn store(&self, map: &BTreeMap<String, String>) -> Result<(), EngineError> {
+        fsx::write_atomic(&self.0, &serde_json::to_vec(map).unwrap())?;
+        Ok(())
+    }
+}
+
+impl SecretStore for FileSecrets {
+    fn get(&self, name: &str) -> Result<Option<Zeroizing<String>>, EngineError> {
+        Ok(self.load().remove(name).map(Zeroizing::new))
+    }
+
+    fn set(&self, name: &str, value: &str) -> Result<(), EngineError> {
+        let mut map = self.load();
+        map.insert(name.to_owned(), value.to_owned());
+        self.store(&map)
+    }
+
+    fn delete(&self, name: &str) -> Result<(), EngineError> {
+        let mut map = self.load();
+        map.remove(name);
+        self.store(&map)
+    }
+}
+
 /// Keeping `secrets` across `Engine::open` calls simulates the OS keystore surviving a restart.
-pub fn env_with(root: &Path, probe: Arc<FakeProbe>, secrets: Arc<MemorySecrets>) -> EngineEnv {
+pub fn env_with(root: &Path, probe: Arc<FakeProbe>, secrets: Arc<dyn SecretStore>) -> EngineEnv {
     EngineEnv {
         locations: Locations::under(root),
         secrets,
@@ -61,7 +103,7 @@ pub struct Pc {
     pub root: PathBuf,
     pub cemu: PathBuf,
     pub probe: Arc<FakeProbe>,
-    pub secrets: Arc<MemorySecrets>,
+    pub secrets: Arc<dyn SecretStore>,
     pub engine: Engine,
 }
 
@@ -73,7 +115,7 @@ impl Pc {
         std::fs::remove_dir_all(cemu.join(SAVE).join("80000002")).unwrap();
         std::fs::write(cemu.join(SAVE).join("80000001/0/game_data.sav"), content).unwrap();
         let probe = Arc::new(FakeProbe::default());
-        let secrets = Arc::new(MemorySecrets::default());
+        let secrets: Arc<dyn SecretStore> = Arc::new(FileSecrets::under(root));
         let mut engine = Engine::open(env_with(root, probe.clone(), secrets.clone())).unwrap();
         let grant = if flatpak {
             root.join("home/.var/app/info.cemu.Cemu")
@@ -84,6 +126,25 @@ impl Pc {
         if !flatpak {
             engine.grant_add(&root.join("home/.config/Cemu")).unwrap();
         }
+        Pc {
+            root: root.to_path_buf(),
+            cemu,
+            probe,
+            secrets,
+            engine,
+        }
+    }
+
+    /// Opens the PC another process set up under `root` (its keystore is `FileSecrets`).
+    pub fn attach(root: &Path, flatpak: bool) -> Self {
+        let cemu = if flatpak {
+            root.join("home/.var/app/info.cemu.Cemu/data/Cemu")
+        } else {
+            root.join("home/.local/share/Cemu")
+        };
+        let probe = Arc::new(FakeProbe::default());
+        let secrets: Arc<dyn SecretStore> = Arc::new(FileSecrets::under(root));
+        let engine = Engine::open(env_with(root, probe.clone(), secrets.clone())).unwrap();
         Pc {
             root: root.to_path_buf(),
             cemu,

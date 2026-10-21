@@ -186,6 +186,7 @@ impl Engine {
             takeover_from: None,
         };
         let v = commit_manifest(repo, meta, chosen.files.clone(), &self.failpoints).await?;
+        self.failpoints.hit("resolve.after_commit")?;
         let ctx = Ctx {
             repo: Some(repo),
             state: &self.state,

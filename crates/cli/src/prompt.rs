@@ -65,3 +65,9 @@ pub fn keep_or_replace(t: &I18n, question: &str) -> Result<Option<bool>, EngineE
         None
     })
 }
+
+/// A free answer, lowercased; fails without a terminal.
+pub fn ask(t: &I18n, question: &str) -> Result<String, EngineError> {
+    need_tty(t, question)?;
+    line(question)
+}

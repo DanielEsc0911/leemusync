@@ -1,6 +1,50 @@
 //! Is an emulator running? (I3; emulator-profiles §Linux paths: match the executable name, not `comm`.)
+//! Starting one and waiting for it to exit (sync-model §Launcher mode): argv only, never a shell.
 
+use std::ffi::OsString;
 use std::sync::atomic::{AtomicBool, Ordering};
+
+/// Starts the emulator. The CLI uses `OsLauncher`; tests use a fake.
+pub trait Launcher: Send + Sync {
+    /// # Errors
+    /// The OS error when the process can't start.
+    fn spawn(&self, argv: &[OsString]) -> std::io::Result<Box<dyn Child>>;
+}
+
+/// A started emulator. `wait` blocks, so the engine calls it on a blocking thread.
+pub trait Child: Send {
+    /// Blocks until the process exits; its exit code, -1 when killed by a signal.
+    ///
+    /// # Errors
+    /// The OS error from waiting.
+    fn wait(&mut self) -> std::io::Result<i32>;
+}
+
+/// `std::process::Command` with argv[0] as the program and no shell (B2). On Unix the
+/// emulator gets its own process group, so Ctrl-C in the terminal never reaches it.
+pub struct OsLauncher;
+
+impl Launcher for OsLauncher {
+    fn spawn(&self, argv: &[OsString]) -> std::io::Result<Box<dyn Child>> {
+        let (exe, rest) = argv
+            .split_first()
+            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "empty argv"))?;
+        let mut cmd = std::process::Command::new(exe);
+        cmd.args(rest);
+        #[cfg(unix)]
+        std::os::unix::process::CommandExt::process_group(&mut cmd, 0);
+        let child = cmd.spawn()?;
+        Ok(Box::new(OsChild(child)))
+    }
+}
+
+struct OsChild(std::process::Child);
+
+impl Child for OsChild {
+    fn wait(&mut self) -> std::io::Result<i32> {
+        Ok(self.0.wait()?.code().unwrap_or(-1))
+    }
+}
 
 pub trait ProcessProbe: Send + Sync {
     fn running(&self, names: &[String]) -> bool;

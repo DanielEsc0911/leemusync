@@ -32,6 +32,10 @@ pub enum EngineError {
     NeedsConfirmation,
     #[error("{0} changed while it was being read; try again when the emulator is idle")]
     Busy(String),
+    #[error("{0} needs a decision: run `leemusync conflicts`")]
+    NeedsDecision(String),
+    #[error("{0} holds the lease")]
+    LeaseHeld(String),
     #[error("fault injected at {0}")]
     Injected(&'static str),
 }
@@ -55,6 +59,8 @@ impl EngineError {
             Self::Data(_) => "data",
             Self::NeedsConfirmation => "needs_confirmation",
             Self::Busy(_) => "busy",
+            Self::NeedsDecision(_) => "needs_decision",
+            Self::LeaseHeld(_) => "lease_held",
             Self::Injected(_) => "injected",
         }
     }
@@ -64,6 +70,8 @@ impl EngineError {
         match self {
             Self::Usage(_) | Self::NotSetUp(_) | Self::NeedsConfirmation => 2,
             Self::Config(_) => 3,
+            Self::NeedsDecision(_) => 4,
+            Self::LeaseHeld(_) => 5,
             Self::Store(e) if matches!(e.class(), ErrorClass::Auth | ErrorClass::Transient) => 6,
             _ => 1,
         }

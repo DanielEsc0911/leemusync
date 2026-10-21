@@ -28,3 +28,9 @@ test:
 
 # Everything CI runs; must pass before every commit
 check: lint test
+
+# Engine budget benches (release) and the release CLI size (reliability §Budgets)
+bench:
+    cargo bench -p leemusync-engine --bench budgets
+    cargo build --release -p leemusync-cli
+    ls -l target/release/leemusync

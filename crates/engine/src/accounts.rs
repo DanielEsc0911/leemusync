@@ -1,14 +1,19 @@
 //! `leemusync accounts map` (choices a/b, keep or replace) and `accounts recover`
 //! (players-and-accounts §Discovery).
 
-use leemusync_api::{StreamAction, StreamReport};
+use std::path::Path;
+
+use leemusync_api::{API_VERSION, CreatedAccount, StreamAction, StreamReport};
 use leemusync_core::PlayerId;
+use leemusync_core::account::key_value;
+use leemusync_core::account_template::{self, CreateTemplate, TemplateError};
 
 use crate::discover::save_folder;
 use crate::progress::Meter;
 use crate::snapshot;
+use crate::sync::{FIRST_SYNC, SyncOptions};
 use crate::upload::{UploadMeta, upload};
-use crate::{Engine, EngineError, StreamRow, fsx, history_dir, now_ms, repo_config};
+use crate::{Engine, EngineError, StreamRow, fsx, grants, history_dir, now_ms, repo_config};
 
 pub enum MapChoice {
     Ask,
@@ -195,4 +200,129 @@ impl Engine {
             bytes: meter.transferred().1,
         })
     }
+
+    /// Writes a new emulator account from the profile's `accounts.create` data, maps it to
+    /// `player`, then syncs so the player's latest saves are restored into it (backup first).
+    /// Writes only `<accounts root>/<id>/<file>`: never the counter file or other accounts.
+    ///
+    /// # Errors
+    /// `EmulatorRunning`; `Usage` for an unknown player, a profile that can't create accounts,
+    /// too many accounts or a taken folder name; `NotGranted` outside the grants.
+    pub async fn create_account(
+        &mut self,
+        player: &str,
+        emulator: &str,
+        name: Option<&str>,
+    ) -> Result<CreatedAccount, EngineError> {
+        self.ensure_repo().await?;
+        let installs = self.installs()?;
+        let (profile, install, _) = installs
+            .iter()
+            .find(|(p, _, _)| p.id == emulator)
+            .ok_or_else(|| EngineError::Usage(format!("no_install:{emulator}")))?;
+        let template = profile
+            .accounts
+            .as_ref()
+            .and_then(|a| a.create.as_ref())
+            .ok_or_else(|| EngineError::Usage(format!("cannot_create:{emulator}")))?;
+        let root = install
+            .accounts_root
+            .clone()
+            .ok_or_else(|| EngineError::Usage(format!("cannot_create:{emulator}")))?;
+        let grant = grants::require(&self.config.grants, &root)?;
+        fsx::ensure_no_symlinks(&grant, &root)
+            .map_err(|_| EngineError::NotGranted(root.display().to_string()))?;
+        let names = profile
+            .platforms
+            .get("linux")
+            .map(|p| p.process.clone())
+            .unwrap_or_default();
+        if self.env.processes.running(&names) {
+            return Err(EngineError::EmulatorRunning(profile.name.clone()));
+        }
+        let loaded = repo_config::load(self.repo_ref()?, &self.state).await?;
+        Self::player_id(&loaded.config, player)?;
+        let name = account_template::fit_name(name.unwrap_or(player), template.name_max_utf16)
+            .map_err(|_| EngineError::Usage("bad_account_name".into()))?;
+        let id = account_template::next_id(
+            template,
+            read_counter(template, &root),
+            &existing_ids(template, &root)?,
+        )
+        .map_err(|e| match e {
+            TemplateError::TooManyAccounts(n) => {
+                EngineError::Usage(format!("too_many_accounts:{n}"))
+            }
+            _ => EngineError::Usage("no_free_account_id".into()),
+        })?;
+        let account = format!("{id:08x}");
+        let text = account_template::render(template, id, &name, &random(template.random_len())?)
+            .map_err(|e| EngineError::Config(format!("accounts.create: {e}")))?;
+        let folder = root.join(&account);
+        // Exclusive: an existing name (folder, file or symlink) is never reused or followed.
+        std::fs::create_dir(&folder).map_err(|e| {
+            if e.kind() == std::io::ErrorKind::AlreadyExists {
+                EngineError::Usage(format!("account_exists:{account}"))
+            } else {
+                e.into()
+            }
+        })?;
+        fsx::write_atomic(&folder.join(&template.file), text.as_bytes())?;
+        fsx::sync_dir(&root)?;
+        let emulator = profile.id.clone();
+        self.accounts_map(player, &emulator, &account, MapChoice::Keep)
+            .await?;
+        let sync = if self.state.meta(FIRST_SYNC)?.is_some() {
+            Some(self.sync(SyncOptions { dry_run: false }).await?)
+        } else {
+            None
+        };
+        Ok(CreatedAccount {
+            api_version: API_VERSION,
+            emulator,
+            account,
+            name,
+            player: player.to_owned(),
+            sync,
+        })
+    }
+}
+
+/// The emulator's id counter, if its file has one. Read only.
+fn read_counter(t: &CreateTemplate, root: &Path) -> Option<u32> {
+    let path = root.join(&t.id.counter_file);
+    if !std::fs::symlink_metadata(&path).is_ok_and(|m| m.is_file()) {
+        return None;
+    }
+    let text = std::fs::read_to_string(path).ok()?;
+    account_template::parse_hex8(key_value(&text, &t.id.counter_key)?.trim())
+}
+
+/// Ids of the account folders (real folders, not symlinks) under `root`.
+fn existing_ids(t: &CreateTemplate, root: &Path) -> Result<Vec<u32>, EngineError> {
+    let mut ids = Vec::new();
+    for entry in std::fs::read_dir(root)? {
+        let entry = entry?;
+        if !entry.file_type()?.is_dir() {
+            continue;
+        }
+        if let Some(id) = entry
+            .file_name()
+            .to_str()
+            .and_then(account_template::parse_hex8)
+            && id >= t.min_id()
+        {
+            ids.push(id);
+        }
+    }
+    Ok(ids)
+}
+
+fn random(len: usize) -> Result<Vec<u8>, EngineError> {
+    let mut out = Vec::with_capacity(len);
+    while out.len() < len {
+        out.extend_from_slice(&leemusync_crypto::random_bytes::<32>()?);
+    }
+    out.truncate(len);
+    Ok(out)
 }

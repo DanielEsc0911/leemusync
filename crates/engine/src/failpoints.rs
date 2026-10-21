@@ -1,8 +1,10 @@
-//! Test-only fault injection: `hit` fails once at an armed point, `pause` waits once at an armed
-//! barrier so two engines can interleave deterministically (testing §Fault injection).
+//! Test-only fault injection: `hit` fails once at an armed point (or, in `Kill` mode, aborts the
+//! process there, feature `failpoints` only), `pause` waits once at an armed barrier so two
+//! engines can interleave deterministically (testing §Layers).
 //!
-//! Names: `upload.*`, `restore.*`, and `lease.after_write` (a pause between writing our lease
-//! and listing again, used to force the both-write-at-once race).
+//! Names: `init.*`, `upload.*`, `restore.*`, `resolve.after_commit`, and `lease.after_write`
+//! (a hit, and a pause between writing our lease and listing again, used to force the
+//! both-write-at-once race). `tests/kill.rs` fails when a hit name has no crash case.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex};
@@ -15,6 +17,8 @@ use crate::EngineError;
 pub struct Failpoints {
     armed: Mutex<BTreeSet<&'static str>>,
     barriers: Mutex<BTreeMap<&'static str, Arc<Barrier>>>,
+    #[cfg(any(test, feature = "failpoints"))]
+    kills: Mutex<BTreeSet<&'static str>>,
 }
 
 impl Failpoints {
@@ -32,6 +36,14 @@ impl Failpoints {
         }
     }
 
+    /// `Kill` mode: `hit(name)` aborts the process, like `kill -9` at that step.
+    #[cfg(any(test, feature = "failpoints"))]
+    pub fn arm_kill(&self, name: &'static str) {
+        if let Ok(mut k) = self.kills.lock() {
+            k.insert(name);
+        }
+    }
+
     /// Waits once at `name`'s barrier, if one was armed.
     pub async fn pause(&self, name: &'static str) {
         let barrier = self.barriers.lock().ok().and_then(|mut b| b.remove(name));
@@ -43,6 +55,10 @@ impl Failpoints {
     /// # Errors
     /// `Injected(name)` once, if `name` was armed.
     pub fn hit(&self, name: &'static str) -> Result<(), EngineError> {
+        #[cfg(any(test, feature = "failpoints"))]
+        if self.kills.lock().is_ok_and(|k| k.contains(name)) {
+            std::process::abort();
+        }
         let fired = self.armed.lock().is_ok_and(|mut armed| armed.remove(name));
         if fired {
             Err(EngineError::Injected(name))

@@ -2,6 +2,7 @@
 //! Spec: docs/specs/architecture.md (Layers), docs/specs/sync-model.md.
 
 pub mod account;
+pub mod account_template;
 pub mod config;
 pub mod heads;
 pub mod id;

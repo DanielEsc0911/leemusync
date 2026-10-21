@@ -13,7 +13,7 @@ workspace = true
 
 [features]
 # Test-only fault injection (crates/engine/src/failpoints.rs).
-failpoints = []
+failpoints = ["leemusync-store/faults"]
 
 [dependencies]
 leemusync-api = { path = "../api" }
@@ -29,7 +29,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 sysinfo = { workspace = true }
 thiserror = { workspace = true }
-tokio = { workspace = true, features = ["rt", "sync"] }
+tokio = { workspace = true, features = ["macros", "rt", "sync", "time"] }
 toml = { workspace = true }
 zeroize = { workspace = true }
 
@@ -37,6 +37,11 @@ zeroize = { workspace = true }
 leemusync-engine = { path = ".", features = ["failpoints"] }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+criterion = { workspace = true }
+
+[[bench]]
+name = "budgets"
+harness = false
 
 [target.'cfg(target_os = "linux")'.dependencies]
 keyring = { workspace = true, features = ["sync-secret-service", "crypto-rust", "vendored"] }

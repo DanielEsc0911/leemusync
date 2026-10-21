@@ -98,6 +98,8 @@ pub struct Accounts {
     pub id_regex: String,
     pub name_file: String,
     pub name_key: String,
+    /// How to write a new account (`[accounts.create]`, D32).
+    pub create: Option<crate::account_template::CreateTemplate>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -192,6 +194,13 @@ impl Profile {
             check_template(&acc.root)?;
             if acc.id_regex.len() > 200 || acc.name_file.contains(['/', '\\']) {
                 return Err(ProfileError::Field("accounts"));
+            }
+            if let Some(create) = &acc.create {
+                use crate::account_template::TemplateError;
+                create.validate().map_err(|e| match e {
+                    TemplateError::Unknown(name) => ProfileError::UnknownVar(name),
+                    _ => ProfileError::Field("accounts.create"),
+                })?;
             }
         }
         if self.game_key.from != "title_id"
