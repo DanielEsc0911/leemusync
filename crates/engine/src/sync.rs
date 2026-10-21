@@ -249,6 +249,58 @@ impl Engine {
         })
     }
 
+    /// Syncs one stream, as `sync` would (launcher mode steps 2 and 6). Refuses while the
+    /// emulator runs (I3) instead of skipping.
+    ///
+    /// # Errors
+    /// As `sync`; `EmulatorRunning`; `Usage` without a granted install of `emulator`.
+    pub(crate) async fn sync_one(
+        &mut self,
+        player: PlayerId,
+        emulator: &str,
+        game: &str,
+        warnings: &mut Vec<Warning>,
+    ) -> Result<StreamReport, EngineError> {
+        self.ensure_repo().await?;
+        if self.state.meta(FIRST_SYNC)?.is_none() {
+            return Err(EngineError::NeedsConfirmation);
+        }
+        warnings.extend(self.recover_journal()?);
+        let device = self.device_id();
+        let loaded = repo_config::load(self.repo_ref()?, &self.state).await?;
+        warnings.extend(loaded.warnings());
+        let config = loaded.config;
+        let (profile, install) = self
+            .installs()?
+            .into_iter()
+            .find(|(p, i, d)| p.id == emulator && d.is_some() && !i.provisional)
+            .map(|(p, i, _)| (p, i))
+            .ok_or_else(|| EngineError::Usage(format!("no_install:{emulator}")))?;
+        if self.env.processes.running(&process_names(&profile)) {
+            return Err(EngineError::EmulatorRunning(profile.name.clone()));
+        }
+        let report = self
+            .sync_stream(&profile, &install, &config, player, game, false, warnings)
+            .await?;
+        let has_version = report.done
+            && matches!(
+                report.action,
+                StreamAction::Upload | StreamAction::UploadThenConflict | StreamAction::Adopt
+            );
+        if has_version
+            && !config
+                .games_of(player)
+                .contains(&(emulator.to_owned(), game.to_owned()))
+        {
+            let _ = repo_config::update(self.repo_ref()?, &self.state, device, |c| {
+                c.add_game(player, emulator, game);
+                Ok(())
+            })
+            .await?;
+        }
+        Ok(report)
+    }
+
     #[allow(clippy::too_many_arguments, clippy::too_many_lines)] // one stream's whole decision, kept in one place
     async fn sync_stream(
         &self,

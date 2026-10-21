@@ -146,6 +146,10 @@ pub enum WarningCode {
     UnreadableFolder,
     /// A lease object didn't decrypt or parse, so it was ignored; `detail` is its device id.
     LeaseUnreadable,
+    /// A lease renewal failed during play; it is retried and the game keeps running.
+    LeaseRenewFailed,
+    /// The lease couldn't be deleted after play; it goes stale after its TTL.
+    LeaseReleaseFailed,
 }
 
 /// Result of `leemusync scan`: what was found on this machine.
@@ -301,6 +305,51 @@ pub struct ConflictInfo {
     pub game: String,
     /// Every head, oldest first.
     pub heads: Vec<HeadInfo>,
+}
+
+/// A step of `leemusync play`, for live status (sync-model §Launcher mode).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PlayEvent {
+    /// Pulling the newest save (step 2).
+    Pulling,
+    /// Another device holds the lease; polling until it's free.
+    WaitingForLease,
+    /// The emulator is running (steps 4 and 5).
+    Playing,
+    /// The emulator exited; waiting the quiet period, then uploading (step 6).
+    Uploading,
+}
+
+/// How this device played with respect to the stream's lease.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PlayLease {
+    /// We held the lease for the whole session.
+    Held,
+    /// We took over a stale lease.
+    TookOver,
+    /// Another device held it and the player chose to play anyway.
+    PlayedAnyway,
+}
+
+/// Result of `leemusync play`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PlayReport {
+    /// Shape version, always `API_VERSION`.
+    pub api_version: u32,
+    /// The pull before launch.
+    pub pulled: StreamReport,
+    /// The emulator's exit code (-1 when killed by a signal).
+    pub exit_code: i32,
+    /// The upload after exit; `action` is `nothing` when no file changed.
+    pub uploaded: StreamReport,
+    /// How the lease was used.
+    pub lease: PlayLease,
+    /// Lease renewals written while the emulator ran.
+    pub renewals: u32,
+    /// Non-fatal findings.
+    pub warnings: Vec<Warning>,
 }
 
 /// One lease, as `leemusync status` shows it (sync-model §Leases).
