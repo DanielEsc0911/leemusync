@@ -104,6 +104,8 @@ pub enum StreamAction {
     NeedsAccount,
     /// The stream was skipped on purpose.
     Skipped,
+    /// A conflict was resolved: a resolution version was written and restored.
+    Resolved,
 }
 
 /// A non-fatal finding, with a stable code and display detail.
@@ -267,6 +269,38 @@ pub struct HistoryEntry {
     /// Device id whose stale lease this version's session took over.
     #[serde(default)]
     pub takeover: Option<String>,
+}
+
+/// One head of a conflicted stream (sync-model §Conflicts).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HeadInfo {
+    /// Version id.
+    pub version: String,
+    /// Writer's device name (its id when unknown).
+    pub device_name: String,
+    /// Player name.
+    pub player: String,
+    /// Creation time, Unix milliseconds on the writer's clock.
+    pub created_at_ms: i64,
+    /// Files in the version.
+    pub files: u32,
+    /// Total plaintext size.
+    pub bytes: u64,
+    /// Files that differ from the version's base.
+    pub changed_files: u32,
+}
+
+/// A stream with more than one head.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ConflictInfo {
+    /// Player name.
+    pub player: String,
+    /// Emulator profile id.
+    pub emulator: String,
+    /// Game id.
+    pub game: String,
+    /// Every head, oldest first.
+    pub heads: Vec<HeadInfo>,
 }
 
 /// One lease, as `leemusync status` shows it (sync-model §Leases).

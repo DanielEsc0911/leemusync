@@ -12,6 +12,16 @@ use crate::repo::REPO_JSON;
 use crate::restore::{self, Ctx, Source};
 use crate::{BackendConfig, Engine, EngineError, history_dir, repo_config};
 
+/// One stream's place on this device (`Engine::target`).
+pub(crate) struct Target {
+    pub stream: leemusync_core::StreamId,
+    pub player: leemusync_core::PlayerId,
+    pub account: String,
+    pub profile: leemusync_core::profile::Profile,
+    pub folder: std::path::PathBuf,
+    pub names: Vec<String>,
+}
+
 impl Engine {
     /// # Errors
     /// None for a device without a repo (fields stay empty); storage errors otherwise.
@@ -159,30 +169,15 @@ impl Engine {
         game: &str,
         what: &str,
     ) -> Result<StreamReport, EngineError> {
-        let stream = self.stream_of(player, emulator, game).await?;
         self.recover_journal()?;
-        let device = self.device_id();
-        let config = repo_config::load(self.repo_ref()?, &self.state)
-            .await?
-            .config;
-        let pid = config
-            .player_named(player)
-            .ok_or_else(|| EngineError::Usage(format!("unknown_player:{player}")))?;
-        let account = config
-            .account_of(device, pid, emulator)
-            .ok_or_else(|| EngineError::Usage(format!("not_mapped:{emulator}")))?
-            .to_owned();
-        let installs = self.installs()?;
-        let (profile, install, _) = installs
-            .iter()
-            .find(|(p, _, _)| p.id == emulator)
-            .ok_or_else(|| EngineError::Usage(format!("no_install:{emulator}")))?;
-        let folder = save_folder(profile, install, &game.to_lowercase(), &account)?;
-        let names = profile
-            .platforms
-            .get("linux")
-            .map(|p| p.process.clone())
-            .unwrap_or_default();
+        let Target {
+            stream,
+            account,
+            profile,
+            folder,
+            names,
+            ..
+        } = self.target(player, emulator, game).await?;
         let mut warnings = Vec::new();
         let versions = self.fetch_graph(&stream, &mut warnings).await?;
         let backup_dir = history_dir(&self.env.locations.data_dir, &stream).join(what);
@@ -231,6 +226,45 @@ impl Engine {
             done: true,
             files: meter.transferred().0,
             bytes: meter.transferred().1,
+        })
+    }
+
+    /// Where `player`'s save of `game` lives on this device.
+    ///
+    /// # Errors
+    /// `Usage` for an unknown player, mapping or install; storage errors.
+    pub(crate) async fn target(
+        &mut self,
+        player: &str,
+        emulator: &str,
+        game: &str,
+    ) -> Result<Target, EngineError> {
+        let (stream, pid) = self.stream_for(player, emulator, game).await?;
+        let config = repo_config::load(self.repo_ref()?, &self.state)
+            .await?
+            .config;
+        let account = config
+            .account_of(self.device_id(), pid, emulator)
+            .ok_or_else(|| EngineError::Usage(format!("not_mapped:{emulator}")))?
+            .to_owned();
+        let (profile, install, _) = self
+            .installs()?
+            .into_iter()
+            .find(|(p, _, _)| p.id == emulator)
+            .ok_or_else(|| EngineError::Usage(format!("no_install:{emulator}")))?;
+        let folder = save_folder(&profile, &install, &game.to_lowercase(), &account)?;
+        let names = profile
+            .platforms
+            .get("linux")
+            .map(|p| p.process.clone())
+            .unwrap_or_default();
+        Ok(Target {
+            stream,
+            player: pid,
+            account,
+            profile,
+            folder,
+            names,
         })
     }
 

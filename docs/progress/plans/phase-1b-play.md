@@ -85,9 +85,9 @@ impl Engine {
 ```
 Session length and emulator version from the spec's list are left out: M1a manifests don't record them (P1; added when a manifest field exists).
 
-- [ ] **Step 1: failing tests.** Two devices diverge (both dirty from one base) → `conflicts()` lists one stream with 2 heads; `resolve(keep = A's head)` on B → one head whose parents are both heads, B's local files equal A's, B's old files are in local history (I1), B's head still restorable with `restore`; `conflict_policy = "newest"` makes `sync` write the resolution for the newest head and report it; resolving with a version that isn't a head → `EngineError::Usage`.
-- [ ] **Step 2:** implement. The resolution manifest reuses the chosen head's blob ids (no re-upload) and goes through `upload::commit_manifest` (create-only, same failpoints).
-- [ ] **Step 3:** pass, clippy, spec, `just check`, commit `feat(engine): list and resolve conflicts`.
+- [x] **Step 1: failing tests.** Two devices diverge (both dirty from one base) → `conflicts()` lists one stream with 2 heads; `resolve(keep = A's head)` on B → one head whose parents are both heads, B's local files equal A's, B's old files are in local history (I1), B's head still restorable with `restore`; `conflict_policy = "newest"` makes `sync` write the resolution for the newest head and report it; resolving with a version that isn't a head → `EngineError::Usage`.
+- [x] **Step 2:** implement. The resolution manifest reuses the chosen head's blob ids (no re-upload) and goes through `upload::commit_manifest` (create-only, same failpoints).
+- [x] **Step 3:** pass, clippy, spec, `just check`, commit `feat(engine): list and resolve conflicts`.
 
 ### Task 4: `launch` in the Cemu profile and per-device emulator executable
 

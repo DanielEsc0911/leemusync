@@ -77,8 +77,20 @@ pub(crate) async fn upload(
         })
         .await?;
     fp.hit("upload.before_manifest")?;
-    let changed = snap
-        .files
+    commit_manifest(repo, meta, snap.files.clone(), fp).await
+}
+
+/// Writes the manifest for `files`, whose blobs are already on the remote (create-only: the
+/// commit point). `changed_files` counts entries that differ from `meta.base_files`.
+///
+/// Errors: `Data("manifest_invalid")` if the manifest would break a validation rule.
+pub(crate) async fn commit_manifest(
+    repo: &Repo,
+    meta: UploadMeta<'_>,
+    files: Vec<FileEntry>,
+    fp: &Failpoints,
+) -> Result<Version, EngineError> {
+    let changed = files
         .iter()
         .filter(|f| {
             !meta
@@ -99,7 +111,7 @@ pub(crate) async fn upload(
             id: meta.emulator.to_owned(),
             version: None,
         },
-        files: snap.files.clone(),
+        files,
         meta: Meta {
             session_secs: None,
             changed_files: u32::try_from(changed).unwrap_or(u32::MAX),

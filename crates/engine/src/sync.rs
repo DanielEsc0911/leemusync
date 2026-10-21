@@ -8,16 +8,19 @@ use leemusync_core::config::RepoConfig;
 use leemusync_core::heads::{Graph, heads};
 use leemusync_core::manifest::{FileEntry, Version};
 use leemusync_core::profile::Profile;
-use leemusync_core::reconcile::{Action, Input, Local, reconcile};
+use leemusync_core::reconcile::{Action, Input, Local, newest_head, reconcile};
 use leemusync_core::{DeviceId, PlayerId, StreamId, VersionId};
 
 use crate::discover::{Discovery, save_folder};
 use crate::profiles::Install;
 use crate::progress::Meter;
+use crate::resolve::Resolution;
 use crate::restore::{self, Ctx, Source};
 use crate::snapshot::{self, Quick};
 use crate::upload::{UploadMeta, upload};
-use crate::{Engine, EngineError, StreamRow, fsx, history_dir, now_ms, repo_config};
+use crate::{
+    ConflictPolicy, Engine, EngineError, StreamRow, fsx, history_dir, now_ms, repo_config,
+};
 
 pub struct SyncOptions {
     pub dry_run: bool,
@@ -47,7 +50,7 @@ fn process_names(profile: &Profile) -> Vec<String> {
 }
 
 /// Restored files with their on-disk mtimes, so the next quick check sees "same as base".
-fn on_disk(folder: &Path, files: &[FileEntry]) -> Vec<FileEntry> {
+pub(crate) fn on_disk(folder: &Path, files: &[FileEntry]) -> Vec<FileEntry> {
     files
         .iter()
         .map(|f| {
@@ -280,7 +283,7 @@ impl Engine {
             bytes: 0,
         };
         let meter = Meter::new(self.progress.clone(), &report.player, &profile.id, game);
-        let versions = self.fetch_graph(&stream, warnings).await?;
+        let mut versions = self.fetch_graph(&stream, warnings).await?;
         let graph: Graph = versions
             .iter()
             .map(|(id, v)| (*id, v.parents.clone()))
@@ -400,6 +403,7 @@ impl Engine {
                 row.base_files.clone_from(&v.files);
                 row.highest_seen = row.highest_seen.max(Some(v.id));
                 row.replace_local = false;
+                versions.insert(v.id, v);
             }
             Action::FastForward(h) => {
                 let v = versions
@@ -425,8 +429,43 @@ impl Engine {
             }
         }
         report.done = true;
-        (report.files, report.bytes) = meter.transferred();
         self.state.put_stream(&row)?;
+        if self.config.conflict_policy == ConflictPolicy::Newest
+            && matches!(
+                action,
+                Action::Conflict(_) | Action::UploadThenConflict { .. }
+            )
+        {
+            let all: Graph = versions
+                .iter()
+                .map(|(id, v)| (*id, v.parents.clone()))
+                .collect();
+            let timed: Vec<_> = leemusync_core::heads::heads(&all)
+                .into_iter()
+                .filter_map(|h| versions.get(&h).map(|v| (h, v.created_at)))
+                .collect();
+            if let Some(keep) = newest_head(&timed) {
+                let names = process_names(profile);
+                let v = self
+                    .write_resolution(&Resolution {
+                        stream,
+                        player,
+                        emulator: &profile.id,
+                        game,
+                        folder: &folder,
+                        names: &names,
+                        max_file_bytes: profile.max_file_bytes(),
+                        versions: &versions,
+                        keep,
+                        meter: &meter,
+                    })
+                    .await?;
+                report.action = StreamAction::Resolved;
+                report.version = Some(v.id.to_string());
+                report.heads = vec![v.id.to_string()];
+            }
+        }
+        (report.files, report.bytes) = meter.transferred();
         Ok(report)
     }
 }

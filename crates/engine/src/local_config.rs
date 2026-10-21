@@ -23,6 +23,19 @@ pub struct LocalConfig {
     pub emulators: BTreeMap<String, EmulatorOverride>,
     #[serde(default)]
     pub leases: LeaseSettings,
+    /// What `sync` does with a conflict (sync-model §Conflicts).
+    #[serde(default)]
+    pub conflict_policy: ConflictPolicy,
+}
+
+/// `conflict_policy`: `ask` leaves conflicts for the player; `newest` resolves them to the
+/// newest head. Either way nothing is lost: the other heads stay in history.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConflictPolicy {
+    #[default]
+    Ask,
+    Newest,
 }
 
 /// `[leases]` (sync-model §Leases).
@@ -108,6 +121,7 @@ impl LocalConfig {
             grants: Vec::new(),
             emulators: BTreeMap::new(),
             leases: LeaseSettings::default(),
+            conflict_policy: ConflictPolicy::Ask,
         }
     }
 
@@ -226,6 +240,26 @@ mod tests {
             matches!(LocalConfig::load(&path), Err(EngineError::Config(_))),
             "no secrets in config.toml"
         );
+    }
+
+    #[test]
+    fn conflict_policy_defaults_to_ask_and_parses_newest() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        let text = toml::to_string(&sample()).unwrap();
+        assert!(text.contains("conflict_policy = \"ask\""), "{text}");
+        std::fs::write(&path, text.replace("conflict_policy = \"ask\"\n", "")).unwrap();
+        assert_eq!(
+            LocalConfig::load(&path).unwrap().unwrap().conflict_policy,
+            ConflictPolicy::Ask
+        );
+        std::fs::write(&path, text.replace("\"ask\"", "\"newest\"")).unwrap();
+        assert_eq!(
+            LocalConfig::load(&path).unwrap().unwrap().conflict_policy,
+            ConflictPolicy::Newest
+        );
+        std::fs::write(&path, text.replace("\"ask\"", "\"merge\"")).unwrap();
+        assert!(LocalConfig::load(&path).is_err());
     }
 
     #[test]
