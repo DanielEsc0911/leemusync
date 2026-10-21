@@ -69,21 +69,23 @@ Implemented in `crates/engine/src/{snapshot,upload}.rs`. Local history pruning i
 Offline → queue locally and keep working. Transient errors → exponential backoff with jitter (1 s → 5 min). Auth errors → stop that backend and notify. Uploads are idempotent (content-addressed). Inside one sync the store retries each request (storage-backends §Interface); the daemon's 1 s → 5 min backoff is for whole syncs that still fail (Phase 2). Blobs upload 4 at a time.
 
 ## Budgets
-Targets for the daemon on desktop. Measured in Phase 1/2 benchmarks and enforced in CI on regression.
+Targets for the daemon on desktop. Measured in Phase 1/2 benchmarks and enforced in CI on regression (not yet: Phase 2, with the daemon).
 
-| Metric | Target |
-|---|---|
-| Idle CPU | ≈ 0% (event-driven, no busy polling) |
-| Idle memory (RSS) | ≤ 30 MB |
-| Cold start to ready | ≤ 300 ms |
-| Change detected → upload started | quiet period + ≤ 2 s |
-| Rescan of 10 000 files (warm) | ≤ 1 s |
-| Binary size (daemon) | ≤ 15 MB |
+Measured 2026-10-21 on the Fedora PC (AMD Ryzen AI 7 350), release build, `just bench` (`crates/engine/benches/budgets.rs`). These are the engine-side numbers the daemon will inherit; there is no daemon yet.
+
+| Metric | Target | Measured (engine, 2026-10-21) |
+|---|---|---|
+| Idle CPU | ≈ 0% (event-driven, no busy polling) | not measured (needs the daemon) |
+| Idle memory (RSS) | ≤ 30 MB | 23 MiB: whole bench process (criterion included) with an open engine, from `/proc/self/statm` |
+| Cold start to ready | ≤ 300 ms | 0.22 ms: `Engine::open` on a populated state DB, repo unlocked from the keystore, one remote read (local-folder backend) |
+| Change detected → upload started | quiet period + ≤ 2 s | not measured (needs the daemon's watcher) |
+| Rescan of 10 000 files (warm) | ≤ 1 s | 21 ms: dry-run sync of one unchanged 10 001-file save folder |
+| Binary size (daemon) | ≤ 15 MB | 14.0 MB (14 016 632 bytes): `leemusync` CLI, Linux x86-64; close to the target |
 
 ## Verify
 - **V-REL-1** logind sleep inhibition from a user service on GNOME and KDE (SP2). XFCE is done ([Sleep and resume](#sleep-and-resume)). GNOME and KDE deferred by the maintainer on 2026-10-08.
 - **V-REL-4** Whether polkit refuses logind inhibitors for a lingering service with no session (`allow_any` is `auth_admin_keep` for `inhibit-block-sleep`; the `idle` block and `sleep` delay locks used now are `yes`, but untested without a session) (SP2).
 - **V-REL-5** Desktop idle suspend actually waits while LeemuSync holds its inhibit (needs an idle-timeout run): XFCE with `org.freedesktop.PowerManagement.Inhibit`; GNOME (gnome-settings-daemon follows `org.gnome.SessionManager` inhibitors, which the portal's `Inhibit` feeds) and KDE (PowerDevil's policy agent, which also reads logind inhibitors) from documentation only, unmeasured (SP2).
 - **V-REL-2** Windows logon task restart behaviour and tray from a scheduled task (SP2). Deferred by the maintainer on 2026-10-08.
-- **V-REL-3** Budgets are achievable with OpenDAL + tokio + SQLite (Phase 1 benchmarks).
+- **V-REL-3** Budgets are achievable with OpenDAL + tokio + SQLite. Engine side measured 2026-10-21 ([Budgets](#budgets)): cold start, rescan and RSS are well inside; binary size is 14.0 of 15 MB. Still open: idle CPU, change-to-upload latency and RSS of the daemon itself (Phase 2), and cold start against a remote backend.
 - **V-REL-6** Whether the I4 rename survives power loss on Windows without a folder fsync. `fsx::write_atomic` doesn't do that step on Windows (SP2).

@@ -89,6 +89,9 @@ pub struct Engine {
     clock_shift_ms: i64,
     /// Renew, lease-poll and quiet-period intervals for `play` (shortened in tests).
     play_timings: play::Timings,
+    /// Test-only request faults for every store opened (`set_store_faults`).
+    #[cfg(feature = "failpoints")]
+    store_faults: Option<leemusync_store::Faults>,
 }
 
 impl Engine {
@@ -118,6 +121,8 @@ impl Engine {
             repo: None,
             takeovers: std::sync::Mutex::default(),
             clock_shift_ms: 0,
+            #[cfg(feature = "failpoints")]
+            store_faults: None,
             play_timings: play::Timings::default(),
         };
         // A running emulator only postpones recovery (to `sync`/`restore`); the CLI still starts.
@@ -151,6 +156,20 @@ impl Engine {
     #[cfg(any(test, feature = "failpoints"))]
     pub fn arm_failpoint(&self, name: &'static str) {
         self.failpoints.arm(name);
+    }
+
+    /// Test-only: abort the process at failpoint `name` (crash matrix, `tests/kill.rs`).
+    #[cfg(any(test, feature = "failpoints"))]
+    pub fn arm_kill(&self, name: &'static str) {
+        self.failpoints.arm_kill(name);
+    }
+
+    /// Test-only: every store this engine opens from now on injects `faults` (network
+    /// matrix). Drops the open repo so the next operation reopens it through the faulty store.
+    #[cfg(feature = "failpoints")]
+    pub fn set_store_faults(&mut self, faults: Option<leemusync_store::Faults>) {
+        self.store_faults = faults;
+        self.repo = None;
     }
 
     fn save_config(&self) -> Result<(), EngineError> {

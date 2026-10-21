@@ -155,6 +155,7 @@ impl Engine {
             ttl_ms: self.config.leases.ttl_ms(),
         };
         repo.put_lease(&stream, &ours).await?;
+        self.failpoints.hit("lease.after_write")?;
         self.failpoints.pause("lease.after_write").await;
         let mut again = Vec::new();
         let live: Vec<Observed> = self

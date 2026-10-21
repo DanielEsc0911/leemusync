@@ -10,14 +10,14 @@ Prove the rules automatically: no lost saves, identical UI, smooth frames, same 
 |---|---|---|
 | Unit | `cargo test`, `flutter test` | Pure logic in `core`, `crypto`, Dart state |
 | Property | `proptest` | Version graph and heads, reconciliation table, path validation, template expansion |
-| Simulation | Deterministic multi-device harness in `crates/engine/tests/sim/` | N devices + fake backend with injected faults: crash at every journal step, network errors, eventual-consistency delays, clock skew, concurrent leases. Checks invariants I1–I6 after every step. Simulation: `crates/engine/tests/two_devices.rs` (the M1a test day). Fault injection: `crates/engine/tests/faults.rs` (feature `failpoints`) |
+| Simulation | Deterministic multi-device harness in `crates/engine/tests/sim/` | N devices + fake backend with injected faults: crash at every journal step, network errors, eventual-consistency delays, clock skew, concurrent leases. Checks invariants I1–I6 after every step. Simulation: `crates/engine/tests/two_devices.rs` (the M1a test day). Fault injection (feature `failpoints`, which turns on `leemusync-store/faults`; dev-dependency only, never in a release build): `crates/engine/tests/faults.rs` (in-process failpoint errors, and the network matrix: `Store::faulty` cuts the network or loses the response at request N, for every N of an upload sync and a fast-forward sync; `tests/play.rs` does the same for one `play`), `crates/engine/tests/kill.rs` (crash matrix: a child process aborts at every failpoint in `Kill` mode, the parent reopens and checks I1–I6; a test fails when a failpoint has no case) |
 | Backend conformance | `crates/store/tests/conformance.rs` | Every adapter. Docker services (MinIO, WebDAV, SFTP) in CI |
 | Profile fixtures | `profiles/fixtures/` | Each profile's scan finds exactly the expected streams |
 | Fuzz | `cargo-fuzz` (nightly CI, timeboxed) | Manifest decode, profile parse, path validation, IPC frames, lease decode |
 | Widget | `flutter test` | Components and screens with fake engine |
 | Golden | `flutter test --update-goldens` (reviewed) | Each screen × size class (compact/medium/expanded) × light/dark × en/es. Rendered on Linux CI with bundled fonts for determinism |
 | Integration | `integration_test` on Android emulator, iOS simulator, desktop | Every flow in [navigation](ui/navigation.md) per size class |
-| Performance | `flutter drive --profile` + timeline summary; Rust `criterion` | Frame budgets ([design-system](ui/design-system.md#performance)), daemon budgets ([reliability](reliability.md#budgets)) |
+| Performance | `flutter drive --profile` + timeline summary; Rust `criterion` (`crates/engine/benches/budgets.rs`, `just bench`) | Frame budgets ([design-system](ui/design-system.md#performance)), daemon budgets ([reliability](reliability.md#budgets)) |
 | Native | Kotlin unit/instrumented, XCTest | Services, notifications, Live Activities, App Intents |
 | Manual release pass | Checklist in [release](release.md) | Real devices from the [Device lab](#device-lab) |
 

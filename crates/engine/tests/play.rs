@@ -15,6 +15,7 @@ use leemusync_core::VersionId;
 use leemusync_engine::{
     Child, EmulatorOverride, EngineError, Launcher, LeaseChoice, Locations, MapChoice, PlayPrompt,
 };
+use leemusync_store::{Fault, Faults};
 
 const GAME: &str = "101c9400";
 
@@ -327,4 +328,86 @@ async fn a_running_emulator_is_refused_before_anything_starts() {
     assert!(matches!(e, Err(EngineError::EmulatorRunning(_))), "{e:?}");
     assert!(la.seen.lock().unwrap().is_none(), "never launched");
     assert_eq!(lock_files(&t.remote), 0);
+}
+
+/// SC5: fail request N of one `play` on B (cut from N, or a lost response at N), for every N
+/// the play makes. Play errors or completes; a rerun sync converges both PCs on the newest
+/// save; no mix, no extra head, no false conflict.
+#[tokio::test]
+#[allow(clippy::many_single_char_names)] // a, b, k, n, f: the matrix loop
+async fn a_network_fault_at_any_request_of_a_play_never_corrupts_or_conflicts() {
+    let mut t = two().await;
+    let p = Prompt::new(LeaseChoice::Wait);
+    let mut prev = b"same save".to_vec();
+    let mut k = 0;
+    let mut cases = 0;
+    for lost in [false, true] {
+        let mut n = 1;
+        loop {
+            k += 1;
+            let from_a = format!("from A {k}").into_bytes();
+            let played = format!("played on B {k}").into_bytes();
+            std::fs::write(
+                t.a.cemu.join(SAVE).join("80000001/0/game_data.sav"),
+                &from_a,
+            )
+            .unwrap();
+            t.a.sync().await;
+            let f = Faults::default();
+            if lost {
+                f.fail_nth(n, Fault::TransientAfterWrite);
+            } else {
+                f.cut_from(n);
+            }
+            t.b.engine.set_store_faults(Some(f.clone()));
+            let lb = FakeLauncher::new(&t.b, Some(&played), 10);
+            let r = t.b.engine.play("P", "cemu", GAME, &[], &p, &lb).await;
+            let reached = f.requests() >= n;
+            t.b.engine.set_store_faults(None);
+            let case = format!("lost={lost} at {n}");
+            let launched = lb.seen.lock().unwrap().clone();
+            if let Some(seen) = &launched {
+                assert_eq!(seen, &from_a, "{case}: launched on the newest save");
+            }
+            let now = t.b.save("80000001");
+            assert!(
+                [&from_a, &played, &prev].contains(&&now),
+                "{case}: mixed {now:?}"
+            );
+            if let Ok(r) = &r {
+                assert!(
+                    !matches!(r.uploaded.action, StreamAction::UploadThenConflict),
+                    "{case}"
+                );
+            }
+            let again = t.b.sync().await;
+            assert!(
+                !matches!(
+                    again.streams[0].action,
+                    StreamAction::UploadThenConflict | StreamAction::Conflict
+                ),
+                "{case}: false conflict"
+            );
+            t.a.sync().await;
+            let want = if launched.is_some() { &played } else { &from_a };
+            assert_eq!(&t.b.save("80000001"), want, "{case}");
+            assert_eq!(&t.a.save("80000001"), want, "{case}");
+            assert_eq!(t.b.engine.conflicts().await.unwrap().0, vec![], "{case}");
+            let h = t.b.engine.history("P", "cemu", GAME).await.unwrap();
+            assert_eq!(
+                h.versions.iter().filter(|v| v.head).count(),
+                1,
+                "{case}: one head"
+            );
+            prev = want.clone();
+            cases += 1;
+            if !reached {
+                break;
+            }
+            n += 1;
+        }
+        assert!(n > 3, "lost={lost}: the matrix ran");
+    }
+    eprintln!("play network cases: {cases}");
+    assert!(lock_files(&t.remote) <= 1, "at most B's own stale lease");
 }
