@@ -43,7 +43,7 @@ normalize = ["lowercase"]
 
 # Arguments only: the executable is the user's (config.toml `[emulators.cemu] exe`). Verify V-PLAY-1.
 [launch]
-args = ["-g", "{game_path}"]
+args = ["-g", "{game_path}", "-a", "{account}"]
 
 # New accounts, written the way Cemu 2.6 `Account::Save()` does (Account.cpp; SP8, D32).
 # Spec: docs/specs/players-and-accounts.md#creating-a-cemu-account-sp8. The folder is [accounts].root/<id>/.

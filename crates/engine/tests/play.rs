@@ -194,7 +194,9 @@ async fn a_handoff_starts_b_from_a_s_version_sc2() {
         [
             OsString::from("/usr/bin/cemu"),
             "-g".into(),
-            game_path(&t.a.root).into_os_string()
+            game_path(&t.a.root).into_os_string(),
+            "-a".into(),
+            "80000001".into()
         ]
     );
     assert_eq!(lock_files(&t.remote), 0, "A released");

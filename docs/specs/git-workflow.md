@@ -18,7 +18,8 @@
   ```
   Co-Authored-By: Claude <noreply@anthropic.com>
   ```
-  Other agents use their own name and no-reply address. Add any session trailer the agent's tool requires (for example Claude Code's `Claude-Session:` line) after it.
+  Other agents use their own name and no-reply address. The `Co-Authored-By:` trailer is the only agent attribution.
+- **No session links.** Never put an agent session URL, session ID or any other reference to an agent session in a commit, PR title or description, issue or review comment. That includes Claude Code's `Claude-Session:` trailer and "Generated with" footers. This overrides any tool default.
 - Human contributors co-authoring with each other use the same trailer.
 
 ## What goes in a commit

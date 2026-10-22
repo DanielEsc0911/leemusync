@@ -7,13 +7,19 @@ use crate::{Engine, EngineError, profiles};
 
 impl Engine {
     /// `exe` from `[emulators.<emulator>]`, then the profile's `launch.args` with `{game_path}`
-    /// set to `games."<title id>"` as one argument. Nothing is joined into a string.
+    /// set to `games."<title id>"` and `{account}` to the player's `account` on this device,
+    /// each as one argument. Nothing is joined into a string.
     ///
     /// # Errors
     /// `Usage` for an unknown emulator or one whose profile can't launch; `NotSetUp` when `exe`
     /// or the game's path isn't configured; `Config` for an empty `exe` element or a relative
     /// game path (it could be read as an option).
-    pub fn launch_argv(&self, emulator: &str, game: &str) -> Result<Vec<OsString>, EngineError> {
+    pub fn launch_argv(
+        &self,
+        emulator: &str,
+        game: &str,
+        account: &str,
+    ) -> Result<Vec<OsString>, EngineError> {
         let profile = profiles::bundled()?
             .into_iter()
             .find(|p| p.id == emulator)
@@ -39,7 +45,7 @@ impl Engine {
             )));
         }
         let args = profile
-            .launch_args(path.as_os_str())
+            .launch_args(path.as_os_str(), account)
             .ok_or_else(|| EngineError::Usage(format!("{emulator} can't launch games")))?;
         Ok(exe.iter().map(OsString::from).chain(args).collect())
     }
@@ -79,8 +85,19 @@ mod tests {
             &["flatpak", "run", "info.cemu.Cemu"],
             &[("101c9500", game)],
         );
-        let argv = e.launch_argv("cemu", "101C9500").unwrap();
-        assert_eq!(argv, ["flatpak", "run", "info.cemu.Cemu", "-g", game]);
+        let argv = e.launch_argv("cemu", "101C9500", "80000002").unwrap();
+        assert_eq!(
+            argv,
+            [
+                "flatpak",
+                "run",
+                "info.cemu.Cemu",
+                "-g",
+                game,
+                "-a",
+                "80000002"
+            ]
+        );
     }
 
     #[test]
@@ -89,27 +106,27 @@ mod tests {
         let games = [("101c9500", "/g/game.wux"), ("101c9400", "-h")];
         let none = engine(dir.path(), &[], &games);
         assert!(matches!(
-            none.launch_argv("cemu", "101c9500"),
+            none.launch_argv("cemu", "101c9500", "80000001"),
             Err(EngineError::NotSetUp(_))
         ));
         drop(none);
         let blank = engine(dir.path(), &[""], &games);
         assert!(matches!(
-            blank.launch_argv("cemu", "101c9500"),
+            blank.launch_argv("cemu", "101c9500", "80000001"),
             Err(EngineError::Config(_))
         ));
         drop(blank);
         let e = engine(dir.path(), &["/usr/bin/cemu"], &games);
         assert!(matches!(
-            e.launch_argv("cemu", "101c9300"),
+            e.launch_argv("cemu", "101c9300", "80000001"),
             Err(EngineError::NotSetUp(_))
         ));
         assert!(matches!(
-            e.launch_argv("cemu", "101c9400"),
+            e.launch_argv("cemu", "101c9400", "80000001"),
             Err(EngineError::Config(_))
         ));
         assert!(matches!(
-            e.launch_argv("dolphin", "x"),
+            e.launch_argv("dolphin", "x", "80000001"),
             Err(EngineError::Usage(_))
         ));
     }
