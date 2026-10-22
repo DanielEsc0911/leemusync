@@ -49,7 +49,7 @@ The engine derives the tier. Profiles don't declare it ([D9](../decisions.md#d9-
 | `compat` | [string] | Compat groups whose files are interchangeable |
 | `states` | {pattern, include} | Save states (opt-in, [D15](../decisions.md#d15-save-states-are-opt-in-2026-10-07)) |
 | `recommend` | [{setting, value, unlocks, how}] | Emulator settings that raise the tier, shown in the UI |
-| `launch.args` | [string] | Arguments to start a game. Each one is a literal or exactly `{game_path}`, the only variable here; the game path is passed as one argument, never split or joined. At least one must be `{game_path}`. `[launch]` has no other field: the executable is always chosen by the user (`[emulators.<id>] exe` in [config](config-and-cli.md#config-file)) and started with argv, never a shell. Cemu: `["-g", "{game_path}"]` (Verify V-PLAY-1) |
+| `launch.args` | [string] | Arguments to start a game. Each one is a literal or exactly `{game_path}` or `{account}`, the only variables here; each is passed as one argument, never split or joined. `{account}` is the chosen player's account on this device (`play --as`). At least one must be `{game_path}`. `[launch]` has no other field: the executable is always chosen by the user (`[emulators.<id>] exe` in [config](config-and-cli.md#config-file)) and started with argv, never a shell. Cemu: `["-g", "{game_path}", "-a", "{account}"]` (`-a` takes the hex persistent id for that session only, [LaunchSettings.cpp][cemu-launch]; Verify V-PLAY-1) |
 
 ### Templates
 Allowed variables: `{base}` `{home}` `{xdg_data}` `{xdg_config}` `{appdata}` `{localappdata}` `{documents}` `{mac_app_support}` `{flatpak:<app-id>}` `{android_storage}` `{exe_dir}`, plus `config_keys` variables and pattern captures. Anything else is a validation error.
@@ -97,7 +97,7 @@ name_key = "MiiName"
 from = "title_id"
 
 [launch]
-args = ["-g", "{game_path}"]       # Verify V-PLAY-1
+args = ["-g", "{game_path}", "-a", "{account}"]   # Verify V-PLAY-1
 ```
 
 ## Validation
@@ -177,3 +177,4 @@ Schema gaps found by SP7 (config outside the base is solved by `platforms.<os>.c
 - **Extra captures.** RetroArch's core folder and Dolphin's region folder have no capture (`{core}`, `{region}`); the drafts match them with a glob.
 - **Two layouts in one emulator.** Dolphin has Wii NAND (`per_game_dir`) and GameCube cards (`per_game_file` or `container`). One profile declares one `layout`.
 - **Config value forms.** RetroArch paths may start with `~` or be `default`; DuckStation and PCSX2 folders are relative to the data root.
+[cemu-launch]: https://github.com/cemu-project/Cemu/blob/main/src/config/LaunchSettings.cpp

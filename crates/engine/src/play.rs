@@ -141,6 +141,7 @@ impl Engine {
         let Target {
             stream,
             player: pid,
+            account,
             profile,
             folder,
             names,
@@ -150,7 +151,7 @@ impl Engine {
         if self.env.processes.running(&names) {
             return Err(EngineError::EmulatorRunning(profile.name.clone()));
         }
-        let mut argv = self.launch_argv(emulator, &game)?;
+        let mut argv = self.launch_argv(emulator, &game, &account)?;
         argv.extend(extra.iter().cloned());
         let mut warnings = Vec::new();
 
