@@ -18,8 +18,9 @@ pub const ALLOWED_VARS: [&str; 8] = [
     "exe_dir",
 ];
 const DEFAULT_MAX_FILE_MB: u32 = 64;
-/// The only variable `launch.args` may use; it is a whole argument, never part of one.
+/// The variables `launch.args` may use; each is a whole argument, never part of one.
 pub const GAME_PATH_VAR: &str = "{game_path}";
+pub const ACCOUNT_VAR: &str = "{account}";
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum ProfileError {
@@ -214,10 +215,11 @@ impl Profile {
         Ok(())
     }
 
-    /// The profile's launch arguments with `{game_path}` replaced by `game_path`, which stays one
-    /// argument whatever it contains (spaces, quotes, `;`). `None` when the profile can't launch.
+    /// The profile's launch arguments with `{game_path}` replaced by `game_path` and `{account}`
+    /// by the player's `account`, each one argument whatever it contains (spaces, quotes, `;`).
+    /// `None` when the profile can't launch.
     #[must_use]
-    pub fn launch_args(&self, game_path: &OsStr) -> Option<Vec<OsString>> {
+    pub fn launch_args(&self, game_path: &OsStr, account: &str) -> Option<Vec<OsString>> {
         let launch = self.launch.as_ref()?;
         Some(
             launch
@@ -226,6 +228,8 @@ impl Profile {
                 .map(|a| {
                     if a == GAME_PATH_VAR {
                         game_path.to_owned()
+                    } else if a == ACCOUNT_VAR {
+                        OsString::from(account)
                     } else {
                         OsString::from(a)
                     }
@@ -235,9 +239,12 @@ impl Profile {
     }
 }
 
-/// Each argument is `{game_path}` exactly, or a literal without braces or NUL.
+/// Each argument is `{game_path}` or `{account}` exactly, or a literal without braces or NUL.
 fn check_launch(args: &[String]) -> Result<(), ProfileError> {
-    for a in args.iter().filter(|a| *a != GAME_PATH_VAR) {
+    for a in args
+        .iter()
+        .filter(|a| *a != GAME_PATH_VAR && *a != ACCOUNT_VAR)
+    {
         if let Some(start) = a.find('{') {
             let name = a[start + 1..].split('}').next().unwrap_or_default();
             return Err(ProfileError::UnknownVar(name.to_owned()));
@@ -336,6 +343,7 @@ mod tests {
     use super::*;
 
     const CEMU: &str = include_str!("../../../profiles/cemu.toml");
+    const LAUNCH: &str = "[launch]\nargs = [\"-g\", \"{game_path}\", \"-a\", \"{account}\"]\n";
 
     fn vars(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
         pairs
@@ -361,13 +369,15 @@ mod tests {
     fn cemu_launch_args_put_the_game_path_in_one_argument() {
         let p = Profile::from_toml(CEMU).unwrap();
         let args = p
-            .launch_args(OsStr::new("/g/My Game; rm -rf ~/x.wux"))
+            .launch_args(OsStr::new("/g/My Game; rm -rf ~/x.wux"), "80000001")
             .unwrap();
         assert_eq!(
             args,
             vec![
                 OsString::from("-g"),
-                OsString::from("/g/My Game; rm -rf ~/x.wux")
+                OsString::from("/g/My Game; rm -rf ~/x.wux"),
+                OsString::from("-a"),
+                OsString::from("80000001")
             ]
         );
     }
@@ -385,11 +395,19 @@ mod tests {
                 ProfileError::UnknownVar("game_path".into()),
             ),
             (
+                "[launch]\nargs = [\"-a{account}\", \"{game_path}\"]",
+                ProfileError::UnknownVar("account".into()),
+            ),
+            (
                 "[launch]\nargs = [\"-g\"]",
                 ProfileError::Field("launch.args"),
             ),
+            (
+                "[launch]\nargs = [\"-a\", \"{account}\"]",
+                ProfileError::Field("launch.args"),
+            ),
         ] {
-            let text = with(launch).replace("[launch]\nargs = [\"-g\", \"{game_path}\"]\n", "");
+            let text = with(launch).replace(LAUNCH, "");
             assert_eq!(Profile::from_toml(&text).unwrap_err(), want, "{launch}");
         }
         for field in ["exe", "command", "shell", "program"] {
@@ -406,11 +424,11 @@ mod tests {
 
     #[test]
     fn a_profile_without_launch_cannot_launch() {
-        let text = CEMU.replace("[launch]\nargs = [\"-g\", \"{game_path}\"]\n", "");
+        let text = CEMU.replace(LAUNCH, "");
         assert!(
             Profile::from_toml(&text)
                 .unwrap()
-                .launch_args(OsStr::new("g"))
+                .launch_args(OsStr::new("g"), "80000001")
                 .is_none()
         );
     }

@@ -93,7 +93,7 @@ Session length and emulator version from the spec's list are left out: M1a manif
 
 **Files:** `crates/core/src/profile.rs` (`launch.args` templates, already in the [schema](../../specs/emulator-profiles.md)), `profiles/cemu.toml`, `crates/engine/src/local_config.rs` (`[emulators.cemu] exe = […]`, `games."<title id>" = "<path>"`), spec `emulator-profiles.md`, `config-and-cli.md` §Config file.
 
-The executable is a user-given argv prefix, so Flatpak works as `exe = ["flatpak", "run", "info.cemu.Cemu"]` and native as `exe = ["/usr/bin/cemu"]`. Cemu's args: `launch.args = ["-g", "{game_path}"]` (Verify V-PLAY-1).
+The executable is a user-given argv prefix, so Flatpak works as `exe = ["flatpak", "run", "info.cemu.Cemu"]` and native as `exe = ["/usr/bin/cemu"]`. Cemu's args: `launch.args = ["-g", "{game_path}", "-a", "{account}"]` (Verify V-PLAY-1). `-a` was added on the Task 9 test day (2026-10-21): without it Cemu opened its last active account, not the `--as` player's.
 
 - [x] **Step 1: failing tests.** Profile parse accepts `launch.args` with `{game_path}`, rejects unknown variables and any field naming an executable; local config round-trips `exe` and `games`; building argv refuses an empty `exe` and never joins into one string.
 - [x] **Step 2:** implement `Engine::launch_argv(emulator, game) -> Result<Vec<OsString>, EngineError>`.
@@ -190,7 +190,7 @@ Maintainer, Fedora + CachyOS, R2 repo from M1a, release binaries from this branc
 ## Verify
 
 - **V-SYNC-1** (existing, SP6 → SP9 for R2) R2 `LastModified` in `list`/`stat` advances on overwrite, and its skew against both PCs' clocks (Task 1 Step 5).
-- **V-PLAY-1** (new, spike SP9) Cemu 2.6 starts a game with `-g <path>` on Flatpak (`flatpak run info.cemu.Cemu -g …`) and `cemu-bin`, the process LeemuSync waits for is the emulator (the Flatpak wrapper exits only when Cemu does), and the active account at launch is the one in `settings.xml` (Cemu has no documented command-line account switch). Checked at the start of Task 9 B0; if the wrapper exits early, `play` waits on the profile's process names instead.
+- **V-PLAY-1** (new, spike SP9) Cemu 2.6 starts a game with `-g <path>` on Flatpak (`flatpak run info.cemu.Cemu -g …`) and `cemu-bin`, the process LeemuSync waits for is the emulator (the Flatpak wrapper exits only when Cemu does), and `-a <hex id>` selects the player's account for that session (found in LaunchSettings.cpp on 2026-10-21; it replaced the earlier claim that the active account is always the one in `settings.xml`). Checked at the start of Task 9 B0; if the wrapper exits early, `play` waits on the profile's process names instead.
 
 ## Self-review
 
