@@ -34,7 +34,7 @@
 - [x] **Step 2:** run `cargo test -p leemusync-store --test conformance`, expect a compile failure (no field).
 - [x] **Step 3: implement** from OpenDAL `Metadata::last_modified()` (convert to `SystemTime`); for `list`, request the metadata the service returns with the listing and don't add a `stat` per entry.
 - [x] **Step 4:** tests pass; `cargo clippy -p leemusync-store --all-targets -- -D warnings`.
-- [ ] **Step 5: spike SP9 (live, maintainer runs the command).** `cargo test -p leemusync-store --test s3_conformance -- --ignored lease_mtime` against R2: overwrite advances `LastModified` in `list` and `stat`; record the offset between R2's time and the local clock (`date -u` vs the returned time) on both PCs. Record the result under V-SYNC-1. Until it's recorded, Task 2 uses the device-clock fallback (2 min skew tolerance).
+- [x] **Step 5: spike SP9 (live, maintainer runs the command).** Setup: export `LEEMUSYNC_TEST_S3_ENDPOINT`, `_BUCKET` and `_KEY_ID`, and store the secret key with `secret-tool store --label "leemusync-test s3" service leemusync-test username s3-secret` (without it the test fails with `NoEntry`). Then `cargo test -p leemusync-store --test s3_conformance -- --ignored lease_mtime` against R2: overwrite advances `LastModified` in `list` and `stat`; record the offset between R2's time and the local clock (`date -u` vs the returned time) on both PCs. Record the result under V-SYNC-1. Done 2026-10-21: passed on both PCs, R2 offset +1.5 s (Fedora), −0.3 s (CachyOS).
 - [x] **Step 6:** specs (W1), `just check`, commit `feat(store): report object modified time`.
 
 ### Task 2: leases in `core` and `engine`
