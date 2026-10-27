@@ -126,6 +126,16 @@ impl World {
             .await
             .unwrap();
         assert_eq!(h.versions.iter().filter(|v| v.head).count(), 1, "{case}");
+        assert_eq!(
+            self.a.engine.journal().unwrap(),
+            vec![],
+            "{case}: A journal"
+        );
+        assert_eq!(
+            self.b.engine.journal().unwrap(),
+            vec![],
+            "{case}: B journal"
+        );
     }
 
     /// Requests a clean round makes in this direction.
@@ -156,6 +166,11 @@ async fn a_short_outage_at_any_request_completes_without_error() {
             f.outage(n, ATTEMPTS - 1);
             let (content, r) = w.round(upload, &f).await;
             let r = r.unwrap_or_else(|e| panic!("{case}: {e}"));
+            assert_eq!(
+                f.requests(),
+                total + ATTEMPTS - 1,
+                "{case}: the outage fired and was retried"
+            );
             let want = if upload {
                 StreamAction::Upload
             } else {

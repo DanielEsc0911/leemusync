@@ -183,6 +183,15 @@ impl Engine {
         self.repo = None;
     }
 
+    /// Test-only: the open journal entries (an interrupted operation not yet recovered).
+    ///
+    /// # Errors
+    /// `Io` for database errors.
+    #[cfg(feature = "failpoints")]
+    pub fn journal(&self) -> Result<Vec<JournalEntry>, EngineError> {
+        self.state.journal_all()
+    }
+
     fn save_config(&self) -> Result<(), EngineError> {
         self.config
             .save(&self.env.locations.config_dir.join("config.toml"))

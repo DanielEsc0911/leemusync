@@ -401,6 +401,8 @@ async fn a_network_fault_at_any_request_of_a_play_never_corrupts_or_conflicts() 
                 1,
                 "{case}: one head"
             );
+            assert_eq!(t.a.engine.journal().unwrap(), vec![], "{case}: A journal");
+            assert_eq!(t.b.engine.journal().unwrap(), vec![], "{case}: B journal");
             prev = want.clone();
             cases += 1;
             if !reached {
