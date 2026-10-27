@@ -140,7 +140,15 @@ impl LocalConfig {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
             Err(e) => return Err(e.into()),
         };
-        let config: Self = toml::from_str(&text).map_err(|e| parse_error(&text, &e))?;
+        Self::parse(&text).map(Some)
+    }
+
+    /// Parses and validates `config.toml` text.
+    ///
+    /// # Errors
+    /// `Config` for invalid TOML, an unknown `config_version` or an out-of-range value.
+    pub fn parse(text: &str) -> Result<Self, EngineError> {
+        let config: Self = toml::from_str(text).map_err(|e| parse_error(text, &e))?;
         if config.config_version != CONFIG_VERSION {
             return Err(EngineError::Config(format!(
                 "unsupported config_version {}",
@@ -155,7 +163,7 @@ impl LocalConfig {
                 LeaseSettings::MAX_TTL_SECS
             )));
         }
-        Ok(Some(config))
+        Ok(config)
     }
 
     /// # Errors

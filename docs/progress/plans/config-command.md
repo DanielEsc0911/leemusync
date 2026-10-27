@@ -25,15 +25,15 @@
 
 ### Task 1: `config path | list | get | set | unset`
 
-**Files:** `crates/cli/src/main.rs` (a `Config` subcommand) plus a new `crates/cli/src/config_cmd.rs`, `crates/engine/src/local_config.rs` (typed key access), `crates/cli/tests/cli.rs`, `locales/{en,es}/lemusync.ftl`, spec `config-and-cli.md`.
+**Files:** `crates/cli/src/main.rs` (a `Config` subcommand) plus a new `crates/cli/src/config_cmd.rs`, `crates/engine/src/local_config.rs` (`LocalConfig::parse`, the validation shared with `load`), a new `crates/engine/src/config_keys.rs` (typed key access; its own file, B1 one responsibility per file), `crates/cli/tests/cli.rs`, `locales/{en,es}/lemusync.ftl`, spec `config-and-cli.md`.
 
 **Interfaces:**
 - Keys are dotted paths. Settable keys are an explicit allowlist: `conflict_policy`, `leases.ttl_secs`, `emulators.<id>.root`, `emulators.<id>.exe` (a list: `set` takes several values), and `emulators.<id>.games.<game key>`. `<id>` must be a loaded profile id. The game key is lowercased like `play` does (game-references later swaps this for its resolver).
 - Managed keys (`device`, `repo`, `backend`, `grants`, …) show in `list`/`get`. `set`/`unset` on them refuse with a localized hint naming the command that owns them (`backend add`, `grant add`). Grants change only through `grant` (B2).
 - Values are parsed per key: an enum for `conflict_policy`, an integer in the existing bounds for the TTL, absolute paths for `root` and game paths. A bad value is a usage error and leaves the file untouched.
-- Edits keep the user's comments and key order. Add `toml_edit` as a direct dependency of the crate that writes the config, pinned to the version already in `Cargo.lock` (it's there through `toml`), and run `cargo deny check`. Before writing, the result is parsed back into `LocalConfig` and rejected if it's invalid. The write uses the same atomic-write and locking helper as `grant add` (`fsx.rs`), so a concurrent writer can't lose edits (B3).
+- Edits keep the user's comments and key order. Add `toml_edit` as a direct dependency of the crate that writes the config, pinned to the version already in `Cargo.lock` (it's there through `toml`), and run `cargo deny check`. Before writing, the result is parsed back into `LocalConfig` and rejected if it's invalid. The write uses the same atomic write as `grant add` (`fsx::write_atomic`) under the state lock `Engine::open` takes (there is no separate locking helper in `fsx.rs`), so a concurrent writer can't lose edits (B3).
 - `list` and `get` support `--json`. `path` prints the config file path.
 
-- [ ] **Step 1: failing CLI tests** (sandboxed with `LEMUSYNC_TEST_ROOT`): set/get/unset round trip for each key family; a comment in the file survives a `set`; managed key refused; invalid value → non-zero exit and the file is byte-identical; unknown emulator id refused; `--json` shape.
-- [ ] **Step 2: implement.**
-- [ ] **Step 3: spec (W1).** Add `config` to §Commands with the key table (key, type, owner command). Remove the "config.toml only" notes. In §Parity rule, say mobile Settings → Advanced maps to these keys. Then help texts in en and es, `just check`, and commit `feat(cli): config command to read and change local settings`.
+- [x] **Step 1: failing CLI tests** (sandboxed with `LEMUSYNC_TEST_ROOT`): set/get/unset round trip for each key family; a comment in the file survives a `set`; managed key refused; invalid value → non-zero exit and the file is byte-identical; unknown emulator id refused; `--json` shape.
+- [x] **Step 2: implement.**
+- [x] **Step 3: spec (W1).** Add `config` to §Commands with the key table (key, type, owner command). Remove the "config.toml only" notes. In §Parity rule, say mobile Settings → Advanced maps to these keys. Then help texts in en and es, `just check`, and commit `feat(cli): config command to read and change local settings`.

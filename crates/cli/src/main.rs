@@ -1,5 +1,6 @@
 //! `lemusync`: command-line interface. Spec: docs/specs/config-and-cli.md.
 
+mod config_cmd;
 mod connection;
 mod i18n;
 mod output;
@@ -91,6 +92,10 @@ enum Cmd {
     Lease {
         #[command(subcommand)]
         cmd: LeaseCmd,
+    },
+    Config {
+        #[command(subcommand)]
+        cmd: config_cmd::ConfigCmd,
     },
 }
 
@@ -406,6 +411,7 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
         cmd @ (Cmd::Play { .. } | Cmd::Conflicts | Cmd::Resolve { .. } | Cmd::Lease { .. }) => {
             return run_play(&mut engine, cmd, t, json).await;
         }
+        Cmd::Config { cmd } => config_cmd::run(&mut engine, cmd, t, json)?,
         Cmd::Init => {
             let pass = prompt::new_passphrase(t)?;
             let (report, recovery) = engine.init(&pass).await?;

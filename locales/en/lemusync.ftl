@@ -291,3 +291,24 @@ error-usage-player_needed = Choose the player with --as <name>.
 error-usage-version_invalid = { $detail } isn't a version id. Run `lemusync conflicts` to see them.
 error-usage-no_conflict = { $detail } has no conflict.
 error-usage-lease_live = That lease is live; it can't be taken over.
+
+## config (config-and-cli §Commands)
+help-config = Read and change this device's settings (config.toml).
+help-config-path = Print where the config file is.
+help-config-list = List every setting.
+help-config-get = Show one setting.
+help-config-get-key = The setting, for example conflict_policy or emulators.cemu.exe.
+help-config-set = Change a setting. Comments in the file are kept.
+help-config-set-key = The setting, for example leases.ttl_secs or emulators.cemu.games.101c9500.
+help-config-set-values = The new value. emulators.<id>.exe takes several words: the command that starts the emulator.
+help-config-unset = Remove a setting, back to its default.
+help-config-unset-key = The setting.
+config-unset-value = (not set)
+config-set-done = { $key } = { $value }
+config-unset-done = Removed { $key }.
+error-usage-config_managed = That setting is changed with `{ $detail }`, not `lemusync config`.
+error-usage-config_fixed = { $detail } can't be changed.
+error-usage-config_unknown_key = There's no setting { $detail }. Run `lemusync config list`.
+error-usage-config_unknown_emulator = There's no emulator { $detail }.
+error-usage-config_bad_value = That isn't a valid value for { $detail }. Nothing was changed.
+error-usage-config_one_value = { $detail } takes a single value.

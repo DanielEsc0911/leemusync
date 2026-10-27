@@ -48,7 +48,23 @@ Every command supports `--json` (stable English keys, versioned) and `--help`. H
 | `lemusync logs [--follow]` | Local, redacted logs |
 | `lemusync doctor` | Diagnose permissions, paths, keystore, battery/background settings, clock skew |
 
-The Phase 1 first slice ships `init`, `join`, `backend add/login`, `grant add/list`, `players add/list`, `scan`, `accounts map/recover`, `sync [--dry-run] [--yes]`, `status`, `history`, `restore` and `doctor` ([plan](../progress/plans/phase-1-first-sync.md)). M1b adds `play`, `conflicts`, `resolve <game> <version> [--as <player>]`, `lease status`, `lease release --force <game>` and `accounts create` ([plan](../progress/plans/phase-1b-play.md)). `--as` defaults to the only player in the repo. `conflict_policy` and `[emulators.<id>] exe`/`games` are set in `config.toml` only.
+The Phase 1 first slice ships `init`, `join`, `backend add/login`, `grant add/list`, `players add/list`, `scan`, `accounts map/recover`, `sync [--dry-run] [--yes]`, `status`, `history`, `restore` and `doctor` ([plan](../progress/plans/phase-1-first-sync.md)). M1b adds `play`, `conflicts`, `resolve <game> <version> [--as <player>]`, `lease status`, `lease release --force <game>` and `accounts create` ([plan](../progress/plans/phase-1b-play.md)). `--as` defaults to the only player in the repo. `config path|list|get|set|unset` reads and changes this file (below).
+
+**`config`.** Keys are dotted paths. `list` shows every value (defaults included) and `get` one; both take `--json` (`{"api_version", "values": {key: value}}` and `{"api_version", "key", "value"}`; an unset key is `null`). `path` prints the file's path. `set`/`unset` change only the settable keys below. The edit keeps the user's comments and key order (`toml_edit`), is parsed back into the config and refused if invalid, and is written atomically under the engine's state lock. A bad value, an unknown key or emulator, or a managed key is a usage error (exit 2) and leaves the file byte-identical. `unset` returns a key to its default and removes tables it leaves empty. Code: `crates/engine/src/config_keys.rs`, `crates/cli/src/config_cmd.rs`.
+
+| Key | Type | Owner |
+|---|---|---|
+| `conflict_policy` | `ask` \| `newest` | `config set` |
+| `leases.ttl_secs` | integer, 120–86400 | `config set` |
+| `emulators.<id>.root` | absolute path | `config set` |
+| `emulators.<id>.exe` | list of words (`set` takes several) | `config set` |
+| `emulators.<id>.games.<game>` | absolute path; the game key is lowercased like `play` | `config set` |
+| `repo` | repo id | `init` / `join` |
+| `backend.*` | backend reference | `backend add` |
+| `grants` | list of folders | `grant add` (B2: grants change only there) |
+| `config_version`, `device.*` | fixed | none |
+
+`<id>` must be a loaded profile id.
 
 **`play` in the terminal.** One line on stderr per step (getting the newest save, waiting for another device, the emulator running, uploading), then the emulator's exit code and the upload result on stdout. Lease renewals are silent unless one fails. On Unix the emulator runs in its own process group: Ctrl-C reaches only LemuSync, which prints a hint and keeps waiting, then uploads and releases the lease when the emulator closes. A held lease or a conflict is asked about only with a terminal and without `--json`; otherwise `play` stops before launch with exit 5 or 4.
 
@@ -82,4 +98,4 @@ Every error has a stable `code` (the `--json` `error.code`, and the key of its l
 "Saves on this device are safe" holds because a sync or restore downloads and verifies everything into staging before it touches a save folder, and an upload only reads local files ([reliability §Restore procedure](reliability.md#restore-procedure)). The message never contains provider text. That goes on a second, dim line, `Details: …` / `Detalles: …`, and in `--json` as `error.detail` next to `code` and `message` (the English message for storage errors). It always passes through `crates/store/src/redact.rs` first (B2: `StoreError` redacts its text when it is built, so no path sees it raw), with control characters replaced and at most 500 characters. `redact` removes tokens, keys and signatures; it keeps endpoints and bucket names on purpose, because the line is shown only to this device's own user, who configured them and needs them to fix the problem. Other errors have no `detail`. Code: `crates/engine/src/error.rs`, `crates/cli/src/output.rs`.
 
 ## Parity rule
-Any feature added to the UI gets its CLI command (desktop/headless) in the same plan, and the other way round. Mobile has no CLI. Its Settings → Advanced exposes the same options.
+Any feature added to the UI gets its CLI command (desktop/headless) in the same plan, and the other way round. Mobile has no CLI. Its Settings → Advanced exposes the same options, mapped to the `config` keys above.
