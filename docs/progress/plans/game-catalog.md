@@ -29,15 +29,15 @@
 
 **Files:** `docs/specs/emulator-profiles.md` (new §Game discovery), `docs/progress/roadmap.md` (spike list).
 
-- [ ] **Step 1: Cemu, from source.** In `cemu-project/Cemu` at the v2.6 tag, find:
+- [x] **Step 1: Cemu, from source.** In `cemu-project/Cemu` at the v2.6 tag, find:
   - how settings.xml stores game folders (element path),
   - whether a title list cache file exists (name, location per platform, fields: title id, name, path, format),
   - where a game's display name comes from (`meta/meta.xml` `longname_*` for unpacked games; what happens for `.wua`/`.wud`/`.wux`),
   - which language field Cemu picks.
 
   Cite file and line at the tag.
-- [ ] **Step 2: Cemu, on this machine, read-only.** In Daniel's Flatpak (`~/.var/app/info.cemu.Cemu`), confirm the element and file names from Step 1. Record only the structure (element and attribute names). Never record his paths, game names or ids in the repo.
-- [ ] **Step 3:** write §Game discovery with the evidence. Anything unproven (Windows/macOS locations) goes under Verify `V-GAME-n` (SP10). Add SP10 to the roadmap's spike list (it still says "SP1–SP7"; fix it to list through SP10). Commit `docs(spike): SP10 how emulators list games`.
+- [x] **Step 2: Cemu, on this machine, read-only.** In Daniel's Flatpak (`~/.var/app/info.cemu.Cemu`), confirm the element and file names from Step 1. Record only the structure (element and attribute names). Never record his paths, game names or ids in the repo.
+- [x] **Step 3:** write §Game discovery with the evidence. Anything unproven (Windows/macOS locations) goes under Verify `V-GAME-n` (SP10). Add SP10 to the roadmap's spike list (it still says "SP1–SP7"; fix it to list through SP10). Commit `docs(spike): SP10 how emulators list games`.
 
 ### Task 2: Profile `[games]` section and its reader
 

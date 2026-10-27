@@ -116,6 +116,24 @@ Rejected at load time, with a clear error. Enforced in `core` and fuzzed:
 
 Implemented for `per_game_user_dir` in `crates/engine/src/{profiles,discover}.rs`; fixture test `crates/engine/tests/discovery.rs`. Account ids must match `id_regex` against the whole folder name. `saves.pattern` supports the captures `title_id` and `account` only; any other capture is a config error. A path read from the emulator's own config (`mlc_path`) is not trusted as granted: it goes through the grants and the symlink check like any other. A symlink anywhere below the saves root drops that folder with an `unreadable_folder` warning. If the config file exists but isn't granted, the install is provisional (defaults, possibly stale): scan reports it, sync refuses it.
 
+## Game discovery
+Which games are installed, where, and what they are called, so `play` needs no hand-written game paths and every output shows names (spike SP10, 2026-10-27). Read-only: LemuSync reads metadata and never copies, moves or creates game files or folders.
+
+### Cemu 2.6 (SP10)
+Source: `cemu-project/Cemu` at tag `v2.6`. Confirmed on Linux against the maintainer's Flatpak (`info.cemu.Cemu`), structure only (element names, file names, folder depth), 2026-10-27.
+
+| Fact | Evidence (v2.6) | Linux Flatpak |
+|---|---|---|
+| Game folders the user added are `settings.xml` → `content/GamePaths/Entry`, one absolute path per `Entry` text, no attributes | `CemuConfig.cpp` L124–139 (load), L421–426 (save); root `content`, L22 | Confirmed: `content/GamePaths/Entry`, no attributes |
+| Cemu scans each game folder recursively. A folder with `content/`, `code/` and `meta/` is an unpacked title; files ending `.wud`, `.wux`, `.iso`, `.wua`, `.wuhb` or named `title.tmd` are titles too. It also scans `mlc01/usr/title/*` | `TitleList.cpp` L268–289, L328–347, L350–400 | Unpacked titles sit one level below each game folder, next to `.wua`/`.wux` files |
+| A title list cache `title_list_cache.xml` in the user data folder: `title_list/title` with attributes `titleId` (16 hex), `version`, `sdk_version`, `group_id`, `app_type` and children `region`, `name`, `format`, `path`, `sub_path`. `format`: 1 folder, 2 WUD/WUX, 3 WUA, 4 NUS, 5 WUHB | `main.cpp` L139; `TitleList.cpp` L49–144; `TitleInfo.h` L124–133 | **Absent** in `data/Cemu` although two game folders are set. Not used (see V-GAME-2) |
+| The display name is `meta/meta.xml` → `menu/longname_<lang>`, in the console language from `settings.xml` `console_language`, else `longname_en`, else "Unknown Title". Newlines become spaces. A custom name from `content/GameCache/Entry/custom_name` wins in the game list | `TitleInfo.cpp` L711–725; `ParsedMetaXml.h` L90–96; `wxGameList.cpp` L320–333; `CemuConfig.cpp` L143–160 | `meta.xml`: root `menu`, children `title_id` (`type="hexBinary" length="8"`, 16 hex) and `longname_en`, `longname_es`… |
+| `.wua` is a ZArchive holding one `<titleId>_v<version>` folder per title; `.wud`/`.wux` are disc images. Reading their `meta.xml` needs the archive or image reader | `TitleInfo.cpp` L57–111, L142, L217–262 | `.wua` and `.wux` present |
+
+**What LemuSync does with it** (the `[games]` profile section, [Schema](#schema-v1)): read the game folders from `content/GamePaths/Entry` (plus the user's own `game_dirs`), and in each folder and its direct subfolders take `meta/meta.xml` → `menu/title_id`, last 8 hex digits lowercased (the save key, as in `00050000/<key>`), and `menu/longname_en`. One level deep, not recursive like Cemu: that is the layout found, and it bounds the scan. Archives and disc images are not opened (P1): those games appear only through a `games.<key>` entry in `config.toml`.
+
+**Limits** (B2): `settings.xml` and each `meta.xml` are read only if regular files under 1 MiB, never through a symlink; a `DOCTYPE` is rejected (`roxmltree` refuses DTDs by default, so no entity expansion); at most 5,000 entries per folder; game folders must be absolute and without `..`; names are stripped of control characters, trimmed and capped at 200 characters; a key must be 8 hex digits.
+
 ## Overrides
 Per device: base path, extra roots, include/exclude tweaks, disable a profile. **Local custom profiles** (same schema) live in `<config dir>/profiles/` and are trusted because the user created them. Both are editable in UI → Settings → Emulators → Advanced, in the CLI, and in the config file ([config-and-cli](config-and-cli.md)).
 
@@ -171,6 +189,9 @@ Evidence commands: `flatpak list --app --columns=application,version`; `find ~/.
 - **V-PROF-1** Windows and macOS paths, config keys and process names for the initial set; Linux portable/AppImage process names and RetroArch's Linux portable mode; PCSX2 folder-card save-folder naming on a real card (spike SP7). Linux Flatpak and native rules: [Linux paths (SP7)](#linux-paths-sp7). The Windows, macOS and CachyOS passes are deferred by the maintainer (2026-10-08).
 - **V-PROF-2** Android save locations and accessibility for each emulator (SP3).
 - **V-PROF-3** Which iOS emulators expose saves in the Files app (SP5).
+- **V-GAME-1** Cemu `GamePaths` and `meta.xml` on Windows, macOS and native Linux (`cemu-bin`), and the game folders' usual depth there (SP10). Source says the same code path runs everywhere; only Flatpak was seen.
+- **V-GAME-2** When Cemu 2.6 writes `title_list_cache.xml` (source: on a finished scan that changed the list, `TitleList.cpp` L320–323, in the user data folder) and why the maintainer's Flatpak has none. Until proven, `[games]` has no `cache` part, so `.wua`/`.wux` names aren't known (SP10).
+- **V-GAME-3** Whether names should follow Cemu's `console_language` instead of always `longname_en` (SP10).
 
 ## Open questions
 Schema gaps found by SP7 (config outside the base is solved by `platforms.<os>.config_roots`; the drafts in `profiles/` work around them with comments; resolve in Phase 1 before adopting):
