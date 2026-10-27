@@ -1,11 +1,11 @@
-//! `leemusync grant` and `leemusync scan`.
+//! `lemusync grant` and `lemusync scan`.
 
 use std::path::{Path, PathBuf};
 
-use leemusync_api::{
+use lemusync_api::{
     API_VERSION, AccountReport, InstallReport, SaveReport, ScanReport, Warning, WarningCode,
 };
-use leemusync_core::profile::Profile;
+use lemusync_core::profile::Profile;
 
 use crate::discover::{Discovery, discover};
 use crate::profiles::{Install, bundled, resolve};

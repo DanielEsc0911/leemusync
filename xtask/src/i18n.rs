@@ -1,5 +1,5 @@
 //! `i18n-check`: every locale defines exactly the keys of the English source.
-//! Covers Flutter ARB files and the Rust Fluent files (`locales/<lang>/leemusync.ftl`); extend
+//! Covers Flutter ARB files and the Rust Fluent files (`locales/<lang>/lemusync.ftl`); extend
 //! when native string files arrive (docs/specs/i18n.md, Parity check).
 
 use std::collections::BTreeSet;
@@ -11,7 +11,7 @@ use serde_json::{Map, Value};
 const ARB_DIR: &str = "app/lib/l10n";
 const TEMPLATE: &str = "app_en.arb";
 const FTL_DIR: &str = "locales";
-const FTL_FILE: &str = "leemusync.ftl";
+const FTL_FILE: &str = "lemusync.ftl";
 
 /// Message ids of a Fluent file: lines `id = …` at column 0 (comments and continuation lines skipped).
 fn ftl_keys(path: &Path) -> Result<BTreeSet<String>, String> {

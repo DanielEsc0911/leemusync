@@ -1,9 +1,9 @@
 ---
-name: leemusync-docs
-description: Use when reading or changing anything under docs/ in LeemuSync, when a code change alters documented behaviour, when looking for where a feature, rule, decision or term is described, or when creating, updating or closing a progress plan.
+name: lemusync-docs
+description: Use when reading or changing anything under docs/ in LemuSync, when a code change alters documented behaviour, when looking for where a feature, rule, decision or term is described, or when creating, updating or closing a progress plan.
 ---
 
-# LeemuSync docs
+# LemuSync docs
 
 Docs are code (rule W1). A behaviour change and its spec update ship in the same commit.
 

@@ -1,7 +1,7 @@
-# LeemuSync — agent guide
+# LemuSync — agent guide
 
 ## What this is
-LeemuSync (lemur + emu + sync) keeps emulator saves in sync across every device: Windows, macOS, Linux, Raspberry Pi, Android and iOS. Saves go through storage the user owns (S3, WebDAV/Nextcloud, SFTP, Google Drive…). Two players can play the same game on different machines at the same time. One player can switch machines mid-game without losing progress. Open source (MPL-2.0). Rust engine, Flutter UI. Status: pre-alpha, Phase 0 (see `docs/progress/`).
+LemuSync (lemur + emu + sync) keeps emulator saves in sync across every device: Windows, macOS, Linux, Raspberry Pi, Android and iOS. Saves go through storage the user owns (S3, WebDAV/Nextcloud, SFTP, Google Drive…). Two players can play the same game on different machines at the same time. One player can switch machines mid-game without losing progress. Open source (MPL-2.0). Rust engine, Flutter UI. Status: pre-alpha, Phase 0 (see `docs/progress/`).
 
 ## Non-negotiable rules
 Cite rules by ID. Full text, rationale and how each is enforced: `docs/rules.md`.
@@ -18,7 +18,7 @@ Cite rules by ID. Full text, rationale and how each is enforced: `docs/rules.md`
 
 **Product**
 - **P1** KISS and YAGNI.
-- **P2** The user owns their storage. No LeemuSync server, no accounts.
+- **P2** The user owns their storage. No LemuSync server, no accounts.
 - **P3** Any emulator, any folder layout. Every emulator gets safety and features scale by tier. No per-game save parsing in core.
 - **P4** Every platform at its best: tray/menu bar, Live Updates, Live Activities, Dynamic Island, Shortcuts.
 - **P5** Simple by default, powerful underneath. Everything in the UI is also in the CLI and the config file.
@@ -39,7 +39,7 @@ Cite rules by ID. Full text, rationale and how each is enforced: `docs/rules.md`
 | `docs/rules.md` · `docs/decisions.md` · `docs/glossary.md` | Rules in full · why things are the way they are · terms |
 | `docs/specs/` | One spec per feature or aspect, kept current with the code |
 | `docs/progress/` | Roadmap, active plans, status board |
-| `.claude/skills/leemusync-*` | Project skills (plain Markdown, any agent can follow them): docs, feature, ui, emulator-profile, backend, security |
+| `.claude/skills/lemusync-*` | Project skills (plain Markdown, any agent can follow them): docs, feature, ui, emulator-profile, backend, security |
 | `crates/` | Rust workspace: core, crypto, store, api, engine, ipc, daemon, cli, bridge |
 | `app/` | Flutter app + native platform code (Kotlin/Swift) |
 | `profiles/` | Emulator profiles (TOML data) |

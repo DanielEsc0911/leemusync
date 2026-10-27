@@ -22,7 +22,7 @@ pub fn http_client() -> Result<reqwest::Client, StoreError> {
         .tls_backend_preconfigured(tls)
         .https_only(true)
         .timeout(Duration::from_secs(60))
-        .user_agent(concat!("leemusync/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("lemusync/", env!("CARGO_PKG_VERSION")))
         .build()
         .map_err(|e| StoreError::new(ErrorClass::Permanent, &e.to_string()))
 }

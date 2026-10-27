@@ -13,7 +13,7 @@ pub struct S3Config {
     pub bucket: String,
     /// `auto` for R2.
     pub region: String,
-    /// Folder inside the bucket, e.g. `/`. The repo itself lives under `leemusync/`.
+    /// Folder inside the bucket, e.g. `/`. The repo itself lives under `lemusync/`.
     pub root: String,
     pub access_key_id: String,
     pub secret_access_key: Zeroizing<String>,

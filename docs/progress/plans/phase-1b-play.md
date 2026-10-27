@@ -1,10 +1,10 @@
 # Phase 1, play (M1b): leases, launcher mode, conflicts, crash safety
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Also follow the project skills: `leemusync-feature` (always), `leemusync-security` (Tasks 2–7), `leemusync-backend` (Tasks 1, 8), `leemusync-emulator-profile` (Tasks 4, 6, 9), `leemusync-docs` (every task).
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Also follow the project skills: `lemusync-feature` (always), `lemusync-security` (Tasks 2–7), `lemusync-backend` (Tasks 1, 8), `lemusync-emulator-profile` (Tasks 4, 6, 9), `lemusync-docs` (every task).
 
 **Goal:** Reach milestone M1b ([roadmap](../roadmap.md#phase-1-sync-engine--cli-desktop), [D29](../../decisions.md#d29-m1-is-split-first-both-saves-on-both-pcs-then-leases-and-play-2026-10-18)) on the Fedora PC and the CachyOS laptop through the M1a R2 repo: two players play BotW at once (SC1), one player hands off between PCs (SC2), a forced double-open becomes a conflict that's resolved with nothing lost (SC3), `kill -9` and network cuts at every journal step leave no corruption (SC5), and the budgets are measured.
 
-**Architecture:** Builds on the M1a code and its final v1 formats. Leases are new encrypted objects under `locks/` ([sync-model §Leases](../../specs/sync-model.md#leases)); pure lease rules live in `core`, I/O in `engine/src/lease.rs`. `leemusync play` is launcher mode ([sync-model §Launcher mode](../../specs/sync-model.md#launcher-mode-primary)) in `engine/src/play.rs`. Conflict resolution writes a resolution version with the existing upload path. Cemu account creation (option c, [D32](../../decisions.md#d32-new-cemu-accounts-are-generated-like-cemu-does-never-copied-2026-10-20)) is profile data plus generic primitives in `core`. CLI only: the daemon and UI stay in Phase 2 and 3 (P1).
+**Architecture:** Builds on the M1a code and its final v1 formats. Leases are new encrypted objects under `locks/` ([sync-model §Leases](../../specs/sync-model.md#leases)); pure lease rules live in `core`, I/O in `engine/src/lease.rs`. `lemusync play` is launcher mode ([sync-model §Launcher mode](../../specs/sync-model.md#launcher-mode-primary)) in `engine/src/play.rs`. Conflict resolution writes a resolution version with the existing upload path. Cemu account creation (option c, [D32](../../decisions.md#d32-new-cemu-accounts-are-generated-like-cemu-does-never-copied-2026-10-20)) is profile data plus generic primitives in `core`. CLI only: the daemon and UI stay in Phase 2 and 3 (P1).
 
 **Tech Stack:** as the [Phase 1 first-sync plan](phase-1-first-sync.md) (Rust 1.99.0, tokio, OpenDAL 0.59.5, SQLite, clap, Fluent). New dev-dependency only: `criterion` (Task 8), version resolved and `cargo deny`-checked in that task.
 
@@ -14,7 +14,7 @@
 
 - Everything in the first-sync plan's [Global constraints](phase-1-first-sync.md#global-constraints) still holds (toolchain, clippy pedantic as errors, layers, `core` has no I/O/clock/randomness, crypto, TLS, I1–I6, secrets, no real saves in tests, P6 en + es, W1, W2).
 - Formats stay v1. New objects (leases) are v1 from birth; existing manifests and config versions gain only `#[serde(default)]` fields, so `API_VERSION` stays 1 unless a task says otherwise.
-- Every new user-facing string goes into `locales/{en,es}/leemusync.ftl`; `cargo xtask i18n-check` passes.
+- Every new user-facing string goes into `locales/{en,es}/lemusync.ftl`; `cargo xtask i18n-check` passes.
 - Leases never weaken safety: any lease bug must end as a conflict, never a lost save (D6).
 - The emulator is launched with argv, never a shell. The executable is chosen by the user (config), never by a profile.
 - W5: Conventional Commits; the maintainer is the author; the only trailer is `Co-Authored-By: Claude <noreply@anthropic.com>`. No session links.
@@ -31,10 +31,10 @@
 **Interfaces:** Produces `pub struct Entry { pub path: String, pub size: u64, pub modified: Option<std::time::SystemTime> }`, filled by `list` and `stat` when the backend reports it (`None` on Drive `list`, V-SYNC-2).
 
 - [x] **Step 1: failing test.** Conformance: `put` (Overwrite) `locks/a/b`, `stat` and `list` it, assert `modified.is_some()` on `fs`; overwrite after 1.1 s, assert `modified` advanced.
-- [x] **Step 2:** run `cargo test -p leemusync-store --test conformance`, expect a compile failure (no field).
+- [x] **Step 2:** run `cargo test -p lemusync-store --test conformance`, expect a compile failure (no field).
 - [x] **Step 3: implement** from OpenDAL `Metadata::last_modified()` (convert to `SystemTime`); for `list`, request the metadata the service returns with the listing and don't add a `stat` per entry.
-- [x] **Step 4:** tests pass; `cargo clippy -p leemusync-store --all-targets -- -D warnings`.
-- [x] **Step 5: spike SP9 (live, maintainer runs the command).** Setup: export `LEEMUSYNC_TEST_S3_ENDPOINT`, `_BUCKET` and `_KEY_ID`, and store the secret key with `secret-tool store --label "leemusync-test s3" service leemusync-test username s3-secret` (without it the test fails with `NoEntry`). Then `cargo test -p leemusync-store --test s3_conformance -- --ignored lease_mtime` against R2: overwrite advances `LastModified` in `list` and `stat`; record the offset between R2's time and the local clock (`date -u` vs the returned time) on both PCs. Record the result under V-SYNC-1. Done 2026-10-21: passed on both PCs, R2 offset +1.5 s (Fedora), −0.3 s (CachyOS).
+- [x] **Step 4:** tests pass; `cargo clippy -p lemusync-store --all-targets -- -D warnings`.
+- [x] **Step 5: spike SP9 (live, maintainer runs the command).** Setup: export `LEMUSYNC_TEST_S3_ENDPOINT`, `_BUCKET` and `_KEY_ID`, and store the secret key with `secret-tool store --label "lemusync-test s3" service lemusync-test username s3-secret` (without it the test fails with `NoEntry`). Then `cargo test -p lemusync-store --test s3_conformance -- --ignored lease_mtime` against R2: overwrite advances `LastModified` in `list` and `stat`; record the offset between R2's time and the local clock (`date -u` vs the returned time) on both PCs. Record the result under V-SYNC-1. Done 2026-10-21: passed on both PCs, R2 offset +1.5 s (Fedora), −0.3 s (CachyOS).
 - [x] **Step 6:** specs (W1), `just check`, commit `feat(store): report object modified time`.
 
 ### Task 2: leases in `core` and `engine`
@@ -159,11 +159,11 @@ impl Engine { pub async fn create_account(&mut self, player: &str, emulator: &st
 
 ### Task 7: CLI: `play`, `conflicts`, `resolve`, `lease`, `accounts create`
 
-**Files:** `crates/cli/src/main.rs`, `crates/cli/src/play.rs` (new: `PlayPrompt` over the terminal, `ProcessLauncher` with `std::process::Command`), `crates/cli/src/output.rs`, `locales/{en,es}/leemusync.ftl`, `crates/cli/tests/`, spec `config-and-cli.md` §Commands (update the "first slice" line), §Exit codes.
+**Files:** `crates/cli/src/main.rs`, `crates/cli/src/play.rs` (new: `PlayPrompt` over the terminal, `ProcessLauncher` with `std::process::Command`), `crates/cli/src/output.rs`, `locales/{en,es}/lemusync.ftl`, `crates/cli/tests/`, spec `config-and-cli.md` §Commands (update the "first slice" line), §Exit codes.
 
 Commands as the spec table: `play <emulator> <game> [--as <player>] [-- <args>]`, `conflicts`, `resolve <game> <version> [--as <player>]`, `lease status`, `lease release --force <game>`, `accounts create <player> <emulator> [--name <mii name>]` with the spec's two confirmation messages. Exit codes: 4 when a conflict needs a decision and there's no terminal; 5 when the lease is held and there's no terminal (no silent `PlayAnyway`). `--json` everywhere; prompts never shown with `--json` (fail with 4/5 instead).
 
-- [x] **Step 1: failing tests** (`assert_cmd`, `LEEMUSYNC_TEST_ROOT`): `conflicts --json` lists heads; `resolve` with a bad version → exit 2; `play` with a held lease and no TTY → exit 5; `accounts create` without a TTY and without `--yes` → exit 2; en and es output for each new message.
+- [x] **Step 1: failing tests** (`assert_cmd`, `LEMUSYNC_TEST_ROOT`): `conflicts --json` lists heads; `resolve` with a bad version → exit 2; `play` with a held lease and no TTY → exit 5; `accounts create` without a TTY and without `--yes` → exit 2; en and es output for each new message.
 - [x] **Step 2:** implement; pass; `cargo xtask i18n-check`; spec; `just check`; commit `feat(cli): add play, conflicts, resolve, lease and accounts create`.
 
 ### Task 8: SC5 fault matrix and budget measurements
@@ -172,19 +172,19 @@ Commands as the spec table: `play <emulator> <game> [--as <player>] [-- <args>]`
 
 - [x] **Step 1: crash matrix.** For every failpoint name (`grep -rn 'hit("' crates/engine/src`, currently `restore.after_backup`, `restore.mid_swap`, `restore.before_done`, `upload.before_manifest`, `upload.after_manifest`, `init.*`, plus Task 2's `lease.*` and Task 3's `resolve.*`): a child process arms it in `Kill` mode and dies; the parent reopens the engine and asserts I1–I6 (local files = old or new version, never mixed; no extra heads; backup present). Add a test that fails when a new failpoint name has no case.
 - [x] **Step 2: network matrix.** With `Store::faulty`, fail request N for every N in one sync (upload and fast-forward) and in one `play`; assert the sync errors or completes, a rerun converges, and no corruption or false conflict appears.
-- [x] **Step 3: budgets.** Bench: cold start to ready (`Engine::open` on a populated state DB), rescan of 10 000 files warm, idle RSS of an open engine (read `/proc/self/statm`), release binary size of `leemusync` (no daemon yet: these are the engine-side numbers the daemon will inherit). Record the numbers with date and machine in reliability §Budgets and update V-REL-3. Not enforced in CI yet.
+- [x] **Step 3: budgets.** Bench: cold start to ready (`Engine::open` on a populated state DB), rescan of 10 000 files warm, idle RSS of an open engine (read `/proc/self/statm`), release binary size of `lemusync` (no daemon yet: these are the engine-side numbers the daemon will inherit). Record the numbers with date and machine in reliability §Budgets and update V-REL-3. Not enforced in CI yet.
 - [x] **Step 4:** `just check`, commit `test(engine): crash and network fault matrix, budget benches`.
 
 ### Task 9: Test day M1b on the real PCs (manual runbook)
 
 Maintainer, Fedora + CachyOS, R2 repo from M1a, release binaries from this branch on both. Record surprises in the roadmap and the specs (W1).
 
-- [x] **B0: Set up.** On each PC: `leemusync` config `[emulators.cemu] exe` (Flatpak on Fedora, `/usr/bin/cemu` on CachyOS) and `games.101c9400 = "<BotW path>"`. `leemusync sync`, `leemusync doctor`: all ok.
-- [x] **B1: Account creation.** On the PC missing a player's account: `leemusync accounts create "<player>" cemu`, confirm, open Cemu, select the account, check BotW shows that player's save. **V-ACC-4:** first, in a scratch Cemu tree, create one account in Cemu itself and keep its `account.dat` (online fields empty) to replace the hand-built fixtures in `profiles/fixtures/cemu/account-create/`. Delete the hand-made M1a accounts only if the maintainer wants to.
-- [x] **B2: SC1.** Each player runs `leemusync play cemu 101c9400 --as "<player>"` on a different PC at the same time, plays 10 min, quits. Both syncs upload; `leemusync conflicts` is empty; `lease status` empty.
+- [x] **B0: Set up.** On each PC: `lemusync` config `[emulators.cemu] exe` (Flatpak on Fedora, `/usr/bin/cemu` on CachyOS) and `games.101c9400 = "<BotW path>"`. `lemusync sync`, `lemusync doctor`: all ok.
+- [x] **B1: Account creation.** On the PC missing a player's account: `lemusync accounts create "<player>" cemu`, confirm, open Cemu, select the account, check BotW shows that player's save. **V-ACC-4:** first, in a scratch Cemu tree, create one account in Cemu itself and keep its `account.dat` (online fields empty) to replace the hand-built fixtures in `profiles/fixtures/cemu/account-create/`. Delete the hand-made M1a accounts only if the maintainer wants to.
+- [x] **B2: SC1.** Each player runs `lemusync play cemu 101c9400 --as "<player>"` on a different PC at the same time, plays 10 min, quits. Both syncs upload; `lemusync conflicts` is empty; `lease status` empty.
 - [x] **B3: SC2.** Player 1 plays on Fedora, quits, then `play` on CachyOS: the game starts with the progress just made.
-- [x] **B4: SC3.** Same player starts `play` on both PCs; on the second choose "play anyway"; save on both; quit. `leemusync conflicts` shows 2 heads; `resolve` one; the other is still in `history` and `restore` brings it back.
-- [x] **B5: SC5 spot check.** During a `play` upload, pull the network cable, then `kill -9` a sync mid-restore; rerun `leemusync sync`: no corruption, BotW loads.
+- [x] **B4: SC3.** Same player starts `play` on both PCs; on the second choose "play anyway"; save on both; quit. `lemusync conflicts` shows 2 heads; `resolve` one; the other is still in `history` and `restore` brings it back.
+- [x] **B5: SC5 spot check.** During a `play` upload, pull the network cable, then `kill -9` a sync mid-restore; rerun `lemusync sync`: no corruption, BotW loads.
 - [x] **B6: Record.** Mark M1b reached in the roadmap with date and surprises; tick this plan; commit `docs(progress): record the M1b test day`.
 
 Done 2026-10-21: B0–B5 passed on both PCs (maintainer). Surprises: `play --as` opened Cemu's last active account until Cemu got `-a {account}` (fixed the same day); a network cut during `sync` printed a raw OpenDAL error. V-ACC-4 fixtures not replaced yet. Still open: SC5 at every journal step (interrupted uploads and downloads), beyond this spot check.
@@ -192,10 +192,10 @@ Done 2026-10-21: B0–B5 passed on both PCs (maintainer). Surprises: `play --as`
 ## Verify
 
 - **V-SYNC-1** (existing, SP6 → SP9 for R2) R2 `LastModified` in `list`/`stat` advances on overwrite, and its skew against both PCs' clocks (Task 1 Step 5).
-- **V-PLAY-1** (new, spike SP9) Cemu 2.6 starts a game with `-g <path>` on Flatpak (`flatpak run info.cemu.Cemu -g …`) and `cemu-bin`, the process LeemuSync waits for is the emulator (the Flatpak wrapper exits only when Cemu does), and `-a <hex id>` selects the player's account for that session (found in LaunchSettings.cpp on 2026-10-21; it replaced the earlier claim that the active account is always the one in `settings.xml`). Checked at the start of Task 9 B0; if the wrapper exits early, `play` waits on the profile's process names instead.
+- **V-PLAY-1** (new, spike SP9) Cemu 2.6 starts a game with `-g <path>` on Flatpak (`flatpak run info.cemu.Cemu -g …`) and `cemu-bin`, the process LemuSync waits for is the emulator (the Flatpak wrapper exits only when Cemu does), and `-a <hex id>` selects the player's account for that session (found in LaunchSettings.cpp on 2026-10-21; it replaced the earlier claim that the active account is always the one in `settings.xml`). Checked at the start of Task 9 B0; if the wrapper exits early, `play` waits on the profile's process names instead.
 
 ## Self-review
 
 - **Coverage:** SC1 (Tasks 2, 5, 9 B2), SC2 (5, 9 B3), SC3 (3, 5, 9 B4), SC5 (8, 9 B5), budgets (8), leases and `lease` CLI (2, 7), `conflict_policy` (3), option c / D32 (6, 7, 9 B1). Not planned (P1): watch mode, the daemon, sleep/resume, UI, GC, retention pruning; they're Phase 2/3.
-- **Open for the maintainer:** (1) "Daemon budgets measured" while `leemusyncd` is a stub: Task 8 measures engine and CLI numbers only. (2) Resolved 2026-10-21: `play --as` passes Cemu `-a <account>`. (3) Session length and emulator version in conflict details aren't recorded by M1a manifests; Task 3 leaves them out.
+- **Open for the maintainer:** (1) "Daemon budgets measured" while `lemusyncd` is a stub: Task 8 measures engine and CLI numbers only. (2) Resolved 2026-10-21: `play --as` passes Cemu `-a <account>`. (3) Session length and emulator version in conflict details aren't recorded by M1a manifests; Task 3 leaves them out.
 - **Names:** `Lease`, `LeaseHandle`, `Acquire`, `LeaseChoice`, `PlayPrompt`, `Launcher`, `ConflictInfo`, `HeadInfo`, `create_account`, `Entry.modified` are used consistently across Tasks 1–8.

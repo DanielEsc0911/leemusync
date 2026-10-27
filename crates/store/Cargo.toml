@@ -1,5 +1,5 @@
 [package]
-name = "leemusync-store"
+name = "lemusync-store"
 description = "Storage backend interface and adapters."
 version.workspace = true
 edition.workspace = true

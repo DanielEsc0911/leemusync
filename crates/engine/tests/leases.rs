@@ -7,9 +7,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use common::{Pc, SAVE, join, map};
-use leemusync_api::WarningCode;
-use leemusync_core::{PlayerId, StreamId};
-use leemusync_engine::{Acquire, LeaseHandle, MapChoice};
+use lemusync_api::WarningCode;
+use lemusync_core::{PlayerId, StreamId};
+use lemusync_engine::{Acquire, LeaseHandle, MapChoice};
 
 const GAME: &str = "101c9400";
 
@@ -48,7 +48,7 @@ async fn two() -> Two {
 }
 
 fn lock_dir(remote: &Path, stream: StreamId) -> PathBuf {
-    remote.join("leemusync/locks").join(stream.to_string())
+    remote.join("lemusync/locks").join(stream.to_string())
 }
 
 fn lock_files(remote: &Path, stream: StreamId) -> Vec<String> {
@@ -190,7 +190,7 @@ async fn a_stale_lease_is_taken_over_only_on_request_and_recorded() {
     let r = t.b.sync().await;
     assert_eq!(
         r.streams[0].action,
-        leemusync_api::StreamAction::Upload,
+        lemusync_api::StreamAction::Upload,
         "{r:?}"
     );
     let history = t.b.engine.history("P", "cemu", GAME).await.unwrap();

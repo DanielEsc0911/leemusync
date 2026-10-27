@@ -424,7 +424,7 @@ mod tests {
     fn check_path_accepts_object_names() {
         for ok in [
             "a",
-            "leemusync/streams/ab-cd_1.2/versions/",
+            "lemusync/streams/ab-cd_1.2/versions/",
             "x".repeat(512).as_str(),
         ] {
             assert!(check_path(ok).is_ok(), "{ok}");

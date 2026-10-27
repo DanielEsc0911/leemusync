@@ -1,27 +1,27 @@
-name: leemusync
+name: lemusync
 arch: ${NFPM_ARCH}
 platform: linux
-version: ${LEEMUSYNC_VERSION}
+version: ${LEMUSYNC_VERSION}
 version_schema: semver
 maintainer: Daniel <daescalona@proton.me>
 description: Keep your emulator saves in sync on every device, using storage you own.
-homepage: https://github.com/DanielEsc0911/leemusync
+homepage: https://github.com/DanielEsc0911/lemusync
 license: MPL-2.0
 contents:
   - src: dist/stage/gui/
-    dst: /opt/leemusync/
+    dst: /opt/lemusync/
     type: tree
-  - src: /opt/leemusync/leemusync-gui
-    dst: /usr/bin/leemusync-gui
+  - src: /opt/lemusync/lemusync-gui
+    dst: /usr/bin/lemusync-gui
     type: symlink
-  - src: dist/stage/bin/leemusync
-    dst: /usr/bin/leemusync
-  - src: dist/stage/bin/leemusyncd
-    dst: /usr/bin/leemusyncd
-  - src: packaging/linux/io.github.danielesc0911.leemusync.desktop
-    dst: /usr/share/applications/io.github.danielesc0911.leemusync.desktop
-  - src: packaging/icons/leemusync.png
-    dst: /usr/share/icons/hicolor/256x256/apps/io.github.danielesc0911.leemusync.png
+  - src: dist/stage/bin/lemusync
+    dst: /usr/bin/lemusync
+  - src: dist/stage/bin/lemusyncd
+    dst: /usr/bin/lemusyncd
+  - src: packaging/linux/io.github.danielesc0911.lemusync.desktop
+    dst: /usr/share/applications/io.github.danielesc0911.lemusync.desktop
+  - src: packaging/icons/lemusync.png
+    dst: /usr/share/icons/hicolor/256x256/apps/io.github.danielesc0911.lemusync.png
 overrides:
   deb:
     depends: [libgtk-3-0]

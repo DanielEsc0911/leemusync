@@ -2,10 +2,10 @@
 
 use std::collections::BTreeMap;
 
-use leemusync_api::{Warning, WarningCode};
-use leemusync_core::config::{CONFIG_FORMAT, ConfigVersion, RepoConfig};
-use leemusync_core::heads::{Graph, heads};
-use leemusync_core::{DeviceId, VersionId};
+use lemusync_api::{Warning, WarningCode};
+use lemusync_core::config::{CONFIG_FORMAT, ConfigVersion, RepoConfig};
+use lemusync_core::heads::{Graph, heads};
+use lemusync_core::{DeviceId, VersionId};
 
 use crate::repo::Repo;
 use crate::{EngineError, State, new_version_id, now_ms};
@@ -149,12 +149,12 @@ pub(crate) async fn update(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use leemusync_api::{Warning, WarningCode};
-    use leemusync_core::PlayerId;
+    use lemusync_api::{Warning, WarningCode};
+    use lemusync_core::PlayerId;
 
-    async fn setup(dir: &std::path::Path) -> (Repo, crate::State, leemusync_store::Store) {
-        let store = leemusync_store::Store::fs(&dir.join("remote")).unwrap();
-        let fast = leemusync_crypto::KdfParams {
+    async fn setup(dir: &std::path::Path) -> (Repo, crate::State, lemusync_store::Store) {
+        let store = lemusync_store::Store::fs(&dir.join("remote")).unwrap();
+        let fast = lemusync_crypto::KdfParams {
             m_kib: 19_456,
             t: 1,
             p: 1,
@@ -169,8 +169,8 @@ mod tests {
     #[tokio::test]
     async fn concurrent_edits_merge_by_union() {
         let dir = tempfile::tempdir().unwrap();
-        let store = leemusync_store::Store::fs(&dir.path().join("remote")).unwrap();
-        let fast = leemusync_crypto::KdfParams {
+        let store = lemusync_store::Store::fs(&dir.path().join("remote")).unwrap();
+        let fast = lemusync_crypto::KdfParams {
             m_kib: 19_456,
             t: 1,
             p: 1,
@@ -265,7 +265,7 @@ mod tests {
             .put(
                 &crate::repo::config_path(&bad),
                 b"LSE1 not really sealed, just junk bytes here....".to_vec(),
-                leemusync_store::PutMode::CreateOnly,
+                lemusync_store::PutMode::CreateOnly,
             )
             .await
             .unwrap();

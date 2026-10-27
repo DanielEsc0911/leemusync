@@ -4,7 +4,7 @@
 
 use std::ffi::OsString;
 
-use leemusync_engine::{Launcher, OsLauncher};
+use lemusync_engine::{Launcher, OsLauncher};
 
 #[test]
 fn the_os_launcher_runs_argv_without_a_shell() {

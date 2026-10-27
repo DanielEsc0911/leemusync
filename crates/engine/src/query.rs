@@ -1,10 +1,10 @@
 //! `status`, `history`, `restore`, `doctor`.
 
-use leemusync_api::{
+use lemusync_api::{
     API_VERSION, Check, DoctorReport, HistoryEntry, HistoryReport, StatusReport, StreamAction,
     StreamReport, StreamStatus,
 };
-use leemusync_core::heads::{Graph, heads};
+use lemusync_core::heads::{Graph, heads};
 
 use crate::discover::save_folder;
 use crate::progress::Meter;
@@ -14,10 +14,10 @@ use crate::{BackendConfig, Engine, EngineError, history_dir, repo_config};
 
 /// One stream's place on this device (`Engine::target`).
 pub(crate) struct Target {
-    pub stream: leemusync_core::StreamId,
-    pub player: leemusync_core::PlayerId,
+    pub stream: lemusync_core::StreamId,
+    pub player: lemusync_core::PlayerId,
     pub account: String,
-    pub profile: leemusync_core::profile::Profile,
+    pub profile: lemusync_core::profile::Profile,
     pub folder: std::path::PathBuf,
     pub names: Vec<String>,
 }
@@ -86,7 +86,7 @@ impl Engine {
         player: &str,
         emulator: &str,
         game: &str,
-    ) -> Result<(leemusync_core::StreamId, leemusync_core::PlayerId), EngineError> {
+    ) -> Result<(lemusync_core::StreamId, lemusync_core::PlayerId), EngineError> {
         self.ensure_repo().await?;
         let config = repo_config::load(self.repo_ref()?, &self.state)
             .await?
@@ -106,7 +106,7 @@ impl Engine {
         player: &str,
         emulator: &str,
         game: &str,
-    ) -> Result<leemusync_core::StreamId, EngineError> {
+    ) -> Result<lemusync_core::StreamId, EngineError> {
         Ok(self.stream_for(player, emulator, game).await?.0)
     }
 
@@ -272,7 +272,7 @@ impl Engine {
     /// Never for failed checks (they're reported); only for a broken bundled profile.
     pub async fn doctor(&mut self) -> Result<DoctorReport, EngineError> {
         let mut checks = Vec::new();
-        let probe = "leemusync-doctor-probe";
+        let probe = "lemusync-doctor-probe";
         let keystore = self
             .env
             .secrets

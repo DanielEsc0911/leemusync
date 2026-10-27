@@ -3,8 +3,8 @@
 mod common;
 
 use common::{Pc, SAVE, join, map};
-use leemusync_api::StreamAction;
-use leemusync_engine::{MapChoice, MapOutcome};
+use lemusync_api::StreamAction;
+use lemusync_engine::{MapChoice, MapOutcome};
 
 #[tokio::test]
 #[allow(clippy::too_many_lines)] // one test mirrors the whole runbook, step for step
@@ -43,7 +43,7 @@ async fn both_saves_end_up_on_both_pcs() {
     // Step 5: first pushes.
     assert_eq!(cachy.sync().await.streams[0].action, StreamAction::Upload);
     let r = fedora.sync().await;
-    let action_of = |r: &leemusync_api::SyncReport, p: &str| {
+    let action_of = |r: &lemusync_api::SyncReport, p: &str| {
         r.streams.iter().find(|s| s.player == p).map(|s| s.action)
     };
     assert_eq!(action_of(&r, "Fedora"), Some(StreamAction::Upload));

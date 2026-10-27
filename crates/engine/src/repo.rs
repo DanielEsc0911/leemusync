@@ -6,25 +6,25 @@
 
 use std::fmt::Write as _;
 
-use leemusync_core::config::ConfigVersion;
-use leemusync_core::lease::Lease;
-use leemusync_core::manifest::Version;
-use leemusync_core::{BlobId, DeviceId, Hash32, PlayerId, StreamId, VersionId};
-use leemusync_crypto::{
+use lemusync_core::config::ConfigVersion;
+use lemusync_core::lease::Lease;
+use lemusync_core::manifest::Version;
+use lemusync_core::{BlobId, DeviceId, Hash32, PlayerId, StreamId, VersionId};
+use lemusync_crypto::{
     KdfParams, Key, RecoveryKey, RepoKeys, Zeroizing, keyed_hash, open as open_sealed,
     passphrase_kek, random_bytes, seal, unwrap_key, wrap,
 };
-use leemusync_store::{ErrorClass, PutMode, Store};
+use lemusync_store::{ErrorClass, PutMode, Store};
 use serde::{Deserialize, Serialize};
 
 use crate::EngineError;
 
-pub(crate) const REPO_JSON: &str = "leemusync/repo.json";
+pub(crate) const REPO_JSON: &str = "lemusync/repo.json";
 const REPO_FORMAT: u32 = 1;
 const ALGORITHM: &str = "argon2id";
-const CHECK: &[u8] = b"leemusync-repo-check";
-const CONFIG_DIR: &str = "leemusync/config/versions/";
-const DEVICE_DIR: &str = "leemusync/devices/";
+const CHECK: &[u8] = b"lemusync-repo-check";
+const CONFIG_DIR: &str = "lemusync/config/versions/";
+const DEVICE_DIR: &str = "lemusync/devices/";
 const MAX_LEASE: usize = 4 * 1024;
 const MAX_DEVICE: usize = 4 * 1024;
 
@@ -131,7 +131,7 @@ fn lower(id: &VersionId) -> String {
 
 pub(crate) fn blob_path(id: &BlobId) -> String {
     let h = id.0.to_hex();
-    format!("leemusync/blobs/{}/{h}", &h[..2])
+    format!("lemusync/blobs/{}/{h}", &h[..2])
 }
 
 pub(crate) fn config_path(id: &VersionId) -> String {
@@ -139,7 +139,7 @@ pub(crate) fn config_path(id: &VersionId) -> String {
 }
 
 fn version_dir(stream: &StreamId) -> String {
-    format!("leemusync/streams/{stream}/versions/")
+    format!("lemusync/streams/{stream}/versions/")
 }
 
 fn version_path(stream: &StreamId, id: &VersionId) -> String {
@@ -147,7 +147,7 @@ fn version_path(stream: &StreamId, id: &VersionId) -> String {
 }
 
 fn lease_dir(stream: &StreamId) -> String {
-    format!("leemusync/locks/{stream}/")
+    format!("lemusync/locks/{stream}/")
 }
 
 pub(crate) fn lease_path(stream: &StreamId, device: &DeviceId) -> String {
@@ -537,7 +537,7 @@ pub(crate) fn key_from_hex(text: &str) -> Option<Key> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use leemusync_crypto::KdfParams;
+    use lemusync_crypto::KdfParams;
 
     const FAST: KdfParams = KdfParams {
         m_kib: 19_456,
@@ -610,7 +610,7 @@ mod tests {
         let b = repo.put_blob(b"save B").await.unwrap();
         // A server swapping two objects is caught by the AAD.
         let b_bytes = s.get(&blob_path(&b)).await.unwrap();
-        s.put(&blob_path(&a), b_bytes, leemusync_store::PutMode::Overwrite)
+        s.put(&blob_path(&a), b_bytes, lemusync_store::PutMode::Overwrite)
             .await
             .unwrap();
         assert!(repo.get_blob(&a).await.is_err());
@@ -621,7 +621,7 @@ mod tests {
         let (_d, s) = store();
         let (repo, _, _) = Repo::create(s, "p", FAST).await.unwrap();
         let stream = repo.stream_id(
-            leemusync_core::PlayerId(VersionId::from_parts(1, [1; 10])),
+            lemusync_core::PlayerId(VersionId::from_parts(1, [1; 10])),
             "cemu",
             "101c9400",
         );
@@ -630,20 +630,20 @@ mod tests {
             Vec::<VersionId>::new()
         );
         let id = VersionId::from_parts(5, [5; 10]);
-        let v = leemusync_core::manifest::Version {
+        let v = lemusync_core::manifest::Version {
             format: 1,
             stream,
             id,
             parents: vec![],
             device: DeviceId(VersionId::from_parts(2, [2; 10])),
-            player: leemusync_core::PlayerId(VersionId::from_parts(1, [1; 10])),
+            player: lemusync_core::PlayerId(VersionId::from_parts(1, [1; 10])),
             created_at: 5,
-            emulator: leemusync_core::manifest::EmulatorRef {
+            emulator: lemusync_core::manifest::EmulatorRef {
                 id: "cemu".into(),
                 version: None,
             },
             files: vec![],
-            meta: leemusync_core::manifest::Meta {
+            meta: lemusync_core::manifest::Meta {
                 session_secs: None,
                 changed_files: 0,
                 takeover: false,
@@ -655,7 +655,7 @@ mod tests {
         assert_eq!(repo.list_versions(&stream).await.unwrap(), vec![id]);
         let json = repo.get_version(&stream, &id).await.unwrap();
         assert_eq!(
-            leemusync_core::manifest::Version::from_json(&json, &stream, &id).unwrap(),
+            lemusync_core::manifest::Version::from_json(&json, &stream, &id).unwrap(),
             v
         );
     }
@@ -695,9 +695,7 @@ mod tests {
                 assert!(
                     matches!(
                         Repo::open(s.clone(), unlock).await,
-                        Err(EngineError::Crypto(
-                            leemusync_crypto::CryptoError::KdfParams
-                        ))
+                        Err(EngineError::Crypto(lemusync_crypto::CryptoError::KdfParams))
                     ),
                     "{field} = {value}"
                 );
@@ -791,12 +789,12 @@ mod tests {
         let (repo, _, _) = Repo::create(s.clone(), "p", FAST).await.unwrap();
         let dev = DeviceId(VersionId::from_parts(1, [1; 10]));
         let config = |n: u64| ConfigVersion {
-            format: leemusync_core::config::CONFIG_FORMAT,
+            format: lemusync_core::config::CONFIG_FORMAT,
             id: VersionId::from_parts(n, [u8::try_from(n).unwrap(); 10]),
             parents: vec![],
             device: dev,
             created_at: n,
-            config: leemusync_core::config::RepoConfig::default(),
+            config: lemusync_core::config::RepoConfig::default(),
         };
         let (a, b) = (config(10), config(20));
         repo.put_config(&a).await.unwrap();
@@ -825,7 +823,7 @@ mod tests {
         repo.put_device(&record).await.unwrap();
         repo.put_device(&record).await.unwrap();
         let d_bytes = s
-            .get(&format!("leemusync/devices/{}", lower(&b.id)))
+            .get(&format!("lemusync/devices/{}", lower(&b.id)))
             .await
             .unwrap();
         s.put(&config_path(&b.id), d_bytes, PutMode::Overwrite)
@@ -845,14 +843,11 @@ mod tests {
         assert!(id.to_string().chars().any(|c| c.is_ascii_uppercase()));
         assert_eq!(
             config_path(&id),
-            format!(
-                "leemusync/config/versions/{}",
-                id.to_string().to_lowercase()
-            )
+            format!("lemusync/config/versions/{}", id.to_string().to_lowercase())
         );
         let blob = repo.put_blob(b"x").await.unwrap();
         assert!(
-            blob_path(&blob).starts_with(&format!("leemusync/blobs/{}/", &blob.to_string()[..2]))
+            blob_path(&blob).starts_with(&format!("lemusync/blobs/{}/", &blob.to_string()[..2]))
         );
         assert_eq!(repo.id().len(), 32);
         assert!(

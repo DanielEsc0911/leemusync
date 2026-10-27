@@ -20,7 +20,7 @@ const SCOPE: &str = "https://www.googleapis.com/auth/drive.file";
 const LOGIN_TIMEOUT: Duration = Duration::from_secs(300);
 const READ_TIMEOUT: Duration = Duration::from_secs(10);
 const MAX_REQUEST: usize = 8 * 1024;
-const DONE_PAGE: &str = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nConnection: close\r\n\r\n<!doctype html><meta charset=utf-8><title>LeemuSync</title><p>LeemuSync: you can close this tab.</p><p>LeemuSync: ya puedes cerrar esta pestaña.</p>";
+const DONE_PAGE: &str = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nConnection: close\r\n\r\n<!doctype html><meta charset=utf-8><title>LemuSync</title><p>LemuSync: you can close this tab.</p><p>LemuSync: ya puedes cerrar esta pestaña.</p>";
 
 /// The user's own OAuth client (D26). `Debug` never shows the secret.
 pub struct OAuthClient {

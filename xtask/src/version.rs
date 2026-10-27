@@ -10,9 +10,9 @@ pub(crate) fn check(root: &Path, tag: &str) -> Result<(), Vec<String>> {
         .as_array()
         .into_iter()
         .flatten()
-        .find(|package| package["name"] == "leemusync-cli")
+        .find(|package| package["name"] == "lemusync-cli")
         .and_then(|package| package["version"].as_str())
-        .ok_or_else(|| vec!["leemusync-cli not found in cargo metadata".to_string()])?
+        .ok_or_else(|| vec!["lemusync-cli not found in cargo metadata".to_string()])?
         .to_string();
     let pubspec = fs::read_to_string(root.join("app/pubspec.yaml"))
         .map_err(|e| vec![format!("app/pubspec.yaml: {e}")])?;

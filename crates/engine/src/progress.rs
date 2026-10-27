@@ -2,7 +2,7 @@
 
 use std::sync::{Arc, Mutex, PoisonError};
 
-use leemusync_api::{TransferPhase, TransferProgress};
+use lemusync_api::{TransferPhase, TransferProgress};
 
 /// Receives every progress update. Called from the engine's task; keep it cheap.
 pub type ProgressSink = Arc<dyn Fn(&TransferProgress) + Send + Sync>;

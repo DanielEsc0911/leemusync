@@ -1,6 +1,6 @@
 //! Engine errors. Applications map `code()` to localised text (architecture §Engine internals).
 
-use leemusync_store::{ErrorClass, StoreError};
+use lemusync_store::{ErrorClass, StoreError};
 
 #[derive(Debug, thiserror::Error)]
 pub enum EngineError {
@@ -13,10 +13,10 @@ pub enum EngineError {
     #[error("file system: {0}")]
     Io(String),
     #[error("crypto: {0}")]
-    Crypto(#[from] leemusync_crypto::CryptoError),
+    Crypto(#[from] lemusync_crypto::CryptoError),
     #[error("wrong passphrase or recovery key")]
     Unlock,
-    #[error("another LeemuSync process is using {0}")]
+    #[error("another LemuSync process is using {0}")]
     Locked(String),
     #[error("{0} is running; close it first")]
     EmulatorRunning(String),
@@ -32,7 +32,7 @@ pub enum EngineError {
     NeedsConfirmation,
     #[error("{0} changed while it was being read; try again when the emulator is idle")]
     Busy(String),
-    #[error("{0} needs a decision: run `leemusync conflicts`")]
+    #[error("{0} needs a decision: run `lemusync conflicts`")]
     NeedsDecision(String),
     #[error("{0} holds the lease")]
     LeaseHeld(String),

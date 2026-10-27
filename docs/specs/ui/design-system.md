@@ -1,6 +1,6 @@
 # Design system
 
-> **Status:** Draft · **Related:** [rules](../../rules.md) (F1, F2, P5, P6), [navigation](navigation.md), [status-and-notifications](status-and-notifications.md), [i18n](../i18n.md), [testing](../testing.md), [skill: leemusync-ui](../../../.claude/skills/leemusync-ui/SKILL.md) · **Code:** `app/lib/design/` (planned)
+> **Status:** Draft · **Related:** [rules](../../rules.md) (F1, F2, P5, P6), [navigation](navigation.md), [status-and-notifications](status-and-notifications.md), [i18n](../i18n.md), [testing](../testing.md), [skill: lemusync-ui](../../../.claude/skills/lemusync-ui/SKILL.md) · **Code:** `app/lib/design/` (planned)
 
 ## Purpose
 One visual language that looks identical on every platform (F1), feels instant (F2), and is simple for players while keeping power tools one level deeper (P5).
@@ -30,7 +30,7 @@ All values come from `app/lib/design/tokens/`. Widgets never hard-code colors, s
 | Elevation | A few levels, expressed through tone, not heavy shadows |
 
 ## Brand
-- **Name:** LeemuSync (lemur + emu + sync).
+- **Name:** LemuSync (lemur + emu + sync).
 - **Direction:** a ring-tailed lemur whose striped tail curls into a sync loop. The rings double as the sync/progress motif in the app icon, tray glyph and progress ring. Final art comes from the Phase 3 design exploration.
 
 ## Components

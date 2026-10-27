@@ -1,9 +1,9 @@
-//! `leemusync play` over the terminal: the player's answers and one line per step
+//! `lemusync play` over the terminal: the player's answers and one line per step
 //! (sync-model §Launcher mode). Without a terminal, or with `--json`, nothing is asked:
 //! a held lease fails with exit 5 and a conflict with exit 4 (never a silent `PlayAnyway`).
 
-use leemusync_api::{ConflictInfo, PlayEvent};
-use leemusync_engine::{EngineError, LeaseChoice, PlayPrompt, VersionId};
+use lemusync_api::{ConflictInfo, PlayEvent};
+use lemusync_engine::{EngineError, LeaseChoice, PlayPrompt, VersionId};
 
 use crate::i18n::{I18n, s};
 use crate::prompt;
@@ -124,7 +124,7 @@ pub fn hold_ctrl_c(t: &I18n, events: bool) -> tokio::task::JoinHandle<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use leemusync_api::HeadInfo;
+    use lemusync_api::HeadInfo;
 
     fn info() -> ConflictInfo {
         ConflictInfo {

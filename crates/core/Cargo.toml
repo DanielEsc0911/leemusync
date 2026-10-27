@@ -1,5 +1,5 @@
 [package]
-name = "leemusync-core"
+name = "lemusync-core"
 description = "Domain model and pure sync logic."
 version.workspace = true
 edition.workspace = true

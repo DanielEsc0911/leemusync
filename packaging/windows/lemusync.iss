@@ -1,24 +1,24 @@
-; LeemuSync Inno Setup script (Inno Setup 6.3+). Layout: docs/specs/release.md (Install layout).
+; LemuSync Inno Setup script (Inno Setup 6.3+). Layout: docs/specs/release.md (Install layout).
 ; Build from the repo root:
-;   set LEEMUSYNC_VERSION=0.0.1-alpha.1 & set LEEMUSYNC_VERSION_NUMERIC=0.0.1
-;   set LEEMUSYNC_GUI_DIR=<flutter Release folder> & set LEEMUSYNC_BIN_DIR=<dir with leemusync.exe + leemusyncd.exe>
-;   iscc /O<output dir> packaging\windows\leemusync.iss
+;   set LEMUSYNC_VERSION=0.0.1-alpha.1 & set LEMUSYNC_VERSION_NUMERIC=0.0.1
+;   set LEMUSYNC_GUI_DIR=<flutter Release folder> & set LEMUSYNC_BIN_DIR=<dir with lemusync.exe + lemusyncd.exe>
+;   iscc /O<output dir> packaging\windows\lemusync.iss
 
-#define AppVersion GetEnv("LEEMUSYNC_VERSION")
-#define AppVersionNumeric GetEnv("LEEMUSYNC_VERSION_NUMERIC")
-#define GuiDir GetEnv("LEEMUSYNC_GUI_DIR")
-#define BinDir GetEnv("LEEMUSYNC_BIN_DIR")
+#define AppVersion GetEnv("LEMUSYNC_VERSION")
+#define AppVersionNumeric GetEnv("LEMUSYNC_VERSION_NUMERIC")
+#define GuiDir GetEnv("LEMUSYNC_GUI_DIR")
+#define BinDir GetEnv("LEMUSYNC_BIN_DIR")
 
 [Setup]
 ; AppId is permanent: never change it after the first release.
 AppId={{350A21EC-E42B-4C95-8E97-B1433D66294D}
-AppName=LeemuSync
+AppName=LemuSync
 AppVersion={#AppVersion}
-AppPublisher=LeemuSync contributors
-AppPublisherURL=https://github.com/DanielEsc0911/leemusync
+AppPublisher=LemuSync contributors
+AppPublisherURL=https://github.com/DanielEsc0911/lemusync
 VersionInfoVersion={#AppVersionNumeric}.0
-DefaultDirName={autopf}\LeemuSync
-DefaultGroupName=LeemuSync
+DefaultDirName={autopf}\LemuSync
+DefaultGroupName=LemuSync
 DisableProgramGroupPage=yes
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
@@ -26,8 +26,8 @@ PrivilegesRequired=admin
 LicenseFile=..\..\LICENSE
 ChangesEnvironment=yes
 WizardStyle=modern
-UninstallDisplayIcon={app}\LeemuSync.exe
-OutputBaseFilename=leemusync-{#AppVersion}-windows-x64-setup
+UninstallDisplayIcon={app}\LemuSync.exe
+OutputBaseFilename=lemusync-{#AppVersion}-windows-x64-setup
 Compression=lzma2
 SolidCompression=yes
 
@@ -37,14 +37,14 @@ Name: "es"; MessagesFile: "compiler:Languages\Spanish.isl"
 
 [Files]
 Source: "{#GuiDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#BinDir}\leemusync.exe"; DestDir: "{app}\bin"; Flags: ignoreversion
-Source: "{#BinDir}\leemusyncd.exe"; DestDir: "{app}\bin"; Flags: ignoreversion
+Source: "{#BinDir}\lemusync.exe"; DestDir: "{app}\bin"; Flags: ignoreversion
+Source: "{#BinDir}\lemusyncd.exe"; DestDir: "{app}\bin"; Flags: ignoreversion
 
 [Icons]
-Name: "{autoprograms}\LeemuSync"; Filename: "{app}\LeemuSync.exe"; AppUserModelID: "io.github.danielesc0911.leemusync"
+Name: "{autoprograms}\LemuSync"; Filename: "{app}\LemuSync.exe"; AppUserModelID: "io.github.danielesc0911.lemusync"
 
 [Run]
-Filename: "{app}\LeemuSync.exe"; Description: "{cm:LaunchProgram,LeemuSync}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\LemuSync.exe"; Description: "{cm:LaunchProgram,LemuSync}"; Flags: nowait postinstall skipifsilent
 
 [Code]
 const

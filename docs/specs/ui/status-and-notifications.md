@@ -30,7 +30,7 @@ Priority when several apply: `error` > `attention` > `syncing` > `offline` > `pa
 ## Desktop tray and menu bar
 - Icon states: synced · syncing (low-rate frame animation, ≤ 4 fps, to save CPU) · paused · offline · attention · error. Monochrome template image on macOS, light/dark variants on Windows, symbolic icons on Linux.
 - Tooltip = status text.
-- Menu: status line · Sync now · Pause (1 h / until resume) · Recent games ▸ Play · Open LeemuSync · Quit (warns if a transfer is active).
+- Menu: status line · Sync now · Pause (1 h / until resume) · Recent games ▸ Play · Open LemuSync · Quit (warns if a transfer is active).
 - Linux GNOME shows tray icons only with the AppIndicator extension (Ubuntu ships it; Fedora Workstation doesn't). Without it: notifications + app only, and `doctor` explains. KDE and XFCE show them natively (XFCE measured in SP2: [desktop §Linux results](../platforms/desktop.md#linux-results-sp2-xfce)).
 
 ## Android
@@ -43,7 +43,7 @@ Priority when several apply: `error` > `attention` > `syncing` > `offline` > `pa
 ## iOS
 - **Live Activity + Dynamic Island** during play sessions and active syncs. Compact: lemur glyph + arrows/progress. Expanded: game, player, "Uploading 3 changes". Lock Screen and StandBy presentations. Updated locally by the app while it runs (including background tasks). Remote push updates aren't in v1 ([D13](../../decisions.md#d13-no-server-telemetry-or-accounts-in-v1-push-only-optional-and-later-2026-10-07)).
 - **Local notifications** for conflicts and leases detected during app runs or background refresh.
-- **App Intents:** Sync Now, Play Game, Pull Saves → Siri, Spotlight, Shortcuts. Recommended automation: "When ⟨emulator⟩ is closed → LeemuSync: Sync Now".
+- **App Intents:** Sync Now, Play Game, Pull Saves → Siri, Spotlight, Shortcuts. Recommended automation: "When ⟨emulator⟩ is closed → LemuSync: Sync Now".
 - Later: widgets, Control Center control.
 
 ## Lock warnings without a server

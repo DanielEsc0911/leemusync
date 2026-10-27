@@ -1,6 +1,6 @@
 ---
-name: leemusync-emulator-profile
-description: Use when adding, fixing or reviewing a LeemuSync emulator profile, when an emulator's saves are not detected or land in the wrong place, or when supporting a new emulator, platform path, Flatpak or portable install, or account layout.
+name: lemusync-emulator-profile
+description: Use when adding, fixing or reviewing a LemuSync emulator profile, when an emulator's saves are not detected or land in the wrong place, or when supporting a new emulator, platform path, Flatpak or portable install, or account layout.
 ---
 
 # Emulator profiles
@@ -22,7 +22,7 @@ For each OS you support (Windows, macOS, Linux native/Flatpak/portable, Android,
 2. Use only allowed template variables and relative patterns. No `..`, no executable paths.
 3. Fixtures: `profiles/fixtures/<id>/<case>/` (a fake tree, never real user saves) + `expected.toml` listing the streams.
 4. Test first: the fixture test fails → add the profile → it passes (`just test`).
-5. Once the CLI exists: `leemusync profiles validate profiles/<id>.toml`.
+5. Once the CLI exists: `lemusync profiles validate profiles/<id>.toml`.
 6. Update the emulator table in `emulator-profiles.md` (and the platform spec's inventory). Remove the Verify lines this resolves.
 
 ## Never

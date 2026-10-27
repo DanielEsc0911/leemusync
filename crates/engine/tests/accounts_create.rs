@@ -7,7 +7,7 @@ use std::collections::BTreeSet;
 use std::path::Path;
 
 use common::{Pc, SAVE, join, map};
-use leemusync_engine::{EngineError, MapChoice};
+use lemusync_engine::{EngineError, MapChoice};
 
 const ACT: &str = "mlc01/usr/save/system/act";
 

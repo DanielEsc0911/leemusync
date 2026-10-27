@@ -1,10 +1,10 @@
 # Phase 1, first sync (M1a): both BotW saves on both PCs
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Also follow the project skills: `leemusync-feature` (always), `leemusync-security` (Tasks 6–8, 10–16), `leemusync-backend` (Tasks 7–8), `leemusync-emulator-profile` (Tasks 5, 12, 18), `leemusync-docs` (every task).
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Also follow the project skills: `lemusync-feature` (always), `lemusync-security` (Tasks 6–8, 10–16), `lemusync-backend` (Tasks 7–8), `lemusync-emulator-profile` (Tasks 5, 12, 18), `lemusync-docs` (every task).
 
-**Goal:** Two Linux PCs (Fedora 44 + Cemu Flatpak, CachyOS + native `cemu-bin`), each with one Cemu account holding a different player's BotW save, end up with both saves on both PCs through an end-to-end encrypted repo on the maintainer's Cloudflare R2 bucket (D31; Google Drive before 2026-10-20), driven by the `leemusync` CLI.
+**Goal:** Two Linux PCs (Fedora 44 + Cemu Flatpak, CachyOS + native `cemu-bin`), each with one Cemu account holding a different player's BotW save, end up with both saves on both PCs through an end-to-end encrypted repo on the maintainer's Cloudflare R2 bucket (D31; Google Drive before 2026-10-20), driven by the `lemusync` CLI.
 
-**Architecture:** Thin but final slices of the layered crates (B1): pure logic in `core` (ids, paths, manifest, heads, reconciliation, repo config, profile schema), primitives in `crypto`, raw encrypted objects in `store` (OpenDAL `gdrive` + `fs`), orchestration in `engine` (discovery, snapshot, upload, journaled restore, SQLite state, sync), report types in `api`, and the `leemusync` binary in `cli`. Formats are v1 and final, so the next slice (M1b: leases, `play`, conflict resolution) builds on the data this test creates.
+**Architecture:** Thin but final slices of the layered crates (B1): pure logic in `core` (ids, paths, manifest, heads, reconciliation, repo config, profile schema), primitives in `crypto`, raw encrypted objects in `store` (OpenDAL `gdrive` + `fs`), orchestration in `engine` (discovery, snapshot, upload, journaled restore, SQLite state, sync), report types in `api`, and the `lemusync` binary in `cli`. Formats are v1 and final, so the next slice (M1b: leases, `play`, conflict resolution) builds on the data this test creates.
 
 **Tech Stack:** Rust 1.99.0 (edition 2024), tokio, OpenDAL 0.59.5, reqwest 0.13 + rustls (ring) + rustls-platform-verifier, XChaCha20-Poly1305, Argon2id, BLAKE3, SQLite (rusqlite, bundled), keyring (Secret Service via vendored libdbus, Keychain, Credential Manager), clap, Fluent.
 
@@ -16,12 +16,12 @@
 - `just lint` runs `cargo clippy --workspace --all-targets -- -D warnings`, so clippy **pedantic warnings are errors**. Follow the repo's style: `#[must_use]` on public functions that return a value and have no side effects, a `/// # Errors` doc section on public functions that return `Result`, no `unwrap()`/`expect()` outside tests (`clippy.toml` allows them in tests). After every implementation step run `cargo clippy -p <crate> --all-targets -- -D warnings` and fix what it reports before moving on.
 - Layers (`cargo xtask layers`, `xtask/src/layers.rs`): `core`, `crypto`, `store`, `api` depend on no internal crate. `engine` → `core`, `crypto`, `store`, `api`. `cli` → `api`, `engine`, `ipc`. Dev-dependencies may cross layers.
 - `core` and `crypto`: no I/O, no async, no clock, no randomness inside `core` (callers pass time and random bytes in).
-- Crypto exactly as [security §Cryptography](../../specs/security.md#cryptography): XChaCha20-Poly1305 with a random 192-bit nonce per object, Argon2id `m = 65536 KiB, t = 3, p = 1` by default, BLAKE3 `derive_key` contexts `"leemusync v1 object"`, `"leemusync v1 blob-id"`, `"leemusync v1 stream-id"`, OS CSPRNG, `zeroize` on drop. AAD binds kind and id.
+- Crypto exactly as [security §Cryptography](../../specs/security.md#cryptography): XChaCha20-Poly1305 with a random 192-bit nonce per object, Argon2id `m = 65536 KiB, t = 3, p = 1` by default, BLAKE3 `derive_key` contexts `"lemusync v1 object"`, `"lemusync v1 blob-id"`, `"lemusync v1 stream-id"`, OS CSPRNG, `zeroize` on drop. AAD binds kind and id.
 - TLS: `rustls` 0.23.46 with the `ring` provider and `rustls-platform-verifier` 0.7.1. Both `cargo tree -i aws-lc-sys -e normal` and `cargo tree -i openssl-sys -e normal` must print `did not match any packages`.
 - Reliability invariants I1–I6 ([reliability §Invariants](../../specs/reliability.md#invariants)) hold for every code path that writes save files.
 - Secrets (passphrase, master key, recovery key, OAuth refresh/access tokens, client secret) never appear in `config.toml`, logs, stdout/stderr, `--json`, or error text. Every `store` error message passes through `redact()`.
 - Real user saves are never used in tests or committed. Tests build fake trees in temp dirs or use `profiles/fixtures/`.
-- P6: every human-readable CLI string exists in `locales/en/leemusync.ftl` and `locales/es/leemusync.ftl` (repo root, as [i18n §Sources per layer](../../specs/i18n.md#sources-per-layer) says) (neutral Latin American Spanish, [i18n §Terminology](../../specs/i18n.md#terminology)). `--json` keys are English and never translated.
+- P6: every human-readable CLI string exists in `locales/en/lemusync.ftl` and `locales/es/lemusync.ftl` (repo root, as [i18n §Sources per layer](../../specs/i18n.md#sources-per-layer) says) (neutral Latin American Spanish, [i18n §Terminology](../../specs/i18n.md#terminology)). `--json` keys are English and never translated.
 - W1: each task updates the spec lines it makes true in the same commit (Status, **Code:** fields, Verify lines).
 - W2: test first. `just check` must be green before every commit.
 - W5: Conventional Commits; the maintainer is the author; the trailer is `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
@@ -120,7 +120,7 @@ crates/cli/src/
   i18n.rs                                    Fluent loader
   prompt.rs                                  interactive questions
   output.rs                                  human vs --json output
-locales/{en,es}/leemusync.ftl                Rust strings (Fluent), used by the CLI
+locales/{en,es}/lemusync.ftl                Rust strings (Fluent), used by the CLI
 xtask/src/i18n.rs                            + Fluent parity
 profiles/cemu.toml                           + config_roots, max_file_mb
 ```
@@ -128,7 +128,7 @@ profiles/cemu.toml                           + config_roots, max_file_mb
 ---
 ### Task 1: Specs and decisions first
 
-The design must be in the specs before code (skill `leemusync-feature`, "Before code" step 3). No code in this task.
+The design must be in the specs before code (skill `lemusync-feature`, "Before code" step 3). No code in this task.
 
 **Files:**
 - Modify: `docs/decisions.md` (append D26–D30)
@@ -151,7 +151,7 @@ The first end-to-end test (M1a, [roadmap](progress/roadmap.md#phase-1-sync-engin
 Answers V-STORE-7. `crates/store` runs the OAuth refresh itself (form body, its own HTTP client) and builds the OpenDAL `gdrive` operator with `access_token` only. OpenDAL then never refreshes: `opendal-service-gdrive` 0.59.5 `backend.rs` sets a given access token's expiry to `Timestamp::MAX`. The store rebuilds the operator 60 s before the token expires. So the refresh token and client secret never enter a URL. Every store error is still redacted (V-SEC-4). Rejected: patching OpenDAL first (slower; an upstream issue is still worth filing).
 
 ### D28 OAuth loopback listener during login only (2026-10-18)
-The desktop OAuth flow needs a redirect target. Only during `leemusync backend add gdrive` (and `backend login`), the CLI binds `127.0.0.1` on a random port, accepts exactly one request whose `state` matches, and closes after it or after 5 minutes. This is the one exception to "no inbound listeners" ([security §Network](specs/security.md#network)). It never runs in the daemon. Rejected: pasting the code by hand (worse UX; Google removed the out-of-band flow).
+The desktop OAuth flow needs a redirect target. Only during `lemusync backend add gdrive` (and `backend login`), the CLI binds `127.0.0.1` on a random port, accepts exactly one request whose `state` matches, and closes after it or after 5 minutes. This is the one exception to "no inbound listeners" ([security §Network](specs/security.md#network)). It never runs in the daemon. Rejected: pasting the code by hand (worse UX; Google removed the out-of-band flow).
 
 ### D29 M1 is split: first "both saves on both PCs", then leases and play (2026-10-18)
 M1a: encrypted repo, players, account mappings, scan, `sync` with versions, heads, fast-forward and backup-first restore. Conflicts are detected and kept, not resolved. M1b: the rest of the M1 exit (leases, launcher mode, SC1–SC3, SC5). Why: the maintainer wants the first real test soon, and M1a's formats are final, so M1b builds on the same data (P1).
@@ -185,17 +185,17 @@ With no `base` yet: no local files and one head → fast-forward. Local files an
 
 ```markdown
 **A player with no account here.** When a player's stream exists in the repo but the player has no account mapped on this device, `sync` reports it and does nothing for that stream. The player chooses:
-- **a. Use an existing account:** `leemusync accounts map <player> cemu <id>`. If that account already has files and the player has a version in the repo, the CLI asks whether to keep them (they're uploaded and become a second head, a conflict) or replace them (`--replace`): the current files go to local history first (I1), then the player's latest version is restored.
-- **b. Create the account in the emulator first,** then `leemusync scan` and `accounts map`.
-- **c. Let LeemuSync create it:** only after spike SP8 proves Cemu accepts it (V-ACC-3).
+- **a. Use an existing account:** `lemusync accounts map <player> cemu <id>`. If that account already has files and the player has a version in the repo, the CLI asks whether to keep them (they're uploaded and become a second head, a conflict) or replace them (`--replace`): the current files go to local history first (I1), then the player's latest version is restored.
+- **b. Create the account in the emulator first,** then `lemusync scan` and `accounts map`.
+- **c. Let LemuSync create it:** only after spike SP8 proves Cemu accepts it (V-ACC-3).
 
-**Recovering an orphaned save:** `leemusync accounts recover cemu <id> --player <name>` uploads the orphaned folder as the first version of that player's stream. It's refused if the player already has a version of that game, so a recovered save can never replace one. The folder itself is only read.
+**Recovering an orphaned save:** `lemusync accounts recover cemu <id> --player <name>` uploads the orphaned folder as the first version of that player's stream. It's refused if the player already has a version of that game, so a recovered save can never replace one. The folder itself is only read.
 ```
 
   Add to §Verify:
 
 ```markdown
-- **V-ACC-3** Cemu 2.6 accepts an `account.dat` written by LeemuSync from an existing account as the template (new `PersistentId` from `persisid.dat`, new `Uuid`, new `MiiName`): it lists the account and BotW saves under it (spike SP8, [Phase 1 first-sync plan](../progress/plans/phase-1-first-sync.md)).
+- **V-ACC-3** Cemu 2.6 accepts an `account.dat` written by LemuSync from an existing account as the template (new `PersistentId` from `persisid.dat`, new `Uuid`, new `MiiName`): it lists the account and BotW saves under it (spike SP8, [Phase 1 first-sync plan](../progress/plans/phase-1-first-sync.md)).
 ```
 
 - [x] **Step 4: storage-backends.md.**
@@ -214,7 +214,7 @@ Phase 1 for the first test ([D26](../decisions.md#d26-google-drive-is-the-backen
 
     and end V-STORE-8 with: "Phase 1 handling: `init` refuses when `repo.json` already exists, and after writing it reads it back and compares the repo id. A mismatch means another device won the race, and `init` stops and tells the user to `join`."
 - [x] **Step 5: security.md.**
-  - §Cryptography, after the table, add: "`repo.json` KDF parameters are bounded on read (`m` 19 456–1 048 576 KiB, `t` 1–10, `p` 1–4), so a tampered file can neither weaken a rewrap below OWASP's minimum nor exhaust memory. The recovery key is 32 random bytes shown as Crockford base32 in groups of 4; its key-encryption key is BLAKE3 `derive_key("leemusync v1 recovery-kek", recovery key)` (it's already full-entropy, so no Argon2id)."
+  - §Cryptography, after the table, add: "`repo.json` KDF parameters are bounded on read (`m` 19 456–1 048 576 KiB, `t` 1–10, `p` 1–4), so a tampered file can neither weaken a rewrap below OWASP's minimum nor exhaust memory. The recovery key is 32 random bytes shown as Crockford base32 in groups of 4; its key-encryption key is BLAKE3 `derive_key("lemusync v1 recovery-kek", recovery key)` (it's already full-entropy, so no Argon2id)."
   - §Network, replace the first bullet with:
 
 ```markdown
@@ -223,7 +223,7 @@ Phase 1 for the first test ([D26](../decisions.md#d26-google-drive-is-the-backen
 
 - [x] **Step 6: config-and-cli.md.**
   - §Config file, replace the first bullet with: "`config.toml`, versioned (`config_version = 1`), per device: device id and name, repo id, backend reference (`kind = "gdrive"` with `root` and `client_id`, or `kind = "fs"` with `path`), grants, emulator root overrides. Later phases add schedule, UI language and notification preferences."
-  - §Commands: add rows "`leemusync backend add gdrive --client-id <id>` / `backend add fs <path>` / `backend login`", "`leemusync scan`" (accounts, save folders, orphaned saves, grants needed) and "`leemusync accounts recover <emulator> <id> --player <name>`". Change the `accounts map` row to "`leemusync players add/list` / `accounts map <player> <emulator> <id> [--keep\|--replace]`". After the table add:
+  - §Commands: add rows "`lemusync backend add gdrive --client-id <id>` / `backend add fs <path>` / `backend login`", "`lemusync scan`" (accounts, save folders, orphaned saves, grants needed) and "`lemusync accounts recover <emulator> <id> --player <name>`". Change the `accounts map` row to "`lemusync players add/list` / `accounts map <player> <emulator> <id> [--keep\|--replace]`". After the table add:
 
 ```markdown
 The Phase 1 first slice ships `init`, `join`, `backend add/login`, `grant add/list`, `players add/list`, `scan`, `accounts map/recover`, `sync [--dry-run] [--yes]`, `status`, `history`, `restore` and `doctor` ([plan](../progress/plans/phase-1-first-sync.md)).
@@ -351,7 +351,7 @@ mod tests {
 
 - [x] **Step 3: Run them to see them fail.**
 
-Run: `cargo test -p leemusync-core`
+Run: `cargo test -p lemusync-core`
 Expected: compile errors, `cannot find type VersionId`.
 
 - [x] **Step 4: Implement `id.rs`** (above the tests):
@@ -573,7 +573,7 @@ mod tests {
 }
 ```
 
-- [x] **Step 6: Run them to see them fail.** Run: `cargo test -p leemusync-core path` → compile errors.
+- [x] **Step 6: Run them to see them fail.** Run: `cargo test -p lemusync-core path` → compile errors.
 
 - [x] **Step 7: Implement `path.rs`** (above the tests):
 
@@ -680,7 +680,7 @@ pub use id::{BlobId, DeviceId, Hash32, IdError, PlayerId, StreamId, VersionId};
 pub use path::{PathError, RelPath};
 ```
 
-- [x] **Step 9: Run the tests.** Run: `cargo test -p leemusync-core && cargo clippy -p leemusync-core --all-targets -- -D warnings` → all pass, no warnings.
+- [x] **Step 9: Run the tests.** Run: `cargo test -p lemusync-core && cargo clippy -p lemusync-core --all-targets -- -D warnings` → all pass, no warnings.
 - [x] **Step 10: Commit.** Update `docs/specs/security.md` §File-system confinement: add "Implemented in `crates/core/src/path.rs`." Then `just check`, and:
 
 ```bash
@@ -796,7 +796,7 @@ mod tests {
 }
 ```
 
-- [x] **Step 2: Run** `cargo test -p leemusync-core manifest` → compile errors.
+- [x] **Step 2: Run** `cargo test -p lemusync-core manifest` → compile errors.
 - [x] **Step 3: Implement** (above the tests):
 
 ```rust
@@ -922,8 +922,8 @@ impl Version {
 }
 ```
 
-- [x] **Step 4: Create the golden file.** Create `crates/core/src/golden/manifest-v1.json` empty, run `cargo test -p leemusync-core print_golden -- --ignored --nocapture`, copy the printed line into the file, and check it by eye: fields in struct order, `"files":[{"path":"option.sav",...}]`, ids as strings. This file freezes format 1. Changing it later means a new format number.
-- [x] **Step 5: Run** `cargo test -p leemusync-core manifest` → PASS.
+- [x] **Step 4: Create the golden file.** Create `crates/core/src/golden/manifest-v1.json` empty, run `cargo test -p lemusync-core print_golden -- --ignored --nocapture`, copy the printed line into the file, and check it by eye: fields in struct order, `"files":[{"path":"option.sav",...}]`, ids as strings. This file freezes format 1. Changing it later means a new format number.
+- [x] **Step 5: Run** `cargo test -p lemusync-core manifest` → PASS.
 - [x] **Step 6: Failing heads and reconcile tests.** `crates/core/src/heads.rs`:
 
 ```rust
@@ -1041,7 +1041,7 @@ mod tests {
 }
 ```
 
-- [x] **Step 7: Run** `cargo test -p leemusync-core` → compile errors for `heads` and `reconcile`.
+- [x] **Step 7: Run** `cargo test -p lemusync-core` → compile errors for `heads` and `reconcile`.
 - [x] **Step 8: Implement `heads.rs`** (above its tests):
 
 ```rust
@@ -1168,7 +1168,7 @@ fn one_head(input: &Input<'_>, head: VersionId) -> Action {
 }
 ```
 
-- [x] **Step 10: Wire and run.** Add to `lib.rs`: `pub mod heads; pub mod manifest; pub mod reconcile;`. Run `cargo test -p leemusync-core && cargo clippy -p leemusync-core --all-targets -- -D warnings` → PASS.
+- [x] **Step 10: Wire and run.** Add to `lib.rs`: `pub mod heads; pub mod manifest; pub mod reconcile;`. Run `cargo test -p lemusync-core && cargo clippy -p lemusync-core --all-targets -- -D warnings` → PASS.
 - [x] **Step 11: Commit.** Set `docs/specs/sync-model.md` **Code:** to `` `crates/core/src/{manifest,heads,reconcile}.rs` ``, then `just check` and:
 
 ```bash
@@ -1306,7 +1306,7 @@ mod tests {
 }
 ```
 
-- [x] **Step 2: Run** `cargo test -p leemusync-core config` → compile errors.
+- [x] **Step 2: Run** `cargo test -p lemusync-core config` → compile errors.
 - [x] **Step 3: Implement** (above the tests):
 
 ```rust
@@ -1528,7 +1528,7 @@ impl ConfigVersion {
 
 Note on `merge`: players iterate in id order (`BTreeMap`), so the earlier id keeps the plain name and the result doesn't depend on the order of `configs`. Mapping clashes keep the smaller player id for the same reason.
 
-- [x] **Step 4: Run** `cargo test -p leemusync-core config && cargo clippy -p leemusync-core --all-targets -- -D warnings` → PASS.
+- [x] **Step 4: Run** `cargo test -p lemusync-core config && cargo clippy -p lemusync-core --all-targets -- -D warnings` → PASS.
 - [x] **Step 5: Commit** (`just check` first):
 
 ```bash
@@ -1542,7 +1542,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ### Task 5: `core` profile schema and Cemu account files
 
-Spec: [emulator-profiles §Schema, §Validation](../../specs/emulator-profiles.md#schema-v1), [players-and-accounts §Cemu accounts](../../specs/players-and-accounts.md#cemu-accounts-sp7). Skill: `leemusync-emulator-profile`.
+Spec: [emulator-profiles §Schema, §Validation](../../specs/emulator-profiles.md#schema-v1), [players-and-accounts §Cemu accounts](../../specs/players-and-accounts.md#cemu-accounts-sp7). Skill: `lemusync-emulator-profile`.
 
 **Files:**
 - Modify: `Cargo.toml` (`toml = "1.1.8"` in `[workspace.dependencies]`), `crates/core/Cargo.toml` (`toml = { workspace = true }`), `crates/core/src/lib.rs`
@@ -1740,7 +1740,7 @@ mod tests {
 }
 ```
 
-- [x] **Step 3: Run** `cargo test -p leemusync-core` → compile errors.
+- [x] **Step 3: Run** `cargo test -p lemusync-core` → compile errors.
 - [x] **Step 4: Implement `account.rs`** (above its tests):
 
 ```rust
@@ -2002,7 +2002,7 @@ pub fn parse_pattern(pattern: &str) -> Result<Vec<PatternPart>, ProfileError> {
 }
 ```
 
-- [x] **Step 6: Wire and run.** `lib.rs`: `pub mod account; pub mod profile;`. Run `cargo test -p leemusync-core && cargo clippy -p leemusync-core --all-targets -- -D warnings` → PASS.
+- [x] **Step 6: Wire and run.** `lib.rs`: `pub mod account; pub mod profile;`. Run `cargo test -p lemusync-core && cargo clippy -p lemusync-core --all-targets -- -D warnings` → PASS.
 - [x] **Step 7: Commit.** Update `docs/specs/emulator-profiles.md`: the Cemu row in §Linux paths now says the profile is loaded (no longer "not tested"); **Code:** `` `crates/core/src/profile.rs` ``. Remove "No loader exists yet" from `profiles/fixtures/cemu/flatpak-botw-two-accounts/expected.toml` (it gets loaded in Task 12). `just check`, then:
 
 ```bash
@@ -2018,14 +2018,14 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ---
 ### Task 6: `crypto` primitives, key wrapping and the recovery key
 
-Spec: [security §Cryptography, §Keys](../../specs/security.md#cryptography) (with Task 1's KDF bounds and recovery-key text). Skill: `leemusync-security`.
+Spec: [security §Cryptography, §Keys](../../specs/security.md#cryptography) (with Task 1's KDF bounds and recovery-key text). Skill: `lemusync-security`.
 
 **Files:**
 - Modify: `Cargo.toml` (`chacha20poly1305 = "0.10.1"`, `argon2 = { version = "0.5.3", default-features = false, features = ["alloc", "zeroize"] }`, `blake3 = "1.8.7"`, `zeroize = { version = "1.9.1", features = ["derive"] }`, `getrandom = "0.4.3"` in `[workspace.dependencies]`), `crates/crypto/Cargo.toml` (all five as `{ workspace = true }`, plus `thiserror`)
 - Modify: `crates/crypto/src/lib.rs`
 
 **Interfaces:**
-- Produces (all in `leemusync_crypto`):
+- Produces (all in `lemusync_crypto`):
   - `Key` (32 bytes, zeroized on drop, `Debug` prints `Key(..)`): `Key::from_bytes([u8; 32])`, `Key::as_bytes(&self) -> &[u8; 32]`, `Key::random() -> Result<Key, CryptoError>`.
   - `random_bytes<const N: usize>() -> Result<[u8; N], CryptoError>`.
   - `derive(master: &Key, context: &str) -> Key`; `keyed_hash(key: &Key, data: &[u8]) -> [u8; 32]`.
@@ -2035,7 +2035,7 @@ Spec: [security §Cryptography, §Keys](../../specs/security.md#cryptography) (w
   - `wrap(kek: &Key, aad: &[u8], master: &Key) -> Result<Vec<u8>, CryptoError>`, `unwrap_key(kek: &Key, aad: &[u8], wrapped: &[u8]) -> Result<Key, CryptoError>`.
   - `RecoveryKey`: `RecoveryKey::generate() -> Result<RecoveryKey, CryptoError>`, `to_display(&self) -> Zeroizing<String>` (re-exported `zeroize::Zeroizing`; 13 groups of 4 Crockford base32 characters, `-` separated), `RecoveryKey::parse(&str) -> Result<RecoveryKey, CryptoError>`, `kek(&self) -> Key`.
   - `CryptoError::{Random, Encrypt, Decrypt, Malformed, KdfParams, Kdf, RecoveryKey}`.
-  - Constants `OBJECT_CONTEXT = "leemusync v1 object"`, `BLOB_ID_CONTEXT = "leemusync v1 blob-id"`, `STREAM_ID_CONTEXT = "leemusync v1 stream-id"`, `RECOVERY_CONTEXT = "leemusync v1 recovery-kek"`.
+  - Constants `OBJECT_CONTEXT = "lemusync v1 object"`, `BLOB_ID_CONTEXT = "lemusync v1 blob-id"`, `STREAM_ID_CONTEXT = "lemusync v1 stream-id"`, `RECOVERY_CONTEXT = "lemusync v1 recovery-kek"`.
 
 - [x] **Step 1: Failing tests** at the bottom of `crates/crypto/src/lib.rs`:
 
@@ -2280,7 +2280,7 @@ mod tests {
 }
 ```
 
-- [x] **Step 2: Run** `cargo test -p leemusync-crypto` → compile errors.
+- [x] **Step 2: Run** `cargo test -p lemusync-crypto` → compile errors.
 - [x] **Step 3: Implement** (top of `lib.rs`, replacing the stub body but keeping the module doc comment):
 
 ```rust
@@ -2295,10 +2295,10 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 
 pub use zeroize::Zeroizing;
 
-pub const OBJECT_CONTEXT: &str = "leemusync v1 object";
-pub const BLOB_ID_CONTEXT: &str = "leemusync v1 blob-id";
-pub const STREAM_ID_CONTEXT: &str = "leemusync v1 stream-id";
-pub const RECOVERY_CONTEXT: &str = "leemusync v1 recovery-kek";
+pub const OBJECT_CONTEXT: &str = "lemusync v1 object";
+pub const BLOB_ID_CONTEXT: &str = "lemusync v1 blob-id";
+pub const STREAM_ID_CONTEXT: &str = "lemusync v1 stream-id";
+pub const RECOVERY_CONTEXT: &str = "lemusync v1 recovery-kek";
 
 const MAGIC: &[u8; 4] = b"LSE1";
 const NONCE_LEN: usize = 24;
@@ -2314,7 +2314,7 @@ pub enum CryptoError {
     Encrypt,
     #[error("authentication failed: wrong key or tampered data")]
     Decrypt,
-    #[error("not a LeemuSync encrypted object")]
+    #[error("not a LemuSync encrypted object")]
     Malformed,
     #[error("key derivation parameters are out of the allowed range")]
     KdfParams,
@@ -2576,7 +2576,7 @@ impl RecoveryKey {
 
 Note: the last recovery test replaces one character with `U`, which isn't in the Crockford alphabet, so `parse` fails. That's how a mistyped key is caught.
 
-- [x] **Step 4: Run** `cargo test -p leemusync-crypto && cargo clippy -p leemusync-crypto --all-targets -- -D warnings` → PASS. (The `argon2id_matches_rfc_9106` vector was checked against `argon2` 0.5.3 on 2026-10-18.)
+- [x] **Step 4: Run** `cargo test -p lemusync-crypto && cargo clippy -p lemusync-crypto --all-targets -- -D warnings` → PASS. (The `argon2id_matches_rfc_9106` vector was checked against `argon2` 0.5.3 on 2026-10-18.)
 - [x] **Step 5: Commit.** `docs/specs/security.md` **Code:** `` `crates/crypto/src/lib.rs` ``; `just check`; then:
 
 ```bash
@@ -2592,7 +2592,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ---
 ### Task 7: `store` core: `Store`, error classes, redaction, `fs`, conformance suite
 
-Spec: [storage-backends §Interface](../../specs/storage-backends.md#interface) (as updated in Task 1), [security §Credentials](../../specs/security.md#credentials). Skills: `leemusync-backend`, `leemusync-security`.
+Spec: [storage-backends §Interface](../../specs/storage-backends.md#interface) (as updated in Task 1), [security §Credentials](../../specs/security.md#credentials). Skills: `lemusync-backend`, `lemusync-security`.
 
 **Files:**
 - Modify: `Cargo.toml` (`tokio = "1.53.3"`, `opendal = { version = "0.59.5", default-features = false, features = ["services-gdrive", "services-fs", "executors-tokio"] }`, `tempfile = "3.27.0"` in `[workspace.dependencies]`)
@@ -2839,7 +2839,7 @@ mod tests {
 }
 ```
 
-- [x] **Step 2: Run** `cargo test -p leemusync-store` → compile errors.
+- [x] **Step 2: Run** `cargo test -p lemusync-store` → compile errors.
 - [x] **Step 3: Implement `redact.rs`** (above its tests):
 
 ```rust
@@ -3071,7 +3071,7 @@ pub(crate) fn classify(kind: ErrorKind, temporary: bool, text: &str) -> ErrorCla
 //! One suite for every adapter (storage-backends §Conformance suite).
 #![allow(clippy::unwrap_used)] // test helper; clippy.toml only exempts `#[test]` fns
 
-use leemusync_store::{Entry, ErrorClass, PutMode, Store};
+use lemusync_store::{Entry, ErrorClass, PutMode, Store};
 
 async fn suite(store: &Store, root: &str) {
     let a = format!("{root}a");
@@ -3155,7 +3155,7 @@ async fn fs_conformance() {
 }
 ```
 
-- [x] **Step 6: Run** `cargo test -p leemusync-store --test conformance` → compile errors.
+- [x] **Step 6: Run** `cargo test -p lemusync-store --test conformance` → compile errors.
 - [x] **Step 7: Implement `lib.rs`:**
 
 ```rust
@@ -3355,7 +3355,7 @@ mod tests {
     fn check_path_accepts_object_names() {
         for ok in [
             "a",
-            "leemusync/streams/ab-cd_1.2/versions/",
+            "lemusync/streams/ab-cd_1.2/versions/",
             "x".repeat(512).as_str(),
         ] {
             assert!(check_path(ok).is_ok(), "{ok}");
@@ -3402,7 +3402,7 @@ mod tests {
 
 Version ids are uppercase Crockford. Object paths must stay lowercase-only, so the engine writes version ids lowercased in paths and parses them case-insensitively (`VersionId::from_str` accepts lowercase, Task 2).
 
-- [x] **Step 8: Run** `cargo test -p leemusync-store && cargo clippy -p leemusync-store --all-targets -- -D warnings` → PASS. If OpenDAL's `delete` on a missing path returns `NotFound` instead of `Ok`, map `NotFound` to `Ok(())` in `delete` and re-run.
+- [x] **Step 8: Run** `cargo test -p lemusync-store && cargo clippy -p lemusync-store --all-targets -- -D warnings` → PASS. If OpenDAL's `delete` on a missing path returns `NotFound` instead of `Ok`, map `NotFound` to `Ok(())` in `delete` and re-run.
 - [x] **Step 9: Commit.** `docs/specs/storage-backends.md`: **Code:** `` `crates/store/src/` ``, and §Conformance suite: "`crates/store/tests/conformance.rs`: `fs` runs in CI." `just check`, then:
 
 ```bash
@@ -3418,7 +3418,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ### Task 8: `store` Google Drive: TLS client, OAuth login and refresh, adapter
 
-Spec: [storage-backends §Google Drive (live)](../../specs/storage-backends.md#google-drive-live), D26, D27, D28, [security §Network](../../specs/security.md#network). Skills: `leemusync-backend`, `leemusync-security`.
+Spec: [storage-backends §Google Drive (live)](../../specs/storage-backends.md#google-drive-live), D26, D27, D28, [security §Network](../../specs/security.md#network). Skills: `lemusync-backend`, `lemusync-security`.
 
 **Files:**
 - Modify: `Cargo.toml` (`opendal-http-transport-reqwest`, `reqwest`, `rustls`, `rustls-platform-verifier`, `url`, `base64`, `sha2`, `getrandom`, `zeroize`, `serde`, `serde_json` per the table; `keyring` for the dev-dependency)
@@ -3537,7 +3537,7 @@ mod tests {
 }
 ```
 
-- [x] **Step 2: Run** `cargo test -p leemusync-store` → compile errors.
+- [x] **Step 2: Run** `cargo test -p lemusync-store` → compile errors.
 - [x] **Step 3: Implement `http.rs`** (above its tests):
 
 ```rust
@@ -3561,7 +3561,7 @@ pub fn http_client() -> Result<reqwest::Client, StoreError> {
         .tls_backend_preconfigured(tls)
         .https_only(true)
         .timeout(Duration::from_secs(60))
-        .user_agent(concat!("leemusync/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("lemusync/", env!("CARGO_PKG_VERSION")))
         .build()
         .map_err(|e| StoreError::new(ErrorClass::Permanent, &e.to_string()))
 }
@@ -3588,7 +3588,7 @@ const TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
 const SCOPE: &str = "https://www.googleapis.com/auth/drive.file";
 const LOGIN_TIMEOUT: Duration = Duration::from_secs(300);
 const MAX_REQUEST: usize = 8 * 1024;
-const DONE_PAGE: &str = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nConnection: close\r\n\r\n<!doctype html><meta charset=utf-8><title>LeemuSync</title><p>LeemuSync: you can close this tab.</p><p>LeemuSync: ya puedes cerrar esta pestaña.</p>";
+const DONE_PAGE: &str = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nConnection: close\r\n\r\n<!doctype html><meta charset=utf-8><title>LemuSync</title><p>LemuSync: you can close this tab.</p><p>LemuSync: ya puedes cerrar esta pestaña.</p>";
 
 pub struct OAuthClient {
     pub client_id: String,
@@ -3812,7 +3812,7 @@ use crate::StoreError;
 const REFRESH_MARGIN_MS: u64 = 60_000;
 
 pub struct GdriveConfig {
-    /// Folder inside "My Drive", e.g. `/`. LeemuSync's own objects live under `leemusync/`.
+    /// Folder inside "My Drive", e.g. `/`. LemuSync's own objects live under `lemusync/`.
     pub root: String,
     pub client: OAuthClient,
     pub refresh_token: Zeroizing<String>,
@@ -3869,29 +3869,29 @@ impl Store {
 
 ```rust
 //! One-time login for the live Drive test. Stores the refresh token and client secret in the OS
-//! keystore (service `leemusync-test`). Usage:
-//!   LEEMUSYNC_TEST_GDRIVE_CLIENT_ID=<id> cargo run -p leemusync-store --example gdrive_login
+//! keystore (service `lemusync-test`). Usage:
+//!   LEMUSYNC_TEST_GDRIVE_CLIENT_ID=<id> cargo run -p lemusync-store --example gdrive_login
 
 use std::io::BufRead as _;
 
-use leemusync_store::oauth::{self, OAuthClient};
+use lemusync_store::oauth::{self, OAuthClient};
 use zeroize::Zeroizing;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let client_id = std::env::var("LEEMUSYNC_TEST_GDRIVE_CLIENT_ID")?;
+    let client_id = std::env::var("LEMUSYNC_TEST_GDRIVE_CLIENT_ID")?;
     eprintln!("Paste the OAuth client secret and press Enter (it is not echoed back):");
     let mut secret = Zeroizing::new(String::new());
     std::io::stdin().lock().read_line(&mut secret)?;
     let secret = Zeroizing::new(secret.trim().to_owned());
     let client = OAuthClient { client_id, client_secret: Some(secret.clone()) };
-    let http = leemusync_store::http::http_client()?;
+    let http = lemusync_store::http::http_client()?;
     let pending = oauth::start_login(&client).await?;
     eprintln!("Open this URL in your browser:\n{}", pending.url());
     let tokens = pending.finish(&client, &http).await?;
-    keyring::Entry::new("leemusync-test", "gdrive-refresh")?.set_password(&tokens.refresh_token)?;
-    keyring::Entry::new("leemusync-test", "gdrive-client-secret")?.set_password(&secret)?;
-    eprintln!("Saved to the keystore. Run: cargo test -p leemusync-store --test conformance -- --ignored");
+    keyring::Entry::new("lemusync-test", "gdrive-refresh")?.set_password(&tokens.refresh_token)?;
+    keyring::Entry::new("lemusync-test", "gdrive-client-secret")?.set_password(&secret)?;
+    eprintln!("Saved to the keystore. Run: cargo test -p lemusync-store --test conformance -- --ignored");
     Ok(())
 }
 ```
@@ -3900,13 +3900,13 @@ Add `tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }` and
 
 ```rust
 #[tokio::test]
-#[ignore = "live Google Drive: run `cargo run -p leemusync-store --example gdrive_login` first"]
+#[ignore = "live Google Drive: run `cargo run -p lemusync-store --example gdrive_login` first"]
 async fn gdrive_conformance() {
-    use leemusync_store::{GdriveConfig, oauth::OAuthClient};
+    use lemusync_store::{GdriveConfig, oauth::OAuthClient};
     use zeroize::Zeroizing;
-    let client_id = std::env::var("LEEMUSYNC_TEST_GDRIVE_CLIENT_ID").unwrap();
-    let secret = keyring::Entry::new("leemusync-test", "gdrive-client-secret").unwrap().get_password().unwrap();
-    let refresh = keyring::Entry::new("leemusync-test", "gdrive-refresh").unwrap().get_password().unwrap();
+    let client_id = std::env::var("LEMUSYNC_TEST_GDRIVE_CLIENT_ID").unwrap();
+    let secret = keyring::Entry::new("lemusync-test", "gdrive-client-secret").unwrap().get_password().unwrap();
+    let refresh = keyring::Entry::new("lemusync-test", "gdrive-refresh").unwrap().get_password().unwrap();
     let store = Store::gdrive(GdriveConfig {
         root: "/".into(),
         client: OAuthClient { client_id, client_secret: Some(Zeroizing::new(secret)) },
@@ -3914,12 +3914,12 @@ async fn gdrive_conformance() {
     })
     .unwrap();
     let run = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis();
-    suite(&store, &format!("leemusync-conformance/{run}/")).await;
+    suite(&store, &format!("lemusync-conformance/{run}/")).await;
 }
 ```
 
-- [x] **Step 7: Run** `cargo test -p leemusync-store && cargo clippy -p leemusync-store --all-targets -- -D warnings` → PASS (the live test stays ignored). Then check TLS: `cargo tree -i aws-lc-sys -e normal` and `cargo tree -i openssl-sys -e normal` must both print `did not match any packages`.
-- [ ] **Step 8: Live run (maintainer, once).** With the maintainer's Desktop OAuth client (SP6 setup, [storage-backends §Google Drive (live)](../../specs/storage-backends.md#google-drive-live)): run the example, log in, then `LEEMUSYNC_TEST_GDRIVE_CLIENT_ID=<id> cargo test -p leemusync-store --test conformance -- --ignored`. Expected: PASS. Record the date, OpenDAL 0.59.5 and the result in storage-backends §Google Drive (live), and delete the `leemusync-conformance` folder in Drive by hand. If Drive's `list` returns sizes of 0, the suite still passes (it compares names only).
+- [x] **Step 7: Run** `cargo test -p lemusync-store && cargo clippy -p lemusync-store --all-targets -- -D warnings` → PASS (the live test stays ignored). Then check TLS: `cargo tree -i aws-lc-sys -e normal` and `cargo tree -i openssl-sys -e normal` must both print `did not match any packages`.
+- [ ] **Step 8: Live run (maintainer, once).** With the maintainer's Desktop OAuth client (SP6 setup, [storage-backends §Google Drive (live)](../../specs/storage-backends.md#google-drive-live)): run the example, log in, then `LEMUSYNC_TEST_GDRIVE_CLIENT_ID=<id> cargo test -p lemusync-store --test conformance -- --ignored`. Expected: PASS. Record the date, OpenDAL 0.59.5 and the result in storage-backends §Google Drive (live), and delete the `lemusync-conformance` folder in Drive by hand. If Drive's `list` returns sizes of 0, the suite still passes (it compares names only).
 - [x] **Step 9: Commit.** Update `docs/specs/storage-backends.md` (V-STORE-7 code pointer `crates/store/src/{oauth,gdrive}.rs`) and `docs/specs/security.md` V-SEC-4 ("store errors pass through `crates/store/src/redact.rs`; tests cover the token URL, JSON bodies and Bearer headers"). `just check`, then:
 
 ```bash
@@ -3978,9 +3978,9 @@ mod tests {
 }
 ```
 
-- [x] **Step 2: Run** `cargo test -p leemusync-api` → compile errors.
+- [x] **Step 2: Run** `cargo test -p lemusync-api` → compile errors.
 - [x] **Step 3: Implement** every type in the Interfaces list, in that order, in `crates/api/src/lib.rs` under the existing doc comment, with `pub` fields, the derives above and a one-line `///` doc per type. Use `pub const API_VERSION: u32 = 1;`.
-- [x] **Step 4: Run** `cargo test -p leemusync-api && cargo clippy -p leemusync-api --all-targets -- -D warnings` → PASS.
+- [x] **Step 4: Run** `cargo test -p lemusync-api && cargo clippy -p lemusync-api --all-targets -- -D warnings` → PASS.
 - [x] **Step 5: Commit** (`just check` first): `feat(api): add versioned report types for the CLI's --json output` with the trailer.
 
 ---
@@ -3998,10 +3998,10 @@ Spec: [config-and-cli §Locations, §Config file](../../specs/config-and-cli.md#
 failpoints = []
 
 [dependencies]
-leemusync-api = { path = "../api" }
-leemusync-core = { path = "../core" }
-leemusync-crypto = { path = "../crypto" }
-leemusync-store = { path = "../store" }
+lemusync-api = { path = "../api" }
+lemusync-core = { path = "../core" }
+lemusync-crypto = { path = "../crypto" }
+lemusync-store = { path = "../store" }
 directories = { workspace = true }
 rusqlite = { workspace = true }
 serde = { workspace = true }
@@ -4013,7 +4013,7 @@ toml = { workspace = true }
 zeroize = { workspace = true }
 
 [dev-dependencies]
-leemusync-engine = { path = ".", features = ["failpoints"] }
+lemusync-engine = { path = ".", features = ["failpoints"] }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
@@ -4031,12 +4031,12 @@ keyring = { workspace = true, features = ["windows-native"] }
 - Modify: `crates/engine/src/lib.rs`
 
 **Interfaces:**
-- Consumes: `leemusync_core::{DeviceId, VersionId, StreamId, PlayerId, manifest::FileEntry}`, `leemusync_crypto::{random_bytes, KdfParams}`, `leemusync_store::{StoreError, ErrorClass}`.
+- Consumes: `lemusync_core::{DeviceId, VersionId, StreamId, PlayerId, manifest::FileEntry}`, `lemusync_crypto::{random_bytes, KdfParams}`, `lemusync_store::{StoreError, ErrorClass}`.
 - Produces:
   - `EngineError` (variants `Usage(String)`, `Config(String)`, `Store(StoreError)`, `Io(String)`, `Crypto(CryptoError)`, `Unlock`, `Locked(String)`, `EmulatorRunning(String)`, `NotGranted(String)`, `NotSetUp(&'static str)`, `Secrets(String)`, `Data(String)`, `NeedsConfirmation`, `Busy(String)`, `Injected(&'static str)`), with `code(&self) -> &'static str` and `exit_code(&self) -> u8` ([config-and-cli §Exit codes](../../specs/config-and-cli.md#exit-codes): usage/not set up/needs confirmation → 2, config → 3, store `Auth`/`Transient` → 6, everything else → 1).
-  - `Locations { config_dir, data_dir, home, xdg_data, xdg_config }` (`PathBuf`s) with `Locations::from_os() -> Result<Locations, EngineError>` and `Locations::under(root: &Path) -> Locations` (tests: `root/config/leemusync`, `root/data/leemusync`, `root/home`, `root/home/.local/share`, `root/home/.config`).
+  - `Locations { config_dir, data_dir, home, xdg_data, xdg_config }` (`PathBuf`s) with `Locations::from_os() -> Result<Locations, EngineError>` and `Locations::under(root: &Path) -> Locations` (tests: `root/config/lemusync`, `root/data/lemusync`, `root/home`, `root/home/.local/share`, `root/home/.config`).
   - `LocalConfig { config_version, device: DeviceSection { id: DeviceId, name: String }, repo: Option<String>, backend: Option<BackendConfig>, grants: Vec<PathBuf>, emulators: BTreeMap<String, EmulatorOverride> }`, `BackendConfig::{Gdrive { root: String, client_id: String }, Fs { path: PathBuf }}`, `EmulatorOverride { root: Option<PathBuf> }`, `LocalConfig::{new, load, save}`.
-  - `trait SecretStore: Send + Sync { fn get(&self, name: &str) -> Result<Option<Zeroizing<String>>, EngineError>; fn set(&self, name: &str, value: &str) -> Result<(), EngineError>; fn delete(&self, name: &str) -> Result<(), EngineError>; }`, `KeyringSecrets` (service `leemusync`), `MemorySecrets::default()`; name helpers `secret_master(repo: &str)`, `secret_gdrive_refresh(device: DeviceId)`, `secret_gdrive_client(device: DeviceId)`.
+  - `trait SecretStore: Send + Sync { fn get(&self, name: &str) -> Result<Option<Zeroizing<String>>, EngineError>; fn set(&self, name: &str, value: &str) -> Result<(), EngineError>; fn delete(&self, name: &str) -> Result<(), EngineError>; }`, `KeyringSecrets` (service `lemusync`), `MemorySecrets::default()`; name helpers `secret_master(repo: &str)`, `secret_gdrive_refresh(device: DeviceId)`, `secret_gdrive_client(device: DeviceId)`.
   - `State` with `open(data_dir: &Path) -> Result<State, EngineError>` (takes the exclusive lock), `stream(&self, id: &StreamId) -> Result<Option<StreamRow>, EngineError>`, `put_stream(&self, row: &StreamRow) -> Result<(), EngineError>`, `cached_manifest(&self, stream: &StreamId, id: &VersionId) -> Result<Option<Vec<u8>>, EngineError>`, `cache_manifest(&self, stream: &StreamId, id: &VersionId, json: &[u8]) -> Result<(), EngineError>`, `cached_config(&self, id: &VersionId) -> Result<Option<Vec<u8>>, EngineError>`, `cache_config(&self, id: &VersionId, json: &[u8]) -> Result<(), EngineError>`, `journal_put(&self, e: &JournalEntry) -> Result<(), EngineError>`, `journal_all(&self) -> Result<Vec<JournalEntry>, EngineError>`, `journal_delete(&self, op: &str) -> Result<(), EngineError>`, `meta(&self, key: &str) -> Result<Option<String>, EngineError>`, `set_meta(&self, key: &str, value: &str) -> Result<(), EngineError>`.
   - `StreamRow { stream: StreamId, player: PlayerId, emulator: String, game: String, base: Option<VersionId>, base_files: Vec<FileEntry>, highest_seen: Option<VersionId>, replace_local: bool }`; `JournalEntry { op: String, stream: StreamId, kind: String, step: String, data: String }`.
   - `fsx::{write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()>, ensure_no_symlinks(root: &Path, path: &Path) -> io::Result<()>, list_files(dir: &Path) -> io::Result<Vec<(String, std::fs::Metadata)>>, copy_tree(src: &Path, dst: &Path) -> io::Result<()>, mtime_ms(meta: &Metadata) -> i64}`.
@@ -4095,7 +4095,7 @@ mod tests {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use leemusync_core::{Hash32, VersionId};
+    use lemusync_core::{Hash32, VersionId};
 
     fn row() -> StreamRow {
         StreamRow {
@@ -4146,7 +4146,7 @@ mod tests {
             locations: Locations::under(root),
             secrets: Arc::new(MemorySecrets::default()),
             processes: Arc::new(FakeProbe::default()),
-            kdf: leemusync_crypto::KdfParams { m_kib: 19_456, t: 1, p: 1 },
+            kdf: lemusync_crypto::KdfParams { m_kib: 19_456, t: 1, p: 1 },
         }
     }
 
@@ -4164,7 +4164,7 @@ mod tests {
     fn exit_codes_follow_the_cli_spec() {
         assert_eq!(EngineError::Usage("x".into()).exit_code(), 2);
         assert_eq!(EngineError::Config("x".into()).exit_code(), 3);
-        let auth = leemusync_store::StoreError::new(leemusync_store::ErrorClass::Auth, "x");
+        let auth = lemusync_store::StoreError::new(lemusync_store::ErrorClass::Auth, "x");
         assert_eq!(EngineError::Store(auth).exit_code(), 6);
         assert_eq!(EngineError::Unlock.exit_code(), 1);
     }
@@ -4193,20 +4193,20 @@ mod tests {
     #[ignore = "uses the real OS keystore"]
     fn keyring_round_trip() {
         let s = KeyringSecrets;
-        s.set("leemusync-selftest", "x").unwrap();
-        assert_eq!(s.get("leemusync-selftest").unwrap().as_deref().map(String::as_str), Some("x"));
-        s.delete("leemusync-selftest").unwrap();
+        s.set("lemusync-selftest", "x").unwrap();
+        assert_eq!(s.get("lemusync-selftest").unwrap().as_deref().map(String::as_str), Some("x"));
+        s.delete("lemusync-selftest").unwrap();
     }
 }
 ```
 
-- [x] **Step 2: Run** `cargo test -p leemusync-engine` → compile errors.
+- [x] **Step 2: Run** `cargo test -p lemusync-engine` → compile errors.
 - [x] **Step 3: Implement `error.rs`:**
 
 ```rust
 //! Engine errors. Applications map `code()` to localised text (architecture §Engine internals).
 
-use leemusync_store::{ErrorClass, StoreError};
+use lemusync_store::{ErrorClass, StoreError};
 
 #[derive(Debug, thiserror::Error)]
 pub enum EngineError {
@@ -4219,10 +4219,10 @@ pub enum EngineError {
     #[error("file system: {0}")]
     Io(String),
     #[error("crypto: {0}")]
-    Crypto(#[from] leemusync_crypto::CryptoError),
+    Crypto(#[from] lemusync_crypto::CryptoError),
     #[error("wrong passphrase or recovery key")]
     Unlock,
-    #[error("another LeemuSync process is using {0}")]
+    #[error("another LemuSync process is using {0}")]
     Locked(String),
     #[error("{0} is running; close it first")]
     EmulatorRunning(String),
@@ -4292,7 +4292,7 @@ impl From<rusqlite::Error> for EngineError {
 - [x] **Step 4: Implement `locations.rs`:**
 
 ```rust
-//! Where `LeemuSync` keeps its files (config-and-cli §Locations).
+//! Where `LemuSync` keeps its files (config-and-cli §Locations).
 
 use std::path::{Path, PathBuf};
 
@@ -4311,7 +4311,7 @@ impl Locations {
     /// # Errors
     /// `Config` when the OS reports no home directory.
     pub fn from_os() -> Result<Self, EngineError> {
-        let project = directories::ProjectDirs::from("", "", "leemusync")
+        let project = directories::ProjectDirs::from("", "", "lemusync")
             .ok_or_else(|| EngineError::Config("no_home_dir".into()))?;
         let base = directories::BaseDirs::new()
             .ok_or_else(|| EngineError::Config("no_home_dir".into()))?;
@@ -4329,8 +4329,8 @@ impl Locations {
     pub fn under(root: &Path) -> Self {
         let home = root.join("home");
         Self {
-            config_dir: root.join("config/leemusync"),
-            data_dir: root.join("data/leemusync"),
+            config_dir: root.join("config/lemusync"),
+            data_dir: root.join("data/lemusync"),
             xdg_data: home.join(".local/share"),
             xdg_config: home.join(".config"),
             home,
@@ -4350,7 +4350,7 @@ use std::io::{self, Write as _};
 use std::path::{Component, Path};
 use std::time::UNIX_EPOCH;
 
-const TEMP_PREFIX: &str = ".leemusync-";
+const TEMP_PREFIX: &str = ".lemusync-";
 const TEMP_SUFFIX: &str = ".tmp";
 
 /// `write_atomic`'s temp names. A crash can orphan one; it is never snapshotted or restored.
@@ -4370,7 +4370,7 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
         .parent()
         .ok_or_else(|| io::Error::other("path has no parent"))?;
     fs::create_dir_all(parent)?;
-    let random = leemusync_crypto::random_bytes::<8>().map_err(io::Error::other)?;
+    let random = lemusync_crypto::random_bytes::<8>().map_err(io::Error::other)?;
     let name = random.iter().fold(String::new(), |mut acc, b| {
         let _ = write!(acc, "{b:02x}");
         acc
@@ -4525,7 +4525,7 @@ pub fn mtime_ms(meta: &Metadata) -> i64 {
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use leemusync_core::DeviceId;
+use lemusync_core::DeviceId;
 use serde::{Deserialize, Serialize};
 
 use crate::{EngineError, fsx};
@@ -4629,12 +4629,12 @@ impl LocalConfig {
 use std::collections::BTreeMap;
 use std::sync::Mutex;
 
-use leemusync_core::DeviceId;
+use lemusync_core::DeviceId;
 use zeroize::Zeroizing;
 
 use crate::EngineError;
 
-const SERVICE: &str = "leemusync";
+const SERVICE: &str = "lemusync";
 
 pub trait SecretStore: Send + Sync {
     /// # Errors
@@ -4670,7 +4670,7 @@ pub fn secret_gdrive_client(device: DeviceId) -> String {
 pub struct KeyringSecrets;
 
 fn keyring_err(e: &keyring::Error) -> EngineError {
-    EngineError::Secrets(leemusync_store::redact(&e.to_string()))
+    EngineError::Secrets(lemusync_store::redact(&e.to_string()))
 }
 
 impl SecretStore for KeyringSecrets {
@@ -4739,8 +4739,8 @@ impl SecretStore for MemorySecrets {
 use std::fs::File;
 use std::path::Path;
 
-use leemusync_core::manifest::FileEntry;
-use leemusync_core::{PlayerId, StreamId, VersionId};
+use lemusync_core::manifest::FileEntry;
+use lemusync_core::{PlayerId, StreamId, VersionId};
 use rusqlite::{Connection, OptionalExtension, params};
 
 use crate::EngineError;
@@ -4988,7 +4988,7 @@ impl State {
         })?;
         rows.map(|row| {
             let (op, stream, kind, step, data) = row?;
-            let hash = leemusync_core::Hash32::from_hex(&stream)
+            let hash = lemusync_core::Hash32::from_hex(&stream)
                 .map_err(|e| EngineError::Io(e.to_string()))?;
             Ok(JournalEntry {
                 op,
@@ -5131,8 +5131,8 @@ mod state;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use leemusync_core::{DeviceId, VersionId};
-use leemusync_crypto::KdfParams;
+use lemusync_core::{DeviceId, VersionId};
+use lemusync_crypto::KdfParams;
 
 pub use error::EngineError;
 pub use failpoints::Failpoints;
@@ -5230,14 +5230,14 @@ pub(crate) fn now_ms() -> u64 {
 pub(crate) fn new_version_id() -> Result<VersionId, EngineError> {
     Ok(VersionId::from_parts(
         now_ms(),
-        leemusync_crypto::random_bytes::<10>()?,
+        lemusync_crypto::random_bytes::<10>()?,
     ))
 }
 ```
 
 `save_config`, `Engine::state`, `Engine::env` and `Engine::failpoints` are first read in Tasks 11–14. Until then put `#[allow(dead_code)] // read from Task 11` on `save_config` and on the `Engine` struct, and remove both attributes in Task 14 once everything is used (`-D warnings` turns dead-code warnings into errors).
 
-- [x] **Step 11: Run** `cargo test -p leemusync-engine && cargo clippy -p leemusync-engine --all-targets -- -D warnings` → PASS. Run `cargo xtask layers` → ok.
+- [x] **Step 11: Run** `cargo test -p lemusync-engine && cargo clippy -p lemusync-engine --all-targets -- -D warnings` → PASS. Run `cargo xtask layers` → ok.
 - [x] **Step 12: Commit.** `docs/specs/config-and-cli.md` **Code:** `` `crates/engine/src/local_config.rs`, `crates/cli/` ``; `docs/specs/reliability.md` I4 gains "(`crates/engine/src/fsx.rs`)". `just check`, then:
 
 ```bash
@@ -5250,7 +5250,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ---
 ### Task 11: `engine` repo: `repo.json`, encrypted objects, repo-config stream, `init`/`join`/backend/players
 
-Spec: [sync-model §Remote layout, §Repo config](../../specs/sync-model.md#remote-layout), [security §Keys](../../specs/security.md#keys), D30, V-STORE-8 handling (Task 1). Skill: `leemusync-security`.
+Spec: [sync-model §Remote layout, §Repo config](../../specs/sync-model.md#remote-layout), [security §Keys](../../specs/security.md#keys), D30, V-STORE-8 handling (Task 1). Skill: `lemusync-security`.
 
 **Files:**
 - Create: `crates/engine/src/repo.rs`, `crates/engine/src/repo_config.rs`, `crates/engine/src/setup.rs` (the `Engine` methods for backend, init, join, players)
@@ -5260,7 +5260,7 @@ Spec: [sync-model §Remote layout, §Repo config](../../specs/sync-model.md#remo
 - Consumes: Tasks 2–4 (`core`), Task 6 (`crypto`), Tasks 7–8 (`Store`, `GdriveConfig`, `oauth`), Task 9 (`InitReport`), Task 10 (engine foundation).
 - Produces:
   - `repo::Repo` (crate-private) with `create(store: Store, passphrase: &str, kdf: KdfParams) -> Result<(Repo, Key, RecoveryKey), EngineError>`, `open(store: Store, unlock: Unlock<'_>) -> Result<(Repo, Key), EngineError>`, `id() -> &str`, `blob_id(&[u8]) -> BlobId`, `stream_id(PlayerId, emulator: &str, game: &str) -> StreamId`, `put_blob(&[u8]) -> Result<BlobId, _>`, `get_blob(&BlobId) -> Result<Vec<u8>, _>` (verifies the keyed hash), `put_version(&Version)`, `list_versions(&StreamId) -> Result<Vec<VersionId>, _>`, `get_version(&StreamId, &VersionId) -> Result<Vec<u8>, _>` (decrypted JSON), `put_config(&ConfigVersion)`, `list_configs() -> Result<Vec<VersionId>, _>`, `get_config(&VersionId) -> Result<Vec<u8>, _>`, `put_device(&DeviceRecord)`. `Unlock::{Passphrase(&str), Recovery(&RecoveryKey), Master(Key)}`.
-  - Remote names (all lowercase): `leemusync/repo.json`, `leemusync/blobs/<2 hex>/<blob id>`, `leemusync/streams/<stream id>/versions/<version id>`, `leemusync/config/versions/<version id>`, `leemusync/devices/<device id>`. AAD strings: `"blob\0<blob id>"`, `"version\0<stream id>\0<version id>"`, `"config\0<version id>"`, `"device\0<device id>"`, `"wrap\0passphrase\0<repo id>"`, `"wrap\0recovery\0<repo id>"`, `"check\0<repo id>"`.
+  - Remote names (all lowercase): `lemusync/repo.json`, `lemusync/blobs/<2 hex>/<blob id>`, `lemusync/streams/<stream id>/versions/<version id>`, `lemusync/config/versions/<version id>`, `lemusync/devices/<device id>`. AAD strings: `"blob\0<blob id>"`, `"version\0<stream id>\0<version id>"`, `"config\0<version id>"`, `"device\0<device id>"`, `"wrap\0passphrase\0<repo id>"`, `"wrap\0recovery\0<repo id>"`, `"check\0<repo id>"`.
   - `repo_config::{load, update, write, LoadedConfig}` (crate-private): `load(&Repo, &State) -> Result<LoadedConfig, EngineError>` where `LoadedConfig { config: RepoConfig, heads: Vec<VersionId>, renamed: Vec<String>, invalid: usize }`; `write(&Repo, &State, DeviceId, parents: Vec<VersionId>, config: RepoConfig) -> Result<VersionId, EngineError>`; `update(&Repo, &State, DeviceId, f: impl FnOnce(&mut RepoConfig) -> Result<(), EngineError>) -> Result<(RepoConfig, Vec<Warning>), EngineError>` (the warnings are `LoadedConfig::warnings()`: `InvalidVersion` with the count, `PlayerRenamed` with the new name, `ConfigMerged` when several heads were merged; D30, the CLI says so).
   - Public `Engine` methods: `backend_add_fs(&mut self, path: &Path) -> Result<(), EngineError>`; `gdrive_login_start(&mut self, client_id: &str, client_secret: &str) -> Result<GdriveLogin, EngineError>` (async) with `GdriveLogin::url(&self) -> &str`; `gdrive_login_finish(&mut self, login: GdriveLogin) -> Result<(), EngineError>` (async); `init(&mut self, passphrase: &str) -> Result<(InitReport, Zeroizing<String>), EngineError>` (async; the `Zeroizing<String>` is the recovery key's display form, shown once; once `repo.json` is committed `init` never returns `Err`: a later failed step becomes a `SetupIncomplete` warning in `InitReport.warnings` whose detail is the error code, and `join` with the passphrase finishes the device); `join(&mut self, secret: JoinSecret) -> Result<InitReport, EngineError>` (async) with `JoinSecret::{Passphrase(String), Recovery(String)}`; `players_add(&mut self, name: &str) -> Result<Vec<Warning>, EngineError>` (async; the config merge's warnings); `players_list(&mut self) -> Result<Vec<String>, EngineError>` (async). Crate-private: `store(&self) -> Result<Store, EngineError>`, `ensure_repo(&mut self) -> Result<(), EngineError>` (async, opens the repo once with the cached master key) and `repo_ref(&self) -> Result<&Repo, EngineError>`. Call `ensure_repo().await?` first, then borrow `repo_ref()?` and `&self.state` side by side (two shared borrows).
   - `DeviceRecord { format: u32, id: DeviceId, name: String, created_at: u64 }` (serde, sealed like every object).
@@ -5271,7 +5271,7 @@ Spec: [sync-model §Remote layout, §Repo config](../../specs/sync-model.md#remo
 #[cfg(test)]
 mod tests {
     use super::*;
-    use leemusync_crypto::KdfParams;
+    use lemusync_crypto::KdfParams;
 
     const FAST: KdfParams = KdfParams { m_kib: 19_456, t: 1, p: 1 };
 
@@ -5319,7 +5319,7 @@ mod tests {
         let b = repo.put_blob(b"save B").await.unwrap();
         // A server swapping two objects is caught by the AAD.
         let b_bytes = s.get(&blob_path(&b)).await.unwrap();
-        s.put(&blob_path(&a), b_bytes, leemusync_store::PutMode::Overwrite).await.unwrap();
+        s.put(&blob_path(&a), b_bytes, lemusync_store::PutMode::Overwrite).await.unwrap();
         assert!(repo.get_blob(&a).await.is_err());
     }
 
@@ -5327,25 +5327,25 @@ mod tests {
     async fn versions_list_and_read_back() {
         let (_d, s) = store();
         let (repo, _, _) = Repo::create(s, "p", FAST).await.unwrap();
-        let stream = repo.stream_id(leemusync_core::PlayerId(VersionId::from_parts(1, [1; 10])), "cemu", "101c9400");
+        let stream = repo.stream_id(lemusync_core::PlayerId(VersionId::from_parts(1, [1; 10])), "cemu", "101c9400");
         assert!(repo.list_versions(&stream).await.unwrap().is_empty());
         let id = VersionId::from_parts(5, [5; 10]);
-        let v = leemusync_core::manifest::Version {
+        let v = lemusync_core::manifest::Version {
             format: 1,
             stream,
             id,
             parents: vec![],
             device: DeviceId(VersionId::from_parts(2, [2; 10])),
-            player: leemusync_core::PlayerId(VersionId::from_parts(1, [1; 10])),
+            player: lemusync_core::PlayerId(VersionId::from_parts(1, [1; 10])),
             created_at: 5,
-            emulator: leemusync_core::manifest::EmulatorRef { id: "cemu".into(), version: None },
+            emulator: lemusync_core::manifest::EmulatorRef { id: "cemu".into(), version: None },
             files: vec![],
-            meta: leemusync_core::manifest::Meta { session_secs: None, changed_files: 0, takeover: false, note: None },
+            meta: lemusync_core::manifest::Meta { session_secs: None, changed_files: 0, takeover: false, note: None },
         };
         repo.put_version(&v).await.unwrap();
         assert_eq!(repo.list_versions(&stream).await.unwrap(), vec![id]);
         let json = repo.get_version(&stream, &id).await.unwrap();
-        assert_eq!(leemusync_core::manifest::Version::from_json(&json, &stream, &id).unwrap(), v);
+        assert_eq!(lemusync_core::manifest::Version::from_json(&json, &stream, &id).unwrap(), v);
     }
 }
 ```
@@ -5356,13 +5356,13 @@ At the bottom of `crates/engine/src/repo_config.rs`:
 #[cfg(test)]
 mod tests {
     use super::*;
-    use leemusync_core::PlayerId;
+    use lemusync_core::PlayerId;
 
     #[tokio::test]
     async fn concurrent_edits_merge_by_union() {
         let dir = tempfile::tempdir().unwrap();
-        let store = leemusync_store::Store::fs(&dir.path().join("remote")).unwrap();
-        let fast = leemusync_crypto::KdfParams { m_kib: 19_456, t: 1, p: 1 };
+        let store = lemusync_store::Store::fs(&dir.path().join("remote")).unwrap();
+        let fast = lemusync_crypto::KdfParams { m_kib: 19_456, t: 1, p: 1 };
         let (repo, _, _) = crate::repo::Repo::create(store, "p", fast).await.unwrap();
         let state = crate::State::open(&dir.path().join("data")).unwrap();
         let dev = DeviceId(VersionId::from_parts(1, [1; 10]));
@@ -5413,32 +5413,32 @@ mod tests {
         let mut c = Engine::open(test_env(&root.path().join("c"))).unwrap();
         c.backend_add_fs(&remote).unwrap();
         c.join(JoinSecret::Recovery(recovery.to_lowercase())).await.unwrap();
-        let config = std::fs::read_to_string(root.path().join("c/config/leemusync/config.toml")).unwrap();
+        let config = std::fs::read_to_string(root.path().join("c/config/lemusync/config.toml")).unwrap();
         assert!(!config.contains("pass phrase") && !config.to_lowercase().contains(&recovery.to_lowercase()));
     }
 }
 ```
 
-- [x] **Step 2: Run** `cargo test -p leemusync-engine` → compile errors.
+- [x] **Step 2: Run** `cargo test -p lemusync-engine` → compile errors.
 - [x] **Step 3: Implement `repo.rs`** (above its tests):
 
 ```rust
 //! The remote repo: `repo.json`, encrypted objects, names (sync-model §Remote layout).
 
-use leemusync_core::config::ConfigVersion;
-use leemusync_core::manifest::Version;
-use leemusync_core::{BlobId, DeviceId, Hash32, PlayerId, StreamId, VersionId};
-use leemusync_crypto::{
+use lemusync_core::config::ConfigVersion;
+use lemusync_core::manifest::Version;
+use lemusync_core::{BlobId, DeviceId, Hash32, PlayerId, StreamId, VersionId};
+use lemusync_crypto::{
     CryptoError, KdfParams, Key, RecoveryKey, RepoKeys, keyed_hash, open, passphrase_kek, random_bytes, seal,
     unwrap_key, wrap,
 };
-use leemusync_store::{ErrorClass, PutMode, Store};
+use lemusync_store::{ErrorClass, PutMode, Store};
 use serde::{Deserialize, Serialize};
 
 use crate::EngineError;
 
-pub(crate) const REPO_JSON: &str = "leemusync/repo.json";
-const CHECK: &[u8] = b"leemusync-repo-check";
+pub(crate) const REPO_JSON: &str = "lemusync/repo.json";
+const CHECK: &[u8] = b"lemusync-repo-check";
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -5508,11 +5508,11 @@ fn lower(id: &VersionId) -> String {
 
 pub(crate) fn blob_path(id: &BlobId) -> String {
     let h = id.0.to_hex();
-    format!("leemusync/blobs/{}/{h}", &h[..2])
+    format!("lemusync/blobs/{}/{h}", &h[..2])
 }
 
 fn version_dir(stream: &StreamId) -> String {
-    format!("leemusync/streams/{stream}/versions/")
+    format!("lemusync/streams/{stream}/versions/")
 }
 
 fn last_id(path: &str) -> Option<VersionId> {
@@ -5526,7 +5526,7 @@ fn data_err(e: &CryptoError) -> EngineError {
 impl Repo {
     pub(crate) async fn create(store: Store, passphrase: &str, kdf: KdfParams) -> Result<(Self, Key, RecoveryKey), EngineError> {
         if store.stat(REPO_JSON).await?.is_some() {
-            return Err(EngineError::Usage("a LeemuSync repo already exists on this storage; use `leemusync join`".into()));
+            return Err(EngineError::Usage("a LemuSync repo already exists on this storage; use `lemusync join`".into()));
         }
         let master = Key::random()?;
         let recovery = RecoveryKey::generate()?;
@@ -5547,14 +5547,14 @@ impl Repo {
         let json = serde_json::to_vec(&file).map_err(|e| EngineError::Data(e.to_string()))?;
         match store.put(REPO_JSON, json, PutMode::CreateOnly).await {
             Err(e) if e.class() == ErrorClass::AlreadyExists => {
-                return Err(EngineError::Usage("another device just created a repo here; use `leemusync join`".into()));
+                return Err(EngineError::Usage("another device just created a repo here; use `lemusync join`".into()));
             }
             other => other?,
         }
         // V-STORE-8: Drive may keep two repo.json files and serve the newest. Read back and compare.
         let back = Self::read_file(&store).await?;
         if back.repo_id != repo_id {
-            return Err(EngineError::Usage("another device created a repo at the same time; use `leemusync join`".into()));
+            return Err(EngineError::Usage("another device created a repo at the same time; use `lemusync join`".into()));
         }
         Ok((Self { store, keys, id: repo_id }, master, recovery))
     }
@@ -5648,27 +5648,27 @@ impl Repo {
     pub(crate) async fn put_config(&self, v: &ConfigVersion) -> Result<(), EngineError> {
         let json = v.to_json().map_err(|e| EngineError::Data(e.to_string()))?;
         let sealed = seal(&self.keys.object, format!("config\0{}", v.id).as_bytes(), &json)?;
-        self.store.put(&format!("leemusync/config/versions/{}", lower(&v.id)), sealed, PutMode::CreateOnly).await?;
+        self.store.put(&format!("lemusync/config/versions/{}", lower(&v.id)), sealed, PutMode::CreateOnly).await?;
         Ok(())
     }
 
     pub(crate) async fn list_configs(&self) -> Result<Vec<VersionId>, EngineError> {
         let mut ids: Vec<VersionId> =
-            self.store.list("leemusync/config/versions/").await?.iter().filter_map(|e| last_id(&e.path)).collect();
+            self.store.list("lemusync/config/versions/").await?.iter().filter_map(|e| last_id(&e.path)).collect();
         ids.sort_unstable();
         ids.dedup();
         Ok(ids)
     }
 
     pub(crate) async fn get_config(&self, id: &VersionId) -> Result<Vec<u8>, EngineError> {
-        let sealed = self.store.get(&format!("leemusync/config/versions/{}", lower(id))).await?;
+        let sealed = self.store.get(&format!("lemusync/config/versions/{}", lower(id))).await?;
         open(&self.keys.object, format!("config\0{id}").as_bytes(), &sealed).map_err(|e| data_err(&e))
     }
 
     pub(crate) async fn put_device(&self, d: &DeviceRecord) -> Result<(), EngineError> {
         let json = serde_json::to_vec(d).map_err(|e| EngineError::Data(e.to_string()))?;
         let sealed = seal(&self.keys.object, format!("device\0{}", d.id).as_bytes(), &json)?;
-        match self.store.put(&format!("leemusync/devices/{}", lower(&d.id.0)), sealed, PutMode::CreateOnly).await {
+        match self.store.put(&format!("lemusync/devices/{}", lower(&d.id.0)), sealed, PutMode::CreateOnly).await {
             Err(e) if e.class() == ErrorClass::AlreadyExists => Ok(()),
             other => other.map_err(Into::into),
         }
@@ -5681,9 +5681,9 @@ impl Repo {
 ```rust
 //! The repo-config stream: load (merging several heads, D30), write, update.
 
-use leemusync_core::config::{CONFIG_FORMAT, ConfigVersion, RepoConfig};
-use leemusync_core::heads::{Graph, heads};
-use leemusync_core::{DeviceId, VersionId};
+use lemusync_core::config::{CONFIG_FORMAT, ConfigVersion, RepoConfig};
+use lemusync_core::heads::{Graph, heads};
+use lemusync_core::{DeviceId, VersionId};
 
 use crate::repo::Repo;
 use crate::{EngineError, State, new_version_id, now_ms};
@@ -5765,11 +5765,11 @@ pub(crate) async fn update(
 
 use std::path::Path;
 
-use leemusync_api::{API_VERSION, InitReport};
-use leemusync_core::PlayerId;
-use leemusync_crypto::{Key, RecoveryKey};
-use leemusync_store::oauth::{self, OAuthClient, PendingLogin};
-use leemusync_store::{GdriveConfig, Store};
+use lemusync_api::{API_VERSION, InitReport};
+use lemusync_core::PlayerId;
+use lemusync_crypto::{Key, RecoveryKey};
+use lemusync_store::oauth::{self, OAuthClient, PendingLogin};
+use lemusync_store::{GdriveConfig, Store};
 use zeroize::Zeroizing;
 
 use crate::repo::{DeviceRecord, Repo, Unlock};
@@ -5822,7 +5822,7 @@ impl Engine {
     /// # Errors
     /// `Store(Auth)` for a refused or timed-out login; `Secrets` if the keystore fails.
     pub async fn gdrive_login_finish(&mut self, login: GdriveLogin) -> Result<(), EngineError> {
-        let http = leemusync_store::http::http_client()?;
+        let http = lemusync_store::http::http_client()?;
         let tokens = login.pending.finish(&login.client, &http).await?;
         let device = self.device_id();
         self.env.secrets.set(&secret_gdrive_refresh(device), &tokens.refresh_token)?;
@@ -5836,7 +5836,7 @@ impl Engine {
 
     pub(crate) fn store(&self) -> Result<Store, EngineError> {
         match &self.config.backend {
-            None => Err(EngineError::NotSetUp("storage: run `leemusync backend add`")),
+            None => Err(EngineError::NotSetUp("storage: run `lemusync backend add`")),
             Some(BackendConfig::Fs { path }) => Ok(Store::fs(path)?),
             Some(BackendConfig::Gdrive { root, client_id }) => {
                 let device = self.device_id();
@@ -5844,7 +5844,7 @@ impl Engine {
                     .env
                     .secrets
                     .get(&secret_gdrive_refresh(device))?
-                    .ok_or(EngineError::NotSetUp("Google Drive login: run `leemusync backend login`"))?;
+                    .ok_or(EngineError::NotSetUp("Google Drive login: run `lemusync backend login`"))?;
                 let secret = self.env.secrets.get(&secret_gdrive_client(device))?;
                 Ok(Store::gdrive(GdriveConfig {
                     root: root.clone(),
@@ -5857,13 +5857,13 @@ impl Engine {
 
     pub(crate) async fn ensure_repo(&mut self) -> Result<(), EngineError> {
         if self.repo.is_none() {
-            let repo_id = self.config.repo.clone().ok_or(EngineError::NotSetUp("repo: run `leemusync init` or `join`"))?;
+            let repo_id = self.config.repo.clone().ok_or(EngineError::NotSetUp("repo: run `lemusync init` or `join`"))?;
             let hex = self
                 .env
                 .secrets
                 .get(&secret_master(&repo_id))?
-                .ok_or(EngineError::NotSetUp("repo key: run `leemusync join` again"))?;
-            let bytes = leemusync_core::Hash32::from_hex(&hex).map_err(|_| EngineError::Secrets("bad cached key".into()))?;
+                .ok_or(EngineError::NotSetUp("repo key: run `lemusync join` again"))?;
+            let bytes = lemusync_core::Hash32::from_hex(&hex).map_err(|_| EngineError::Secrets("bad cached key".into()))?;
             let (repo, _) = Repo::open(self.store()?, Unlock::Master(Key::from_bytes(bytes.0))).await?;
             if repo.id() != repo_id {
                 return Err(EngineError::Config("the storage holds a different repo than this device joined".into()));
@@ -5874,7 +5874,7 @@ impl Engine {
     }
 
     pub(crate) fn repo_ref(&self) -> Result<&Repo, EngineError> {
-        self.repo.as_ref().ok_or(EngineError::NotSetUp("repo: run `leemusync init` or `join`"))
+        self.repo.as_ref().ok_or(EngineError::NotSetUp("repo: run `lemusync init` or `join`"))
     }
 
     async fn adopt_repo(&mut self, repo: Repo, master: &Key) -> Result<InitReport, EngineError> {
@@ -5907,7 +5907,7 @@ impl Engine {
         let (repo, master, recovery) = Repo::create(self.store()?, passphrase, self.env.kdf).await?;
         let report = self.adopt_repo(repo, &master).await?;
         let device = self.device_id();
-        repo_config::write(self.repo_ref()?, &self.state, device, vec![], leemusync_core::config::RepoConfig::default()).await?;
+        repo_config::write(self.repo_ref()?, &self.state, device, vec![], lemusync_core::config::RepoConfig::default()).await?;
         Ok((report, recovery.to_display()))
     }
 
@@ -5953,7 +5953,7 @@ Then in `lib.rs`: add `mod repo; mod repo_config; mod setup;`, `pub use setup::{
 
 Note: `players_list` returns names in player-id order, which is creation order because ids are time-ordered. The test relies on that.
 
-- [x] **Step 6: Run** `cargo test -p leemusync-engine && cargo clippy -p leemusync-engine --all-targets -- -D warnings` → PASS.
+- [x] **Step 6: Run** `cargo test -p lemusync-engine && cargo clippy -p lemusync-engine --all-targets -- -D warnings` → PASS.
 - [x] **Step 7: Commit.** `docs/specs/sync-model.md` §Remote layout: add "AAD strings and lowercase object names: `crates/engine/src/repo.rs`." `just check`, then:
 
 ```bash
@@ -5970,7 +5970,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ### Task 12: `engine` Cemu discovery: installs, accounts, save folders, orphans, grants
 
-Spec: [emulator-profiles §Discovery, §Linux paths](../../specs/emulator-profiles.md#discovery), [players-and-accounts §Discovery, §Shared folders](../../specs/players-and-accounts.md#discovery), [security §File-system confinement](../../specs/security.md#file-system-confinement). Skills: `leemusync-emulator-profile`, `leemusync-security`.
+Spec: [emulator-profiles §Discovery, §Linux paths](../../specs/emulator-profiles.md#discovery), [players-and-accounts §Discovery, §Shared folders](../../specs/players-and-accounts.md#discovery), [security §File-system confinement](../../specs/security.md#file-system-confinement). Skills: `lemusync-emulator-profile`, `lemusync-security`.
 
 **Files:**
 - Modify: `Cargo.toml` (`regex`, `roxmltree`), `crates/engine/Cargo.toml` (both `{ workspace = true }`)
@@ -5995,7 +5995,7 @@ Spec: [emulator-profiles §Discovery, §Linux paths](../../specs/emulator-profil
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use leemusync_engine::{EngineEnv, FakeProbe, Locations, MemorySecrets, fsx};
+use lemusync_engine::{EngineEnv, FakeProbe, Locations, MemorySecrets, fsx};
 
 pub const FIXTURE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../profiles/fixtures/cemu/flatpak-botw-two-accounts");
 
@@ -6009,7 +6009,7 @@ pub fn env_with(root: &Path, probe: Arc<FakeProbe>, secrets: Arc<MemorySecrets>)
         locations: Locations::under(root),
         secrets,
         processes: probe,
-        kdf: leemusync_crypto::KdfParams { m_kib: 19_456, t: 1, p: 1 },
+        kdf: lemusync_crypto::KdfParams { m_kib: 19_456, t: 1, p: 1 },
     }
 }
 
@@ -6038,7 +6038,7 @@ mod common;
 use std::path::Path;
 
 use common::{FIXTURE, env, install_fixture};
-use leemusync_engine::Engine;
+use lemusync_engine::Engine;
 
 #[tokio::test]
 async fn flatpak_fixture_matches_expected_toml() {
@@ -6104,9 +6104,9 @@ async fn grants_refuse_home_and_root() {
 }
 ```
 
-Add `toml = { workspace = true }` and `leemusync-crypto = { path = "../crypto" }` to engine `[dev-dependencies]`.
+Add `toml = { workspace = true }` and `lemusync-crypto = { path = "../crypto" }` to engine `[dev-dependencies]`.
 
-- [x] **Step 2: Run** `cargo test -p leemusync-engine --test discovery` → compile errors.
+- [x] **Step 2: Run** `cargo test -p lemusync-engine --test discovery` → compile errors.
 - [x] **Step 3: Implement `grants.rs`:**
 
 ```rust
@@ -6153,8 +6153,8 @@ pub fn require(grants: &[PathBuf], path: &Path) -> Result<PathBuf, EngineError> 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use leemusync_api::{Warning, WarningCode};
-use leemusync_core::profile::{Profile, expand};
+use lemusync_api::{Warning, WarningCode};
+use lemusync_core::profile::{Profile, expand};
 
 use crate::{EngineError, Locations};
 
@@ -6276,8 +6276,8 @@ fn read_xml_key(file: &Path, key: &str) -> Option<String> {
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use leemusync_core::account::{decode_mii_name, key_value};
-use leemusync_core::profile::{PatternPart, Profile, parse_pattern};
+use lemusync_core::account::{decode_mii_name, key_value};
+use lemusync_core::profile::{PatternPart, Profile, parse_pattern};
 
 use crate::profiles::Install;
 use crate::EngineError;
@@ -6408,12 +6408,12 @@ Note: the fixture's `user/common/.keep` makes `user/common` non-empty. In the Fl
 - [x] **Step 6: Implement `scan.rs`:**
 
 ```rust
-//! `leemusync grant` and `leemusync scan`.
+//! `lemusync grant` and `lemusync scan`.
 
 use std::path::{Path, PathBuf};
 
-use leemusync_api::{API_VERSION, AccountReport, InstallReport, SaveReport, ScanReport, Warning, WarningCode};
-use leemusync_core::profile::Profile;
+use lemusync_api::{API_VERSION, AccountReport, InstallReport, SaveReport, ScanReport, Warning, WarningCode};
+use lemusync_core::profile::Profile;
 
 use crate::discover::{Discovery, discover};
 use crate::profiles::{Install, bundled, resolve};
@@ -6530,7 +6530,7 @@ impl Engine {
 
 `lib.rs`: add `mod discover; mod grants; mod profiles; mod scan;`. Because `fsx` is `pub`, the integration test can call `fsx::copy_tree`.
 
-- [x] **Step 7: Run** `cargo test -p leemusync-engine && cargo clippy -p leemusync-engine --all-targets -- -D warnings` → PASS.
+- [x] **Step 7: Run** `cargo test -p lemusync-engine && cargo clippy -p lemusync-engine --all-targets -- -D warnings` → PASS.
 - [x] **Step 8: Commit.** In `docs/specs/emulator-profiles.md` §Discovery add "Implemented for `per_game_user_dir` in `crates/engine/src/{profiles,discover}.rs`; fixture test `crates/engine/tests/discovery.rs`." In `players-and-accounts.md` §Discovery add "Scan: `crates/engine/src/scan.rs`." `just check`, then:
 
 ```bash
@@ -6566,7 +6566,7 @@ Spec: [sync-model §Snapshot rules](../../specs/sync-model.md#snapshot-rules), [
 #[cfg(test)]
 mod tests {
     use super::*;
-    use leemusync_core::Hash32;
+    use lemusync_core::Hash32;
 
     fn fake_id(d: &[u8]) -> BlobId {
         let mut h = [0u8; 32];
@@ -6618,13 +6618,13 @@ At the bottom of `crates/engine/src/upload.rs`:
 mod tests {
     use super::*;
     use crate::repo::Repo;
-    use leemusync_core::{Hash32, VersionId};
+    use lemusync_core::{Hash32, VersionId};
 
     #[tokio::test]
     async fn blobs_first_manifest_last() {
         let dir = tempfile::tempdir().unwrap();
-        let store = leemusync_store::Store::fs(&dir.path().join("remote")).unwrap();
-        let fast = leemusync_crypto::KdfParams { m_kib: 19_456, t: 1, p: 1 };
+        let store = lemusync_store::Store::fs(&dir.path().join("remote")).unwrap();
+        let fast = lemusync_crypto::KdfParams { m_kib: 19_456, t: 1, p: 1 };
         let (repo, _, _) = Repo::create(store, "p", fast).await.unwrap();
         let src = dir.path().join("save");
         std::fs::create_dir_all(&src).unwrap();
@@ -6652,7 +6652,7 @@ mod tests {
 }
 ```
 
-- [x] **Step 2: Run** `cargo test -p leemusync-engine -- snapshot upload` → compile errors.
+- [x] **Step 2: Run** `cargo test -p lemusync-engine -- snapshot upload` → compile errors.
 - [x] **Step 3: Implement `snapshot.rs`** (above its tests):
 
 ```rust
@@ -6661,8 +6661,8 @@ mod tests {
 
 use std::path::{Path, PathBuf};
 
-use leemusync_core::manifest::FileEntry;
-use leemusync_core::{BlobId, RelPath};
+use lemusync_core::manifest::FileEntry;
+use lemusync_core::{BlobId, RelPath};
 
 use crate::{EngineError, fsx};
 
@@ -6735,8 +6735,8 @@ pub(crate) fn take(
 ```rust
 //! Upload procedure: blobs (create-only, idempotent) → manifest (commit point) (reliability §Upload procedure).
 
-use leemusync_core::manifest::{EmulatorRef, FORMAT, FileEntry, Meta, Version};
-use leemusync_core::{DeviceId, PlayerId, StreamId, VersionId};
+use lemusync_core::manifest::{EmulatorRef, FORMAT, FileEntry, Meta, Version};
+use lemusync_core::{DeviceId, PlayerId, StreamId, VersionId};
 
 use crate::repo::Repo;
 use crate::snapshot::Snapshot;
@@ -6791,20 +6791,20 @@ pub(crate) async fn upload(repo: &Repo, snap: &Snapshot, meta: UploadMeta<'_>, f
 `lib.rs`: add `mod snapshot; mod upload;` and:
 
 ```rust
-pub(crate) fn history_dir(data_dir: &std::path::Path, stream: &leemusync_core::StreamId) -> std::path::PathBuf {
+pub(crate) fn history_dir(data_dir: &std::path::Path, stream: &lemusync_core::StreamId) -> std::path::PathBuf {
     data_dir.join("history").join(stream.to_string())
 }
 ```
 
 > **Superseded by the code (fix round 1):** the Step 3–4 snippets above are the first cut. `crates/engine/src/snapshot.rs` now builds the copy in a temp sibling of `dest` and renames it into place (no partial snapshot), reads each file through `read_consistent` (missing or swapped file → `Busy`), and re-lists `src` after the loop (added, removed or changed file → `Busy`). `Repo::put_blob` verifies an existing blob with `get_blob` and fails with `Data("blob_corrupt:<id>")` instead of trusting the name; `upload` no longer compares `put_blob`'s returned id. Interfaces are unchanged.
-- [x] **Step 5: Run** `cargo test -p leemusync-engine && cargo clippy -p leemusync-engine --all-targets -- -D warnings` → PASS.
+- [x] **Step 5: Run** `cargo test -p lemusync-engine && cargo clippy -p lemusync-engine --all-targets -- -D warnings` → PASS.
 - [x] **Step 6: Commit.** `docs/specs/reliability.md` §Upload procedure: add "Implemented in `crates/engine/src/{snapshot,upload}.rs`. Local history pruning is not in M1a: history grows until Phase 1's later plan adds pruning." `just check`, then `feat(engine): take consistent snapshots and upload blobs before the manifest` with the trailer.
 
 ---
 
 ### Task 14: `engine` journaled restore and crash recovery
 
-Spec: [reliability §Restore procedure, §Invariants](../../specs/reliability.md#restore-procedure) (I1, I3, I4, I5, I6), [security §File-system confinement](../../specs/security.md#file-system-confinement). Skill: `leemusync-security`.
+Spec: [reliability §Restore procedure, §Invariants](../../specs/reliability.md#restore-procedure) (I1, I3, I4, I5, I6), [security §File-system confinement](../../specs/security.md#file-system-confinement). Skill: `lemusync-security`.
 
 **Files:**
 - Create: `crates/engine/src/restore.rs`
@@ -6826,7 +6826,7 @@ Spec: [reliability §Restore procedure, §Invariants](../../specs/reliability.md
 mod tests {
     use super::*;
     use crate::{FakeProbe, State};
-    use leemusync_core::{DeviceId, Hash32, PlayerId, VersionId};
+    use lemusync_core::{DeviceId, Hash32, PlayerId, VersionId};
 
     struct World {
         _dir: tempfile::TempDir,
@@ -6840,8 +6840,8 @@ mod tests {
     async fn world() -> World {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path().to_path_buf();
-        let store = leemusync_store::Store::fs(&root.join("remote")).unwrap();
-        let fast = leemusync_crypto::KdfParams { m_kib: 19_456, t: 1, p: 1 };
+        let store = lemusync_store::Store::fs(&root.join("remote")).unwrap();
+        let fast = lemusync_crypto::KdfParams { m_kib: 19_456, t: 1, p: 1 };
         let (repo, _, _) = Repo::create(store, "p", fast).await.unwrap();
         let state = State::open(&root.join("data")).unwrap();
         let new = root.join("new");
@@ -6925,7 +6925,7 @@ mod tests {
 }
 ```
 
-- [x] **Step 2: Run** `cargo test -p leemusync-engine restore` → compile errors.
+- [x] **Step 2: Run** `cargo test -p lemusync-engine restore` → compile errors.
 - [x] **Step 3: Implement** (above the tests):
 
 ```rust
@@ -6934,9 +6934,9 @@ mod tests {
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-use leemusync_api::{Warning, WarningCode};
-use leemusync_core::StreamId;
-use leemusync_core::manifest::Version;
+use lemusync_api::{Warning, WarningCode};
+use lemusync_core::StreamId;
+use lemusync_core::manifest::Version;
 use serde::{Deserialize, Serialize};
 
 use crate::repo::Repo;
@@ -7084,7 +7084,7 @@ In `lib.rs`: `mod restore;`, and:
 
 ```rust
 impl Engine {
-    pub(crate) fn recover_journal(&self) -> Result<Vec<leemusync_api::Warning>, EngineError> {
+    pub(crate) fn recover_journal(&self) -> Result<Vec<lemusync_api::Warning>, EngineError> {
         restore::recover(&self.state, self.env.processes.as_ref())
     }
 }
@@ -7092,7 +7092,7 @@ impl Engine {
 
 At the end of `Engine::open`, after building `engine`: `match engine.recover_journal() { Ok(_) | Err(EngineError::EmulatorRunning(_)) => {} Err(e) => return Err(e) }`. Remove the temporary `#[allow(dead_code)]` attributes from Task 10 once clippy is clean without them.
 
-- [x] **Step 4: Run** `cargo test -p leemusync-engine && cargo clippy -p leemusync-engine --all-targets -- -D warnings` → PASS.
+- [x] **Step 4: Run** `cargo test -p lemusync-engine && cargo clippy -p lemusync-engine --all-targets -- -D warnings` → PASS.
 - [x] **Step 5: Commit.** `docs/specs/reliability.md` §Restore procedure: add "Implemented in `crates/engine/src/restore.rs`; crash tests at every journal step (`restore.after_backup`, `restore.mid_swap`, `restore.before_done`)." Invariants table: mark I1, I3–I6 as "tested (M1a)". `just check`, then:
 
 ```bash
@@ -7131,18 +7131,18 @@ Spec: [sync-model §Reconciliation](../../specs/sync-model.md#reconciliation) (w
 - [x] **Step 1: Write `sync.rs`:**
 
 ```rust
-//! `leemusync sync`: reconcile every stream of every granted install (sync-model §Reconciliation).
+//! `lemusync sync`: reconcile every stream of every granted install (sync-model §Reconciliation).
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
-use leemusync_api::{API_VERSION, StreamAction, StreamReport, SyncReport, Warning, WarningCode};
-use leemusync_core::config::RepoConfig;
-use leemusync_core::heads::{Graph, heads};
-use leemusync_core::manifest::{FileEntry, Version};
-use leemusync_core::profile::Profile;
-use leemusync_core::reconcile::{Action, Input, Local, reconcile};
-use leemusync_core::{PlayerId, StreamId, VersionId};
+use lemusync_api::{API_VERSION, StreamAction, StreamReport, SyncReport, Warning, WarningCode};
+use lemusync_core::config::RepoConfig;
+use lemusync_core::heads::{Graph, heads};
+use lemusync_core::manifest::{FileEntry, Version};
+use lemusync_core::profile::Profile;
+use lemusync_core::reconcile::{Action, Input, Local, reconcile};
+use lemusync_core::{PlayerId, StreamId, VersionId};
 
 use crate::discover::save_folder;
 use crate::profiles::Install;
@@ -7456,11 +7456,11 @@ Check the `Adopt` path against core: with no `base` and a matching head, `reconc
 - [x] **Step 2: Write `accounts.rs`:**
 
 ```rust
-//! `leemusync accounts map` (choices a/b, keep or replace) and `accounts recover`
+//! `lemusync accounts map` (choices a/b, keep or replace) and `accounts recover`
 //! (players-and-accounts §Discovery).
 
-use leemusync_api::{StreamAction, StreamReport};
-use leemusync_core::PlayerId;
+use lemusync_api::{StreamAction, StreamReport};
+use lemusync_core::PlayerId;
 
 use crate::discover::save_folder;
 use crate::snapshot;
@@ -7480,8 +7480,8 @@ pub enum MapOutcome {
 }
 
 impl Engine {
-    fn player_id(config: &leemusync_core::config::RepoConfig, name: &str) -> Result<PlayerId, EngineError> {
-        config.player_named(name).ok_or_else(|| EngineError::Usage(format!("no player `{name}`; run `leemusync players add`")))
+    fn player_id(config: &lemusync_core::config::RepoConfig, name: &str) -> Result<PlayerId, EngineError> {
+        config.player_named(name).ok_or_else(|| EngineError::Usage(format!("no player `{name}`; run `lemusync players add`")))
     }
 
     /// # Errors
@@ -7499,11 +7499,11 @@ impl Engine {
         let (profile, install, discovery) = installs
             .iter()
             .find(|(p, _, _)| p.id == emulator)
-            .ok_or_else(|| EngineError::Usage(format!("no {emulator} install found; run `leemusync scan`")))?;
+            .ok_or_else(|| EngineError::Usage(format!("no {emulator} install found; run `lemusync scan`")))?;
         let discovery = discovery.as_ref().ok_or_else(|| EngineError::NotGranted(install.base.display().to_string()))?;
         if !discovery.accounts.iter().any(|a| a.id == account) {
             return Err(EngineError::Usage(format!(
-                "{} has no account {account} on this device; create it in {}, then run `leemusync scan`",
+                "{} has no account {account} on this device; create it in {}, then run `lemusync scan`",
                 profile.name, profile.name
             )));
         }
@@ -7620,8 +7620,8 @@ impl Engine {
 ```rust
 //! `status`, `history`, `restore`, `doctor`.
 
-use leemusync_api::{API_VERSION, Check, DoctorReport, HistoryEntry, HistoryReport, StatusReport, StreamAction, StreamReport, StreamStatus};
-use leemusync_core::heads::{Graph, heads};
+use lemusync_api::{API_VERSION, Check, DoctorReport, HistoryEntry, HistoryReport, StatusReport, StreamAction, StreamReport, StreamStatus};
+use lemusync_core::heads::{Graph, heads};
 
 use crate::discover::save_folder;
 use crate::repo::REPO_JSON;
@@ -7663,7 +7663,7 @@ impl Engine {
         })
     }
 
-    async fn stream_of(&mut self, player: &str, emulator: &str, game: &str) -> Result<leemusync_core::StreamId, EngineError> {
+    async fn stream_of(&mut self, player: &str, emulator: &str, game: &str) -> Result<lemusync_core::StreamId, EngineError> {
         self.ensure_repo().await?;
         let config = repo_config::load(self.repo_ref()?, &self.state).await?.config;
         let pid = config.player_named(player).ok_or_else(|| EngineError::Usage(format!("no player `{player}`")))?;
@@ -7740,7 +7740,7 @@ impl Engine {
         } else if !what.contains(['/', '\\']) && what != ".." && backup_dir.is_dir() {
             restore::restore(&ctx, &stream, &folder, Source::Local(&backup_dir), "pre-restore").await?;
         } else {
-            return Err(EngineError::Usage(format!("`{what}` is neither a version nor a backup; see `leemusync history`")));
+            return Err(EngineError::Usage(format!("`{what}` is neither a version nor a backup; see `lemusync history`")));
         }
         Ok(StreamReport {
             player: player.to_owned(),
@@ -7758,7 +7758,7 @@ impl Engine {
     /// Never for failed checks (they're reported); only for a broken bundled profile.
     pub async fn doctor(&mut self) -> Result<DoctorReport, EngineError> {
         let mut checks = Vec::new();
-        let probe = "leemusync-doctor-probe";
+        let probe = "lemusync-doctor-probe";
         let keystore = self.env.secrets.set(probe, "ok").and_then(|()| self.env.secrets.get(probe)).and_then(|v| {
             self.env.secrets.delete(probe)?;
             Ok(v)
@@ -7796,7 +7796,7 @@ impl Engine {
 - [x] **Step 5: Engine-level tests.** Add to `crates/engine/tests/common/mod.rs`:
 
 ```rust
-use leemusync_engine::{Engine, JoinSecret, MapChoice, MapOutcome, SyncOptions};
+use lemusync_engine::{Engine, JoinSecret, MapChoice, MapOutcome, SyncOptions};
 
 pub const SAVE: &str = "mlc01/usr/save/00050000/101c9400/user";
 
@@ -7846,7 +7846,7 @@ impl Pc {
         fsx::copy_tree(&act.join("80000001"), &act.join(id)).unwrap();
     }
 
-    pub async fn sync(&mut self) -> leemusync_api::SyncReport {
+    pub async fn sync(&mut self) -> lemusync_api::SyncReport {
         self.engine.confirm_first_sync().unwrap();
         self.engine.sync(SyncOptions { dry_run: false }).await.unwrap()
     }
@@ -7870,8 +7870,8 @@ Create `crates/engine/tests/sync.rs`:
 mod common;
 
 use common::{Pc, join, map};
-use leemusync_api::StreamAction;
-use leemusync_engine::{EngineError, MapChoice, SyncOptions};
+use lemusync_api::StreamAction;
+use lemusync_engine::{EngineError, MapChoice, SyncOptions};
 
 #[tokio::test]
 async fn first_sync_needs_confirmation_and_uploads() {
@@ -7902,7 +7902,7 @@ async fn emulator_running_skips_everything() {
     a.probe.set(true);
     let r = a.sync().await;
     assert_eq!(r.streams[0].action, StreamAction::Skipped);
-    assert!(r.warnings.iter().any(|w| w.code == leemusync_api::WarningCode::EmulatorRunning));
+    assert!(r.warnings.iter().any(|w| w.code == lemusync_api::WarningCode::EmulatorRunning));
 }
 
 #[tokio::test]
@@ -7929,7 +7929,7 @@ async fn edit_on_one_pc_fast_forwards_the_other() {
 }
 ```
 
-- [x] **Step 6: Run** `cargo test -p leemusync-engine && cargo clippy -p leemusync-engine --all-targets -- -D warnings` → PASS. If a test fails, use skill `superpowers:systematic-debugging` before changing code. Never weaken an assertion to make it pass.
+- [x] **Step 6: Run** `cargo test -p lemusync-engine && cargo clippy -p lemusync-engine --all-targets -- -D warnings` → PASS. If a test fails, use skill `superpowers:systematic-debugging` before changing code. Never weaken an assertion to make it pass.
 - [x] **Step 7: Commit.** `docs/specs/sync-model.md` **Code:** add `` `crates/engine/src/sync.rs` ``, and Status `Partial` (leases, play sessions and retention are still open). `docs/specs/players-and-accounts.md` **Code:** `` `crates/core/src/config.rs`, `crates/engine/src/accounts.rs` ``, Status `Partial`. `just check`, then:
 
 ```bash
@@ -7961,8 +7961,8 @@ Spec: [testing §Layers](../../specs/testing.md#layers) (simulation, fault injec
 mod common;
 
 use common::{Pc, SAVE, join, map};
-use leemusync_api::StreamAction;
-use leemusync_engine::{EngineError, MapChoice, SyncOptions};
+use lemusync_api::StreamAction;
+use lemusync_engine::{EngineError, MapChoice, SyncOptions};
 
 async fn two_pcs(root: &std::path::Path) -> (Pc, Pc) {
     let remote = root.join("remote");
@@ -8033,8 +8033,8 @@ The `after_manifest` case relies on two Task 15 rules. Adopt-on-equal turns the 
 mod common;
 
 use common::{Pc, SAVE, join, map};
-use leemusync_api::StreamAction;
-use leemusync_engine::{MapChoice, MapOutcome};
+use lemusync_api::StreamAction;
+use lemusync_engine::{MapChoice, MapOutcome};
 
 #[tokio::test]
 async fn both_saves_end_up_on_both_pcs() {
@@ -8064,7 +8064,7 @@ async fn both_saves_end_up_on_both_pcs() {
     // Step 5: first pushes.
     assert_eq!(cachy.sync().await.streams[0].action, StreamAction::Upload);
     let r = fedora.sync().await;
-    let action_of = |r: &leemusync_api::SyncReport, p: &str| r.streams.iter().find(|s| s.player == p).map(|s| s.action);
+    let action_of = |r: &lemusync_api::SyncReport, p: &str| r.streams.iter().find(|s| s.player == p).map(|s| s.action);
     assert_eq!(action_of(&r, "Fedora"), Some(StreamAction::Upload));
     assert_eq!(action_of(&r, "Cachy"), Some(StreamAction::NeedsAccount));
 
@@ -8111,15 +8111,15 @@ async fn both_saves_end_up_on_both_pcs() {
 }
 ```
 
-- [x] **Step 3: Run** `cargo test -p leemusync-engine --test faults --test two_devices` → PASS. If one fails, debug with `superpowers:systematic-debugging`; the tests are the spec.
+- [x] **Step 3: Run** `cargo test -p lemusync-engine --test faults --test two_devices` → PASS. If one fails, debug with `superpowers:systematic-debugging`; the tests are the spec.
 - [x] **Step 4: Commit.** `docs/specs/testing.md` §Layers: add "Simulation: `crates/engine/tests/two_devices.rs` (the M1a test day). Fault injection: `crates/engine/tests/faults.rs` (feature `failpoints`)." `just check`, then `test(engine): simulate the M1a test day and crash at every journal step` with the trailer.
 
 ---
 ### Task 17: `cli`: commands, prompts, `--json`, exit codes, Fluent strings (en + es)
 
-Spec: [config-and-cli §Commands, §Exit codes, §Parity rule](../../specs/config-and-cli.md#commands), [i18n §Rust strings, §Rules, §Terminology, §Parity check](../../specs/i18n.md#rust-strings), D19. Skill: `leemusync-security` (secrets at prompts).
+Spec: [config-and-cli §Commands, §Exit codes, §Parity rule](../../specs/config-and-cli.md#commands), [i18n §Rust strings, §Rules, §Terminology, §Parity check](../../specs/i18n.md#rust-strings), D19. Skill: `lemusync-security` (secrets at prompts).
 
-Error keys from Task 11 (P6: engine payloads are keys or data, never prose): `NotSetUp` takes `backend`, `gdrive_login`, `repo`, `repo_key`; `Usage` takes `repo_exists`, `repo_race`, `already_joined`, `passphrase_too_short`, `player_name_invalid`, `player_name_taken`; `Config` takes `repo_mismatch`, `repo_config`; `Secrets` takes `bad_master_key`; `Data` carries the remote object name, or `repo_format_newer` when `repo.json` is from a newer LeemuSync (tell the user to update). From Task 13: `Usage` takes `file_too_large:<path>` and `file_name_invalid:<path>` (the key, a colon, then the save-relative path as data); `Data` takes `history_changed:<path>`, `blob_corrupt:<blob id>` and `manifest_invalid`; `Busy` carries the save-relative path. Map each key to its own en + es Fluent message instead of printing it through `{ $detail }`.
+Error keys from Task 11 (P6: engine payloads are keys or data, never prose): `NotSetUp` takes `backend`, `gdrive_login`, `repo`, `repo_key`; `Usage` takes `repo_exists`, `repo_race`, `already_joined`, `passphrase_too_short`, `player_name_invalid`, `player_name_taken`; `Config` takes `repo_mismatch`, `repo_config`; `Secrets` takes `bad_master_key`; `Data` carries the remote object name, or `repo_format_newer` when `repo.json` is from a newer LemuSync (tell the user to update). From Task 13: `Usage` takes `file_too_large:<path>` and `file_name_invalid:<path>` (the key, a colon, then the save-relative path as data); `Data` takes `history_changed:<path>`, `blob_corrupt:<blob id>` and `manifest_invalid`; `Busy` carries the save-relative path. Map each key to its own en + es Fluent message instead of printing it through `{ $detail }`.
 
 > **As built:** keyed messages are `error-<code>-<key>` (`output::error_text` splits `key:data` and passes the data as `$detail`; unknown keys fall back to `error-<code>`). A preceding `fix(engine)` commit turned the remaining English `Usage` prose in `accounts.rs`/`query.rs` into keys (`unknown_player`, `no_install`, `no_account`, `account_taken`, `not_orphaned`, `already_has_save`, `folder_empty`, `not_mapped`, `unknown_restore_point`), and `accounts recover` without a grant now returns `NotGranted`. `backend login` without Drive returns `NotSetUp("gdrive_backend")`. `prompt::secret` wraps rpassword's raw `String` in `Zeroizing` too. `doctor` check details are engine display text (English), as `Check.detail` documents.
 
@@ -8128,8 +8128,8 @@ Error keys from Task 11 (P6: engine payloads are keys or data, never prose): `No
 
 ```toml
 [dependencies]
-leemusync-api = { path = "../api" }
-leemusync-engine = { path = "../engine" }
+lemusync-api = { path = "../api" }
+lemusync-engine = { path = "../engine" }
 clap = { workspace = true }
 fluent-bundle = { workspace = true }
 rpassword = { workspace = true }
@@ -8145,13 +8145,13 @@ tempfile = { workspace = true }
 ```
 
 - Modify: `crates/cli/src/main.rs`, `crates/cli/tests/version.rs`
-- Create: `crates/cli/src/{i18n,prompt,output}.rs`, `crates/cli/tests/cli.rs`, `locales/en/leemusync.ftl`, `locales/es/leemusync.ftl`
+- Create: `crates/cli/src/{i18n,prompt,output}.rs`, `crates/cli/tests/cli.rs`, `locales/en/lemusync.ftl`, `locales/es/lemusync.ftl`
 - Modify: `xtask/src/i18n.rs` (Fluent parity)
 
 **Interfaces:**
 - Consumes: every public `Engine` method and type from Tasks 10–15 (`Engine`, `EngineEnv`, `EngineError`, `Locations`, `JoinSecret`, `MapChoice`, `MapOutcome`, `SyncOptions`, `BackendConfig`); report types from Task 9.
-- Produces: the `leemusync` binary. Command tree: `init`; `join [--recovery]`; `backend add gdrive --client-id <id>` / `backend add fs <path>` / `backend login`; `grant add <path>` / `grant list`; `players add <name>` / `players list`; `scan`; `accounts map <player> <emulator> <account> [--keep | --replace]`; `accounts recover <emulator> <account> --player <name>`; `sync [--dry-run] [--yes]`; `status`; `history <player> <emulator> <game>`; `restore <player> <emulator> <game> <version-or-backup> [--yes]`; `doctor`. Global `--json`. Exit codes: the engine's `exit_code()`, plus 4 when any stream ends in a conflict, plus 1 when `doctor` has a failed check.
-- `LEEMUSYNC_TEST_ROOT=<dir>` puts config, data and the emulator search under `<dir>` (`Locations::under`). It's for tests only, and the OS keystore is still used.
+- Produces: the `lemusync` binary. Command tree: `init`; `join [--recovery]`; `backend add gdrive --client-id <id>` / `backend add fs <path>` / `backend login`; `grant add <path>` / `grant list`; `players add <name>` / `players list`; `scan`; `accounts map <player> <emulator> <account> [--keep | --replace]`; `accounts recover <emulator> <account> --player <name>`; `sync [--dry-run] [--yes]`; `status`; `history <player> <emulator> <game>`; `restore <player> <emulator> <game> <version-or-backup> [--yes]`; `doctor`. Global `--json`. Exit codes: the engine's `exit_code()`, plus 4 when any stream ends in a conflict, plus 1 when `doctor` has a failed check.
+- `LEMUSYNC_TEST_ROOT=<dir>` puts config, data and the emulator search under `<dir>` (`Locations::under`). It's for tests only, and the OS keystore is still used.
 - Language: the first non-empty of `LC_ALL`, `LC_MESSAGES`, `LANG`, `LANGUAGE` that starts with `es` selects `es`; anything else selects `en` (i18n §Rules).
 - Secrets: passphrases, the recovery key typed at `join` and the OAuth client secret are read with `rpassword` (no echo) into `Zeroizing<String>`. They're never accepted as arguments or environment variables. The recovery key is printed once, by `init`, to stderr in human form, even with `--json`.
 
@@ -8162,9 +8162,9 @@ use std::process::Command;
 
 #[test]
 fn prints_name_and_version() {
-    let output = Command::new(env!("CARGO_BIN_EXE_leemusync")).arg("--version").output().expect("binary runs");
+    let output = Command::new(env!("CARGO_BIN_EXE_lemusync")).arg("--version").output().expect("binary runs");
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert_eq!(stdout.trim(), format!("leemusync {}", env!("CARGO_PKG_VERSION")));
+    assert_eq!(stdout.trim(), format!("lemusync {}", env!("CARGO_PKG_VERSION")));
 }
 ```
 
@@ -8177,9 +8177,9 @@ use std::path::Path;
 use std::process::{Command, Output};
 
 fn run(root: &Path, lang: &str, args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_leemusync"))
+    Command::new(env!("CARGO_BIN_EXE_lemusync"))
         .args(args)
-        .env("LEEMUSYNC_TEST_ROOT", root)
+        .env("LEMUSYNC_TEST_ROOT", root)
         .env_remove("LC_ALL")
         .env_remove("LC_MESSAGES")
         .env_remove("LANGUAGE")
@@ -8246,12 +8246,12 @@ fn scan_output_is_fully_formatted_in_both_languages() {
 }
 ```
 
-- [x] **Step 2: Run** `cargo test -p leemusync-cli` → compile/assert failures.
-- [x] **Step 3: Write `locales/en/leemusync.ftl`:**
+- [x] **Step 2: Run** `cargo test -p lemusync-cli` → compile/assert failures.
+- [x] **Step 3: Write `locales/en/lemusync.ftl`:**
 
 ```ftl
-# LeemuSync Rust strings (English source). Keys describe meaning (i18n §Rules).
-# Every key here must exist in es/leemusync.ftl (cargo xtask i18n-check).
+# LemuSync Rust strings (English source). Keys describe meaning (i18n §Rules).
+# Every key here must exist in es/lemusync.ftl (cargo xtask i18n-check).
 
 ## Help
 help-about = Keeps your emulator saves in sync across your devices, through storage you own.
@@ -8261,12 +8261,12 @@ help-join = Join an existing repo from this device.
 help-join-recovery = Use the recovery key instead of the passphrase.
 help-backend = Set up where the repo is stored.
 help-backend-add = Choose the storage.
-help-backend-add-gdrive = Use Google Drive (LeemuSync only sees the files it created).
+help-backend-add-gdrive = Use Google Drive (LemuSync only sees the files it created).
 help-backend-add-gdrive-client_id = Your OAuth client id (type "Desktop app").
 help-backend-add-fs = Use a local or mounted folder.
 help-backend-add-fs-path = The folder.
 help-backend-login = Log in to Google Drive again.
-help-grant = Choose which folders LeemuSync may read and write.
+help-grant = Choose which folders LemuSync may read and write.
 help-grant-add = Allow a folder (an emulator's own folder).
 help-grant-add-path = The folder.
 help-grant-list = List the allowed folders.
@@ -8298,7 +8298,7 @@ help-restore = Put back a version or a local backup (the current files are backe
 help-restore-player = The player's name.
 help-restore-emulator = The emulator id, for example cemu.
 help-restore-game = The game id, for example 101c9400.
-help-restore-what = A version id or a backup name from `leemusync history`.
+help-restore-what = A version id or a backup name from `lemusync history`.
 help-restore-yes = Don't ask for confirmation.
 help-doctor = Check the keystore, the storage and the emulator folders.
 
@@ -8306,17 +8306,17 @@ help-doctor = Check the keystore, the storage and the emulator folders.
 error-usage = { $detail }
 error-config = The config file is invalid: { $detail }
 error-backend = Storage problem: { $detail }
-error-backend_auth = The storage login failed ({ $detail }). Run `leemusync backend login`.
+error-backend_auth = The storage login failed ({ $detail }). Run `lemusync backend login`.
 error-io = File problem: { $detail }
 error-crypto = Encryption problem: { $detail }
 error-unlock = Wrong passphrase or recovery key.
-error-locked = Another LeemuSync process is running ({ $detail }).
+error-locked = Another LemuSync process is running ({ $detail }).
 error-emulator_running = { $detail } is running. Close it and try again.
-error-not_granted = LeemuSync isn't allowed to use { $detail }. Run `leemusync grant add <folder>`.
+error-not_granted = LemuSync isn't allowed to use { $detail }. Run `lemusync grant add <folder>`.
 error-not_set_up = Not set up yet: { $detail }
 error-secrets = The system keyring failed: { $detail }
 error-data = The repo has invalid data: { $detail }
-error-needs_confirmation = This is the first sync on this device. Back up this device's saves first, then run `leemusync sync --yes`.
+error-needs_confirmation = This is the first sync on this device. Back up this device's saves first, then run `lemusync sync --yes`.
 error-busy = { $detail } changed while it was being read. Try again when the game is idle.
 error-injected = Test fault at { $detail }.
 error-needs-choice = Use --keep or --replace (the account already has saves for: { $games }).
@@ -8338,7 +8338,7 @@ answer-keep = k
 answer-replace = r
 
 ## Results
-login-open-url = Open this address in your browser to let LeemuSync use its own Google Drive folder:
+login-open-url = Open this address in your browser to let LemuSync use its own Google Drive folder:
 login-waiting = Waiting for the browser (up to 5 minutes)…
 login-done = Google Drive is connected.
 backend-fs-done = The repo will be stored in { $path }.
@@ -8351,7 +8351,7 @@ players-added = Player { $name } added.
 players-none = No players yet.
 map-done = { $player } now uses { $emulator } account { $account } on this device.
 recover-done = The orphaned save is now { $player }'s first { $game } version.
-restore-done = Restored { $what } for { $player }. Run `leemusync sync` to upload it.
+restore-done = Restored { $what } for { $player }. Run `lemusync sync` to upload it.
 sync-line = { $player } · { $game } · { $action }
 dry-run = Dry run: nothing was changed.
 sync-conflicts = { $count ->
@@ -8367,34 +8367,34 @@ action-upload_then_conflict = uploaded, conflict to resolve
 action-conflict = conflict to resolve
 action-local_missing = the save folder is missing
 action-remote_behind = the repo went back in time; nothing changed
-action-needs_account = no account on this device: run `leemusync accounts map`
+action-needs_account = no account on this device: run `lemusync accounts map`
 action-skipped = skipped (the emulator is running)
 
 warning-emulator_running = { $detail } is running, so its saves were skipped.
-warning-not_granted = Not allowed yet: { $detail }. Run `leemusync grant add`.
+warning-not_granted = Not allowed yet: { $detail }. Run `lemusync grant add`.
 warning-shared_folder_not_empty = { $detail } is shared by every account and isn't synced yet.
-warning-orphaned_save = Orphaned save { $detail }: its account was deleted. Run `leemusync accounts recover` to keep it.
+warning-orphaned_save = Orphaned save { $detail }: its account was deleted. Run `lemusync accounts recover` to keep it.
 warning-config_merged = Changes from two devices were merged.
 warning-player_renamed = Two players had the same name; one is now { $detail }.
 warning-remote_behind = The repo is missing versions this device saw ({ $detail }). Nothing was changed.
 warning-restore_rolled_back = An interrupted restore was undone in { $detail }.
 warning-invalid_version = Ignored invalid data in the repo: { $detail }
-warning-setup_incomplete = The repo was created, but this device isn't fully set up ({ $detail }). Run `leemusync join` with your passphrase to finish.
+warning-setup_incomplete = The repo was created, but this device isn't fully set up ({ $detail }). Run `lemusync join` with your passphrase to finish.
 warning-unreadable_folder = A save folder couldn't be read safely and was skipped: { $detail }
 
 scan-install = { $emulator } at { $base }
-scan-needs-grant = Allow it: leemusync grant add { $path }
+scan-needs-grant = Allow it: lemusync grant add { $path }
 scan-account = account { $id } · { $name } · { $player }
 scan-unknown = (none)
 scan-save = save { $game }/{ $account } · { $files ->
     [one] 1 file
    *[other] { $files } files
 }
-scan-orphan = orphaned save { $game }/{ $account }: run `leemusync accounts recover`
+scan-orphan = orphaned save { $game }/{ $account }: run `lemusync accounts recover`
 
 status-device = Device: { $device }
 status-repo = Repo: { $repo } on { $backend }
-status-no-repo = No repo yet: run `leemusync init` or `leemusync join`.
+status-no-repo = No repo yet: run `lemusync init` or `lemusync join`.
 status-stream = { $player } · { $emulator } { $game } · account { $account }
 
 history-version = { $id } · { $files ->
@@ -8409,10 +8409,10 @@ doctor-fail = FAILED
 doctor-check = { $status } { $name } { $detail }
 ```
 
-- [x] **Step 4: Write `locales/es/leemusync.ftl`** with the same keys (neutral Latin American Spanish, "tú", the terminology table):
+- [x] **Step 4: Write `locales/es/lemusync.ftl`** with the same keys (neutral Latin American Spanish, "tú", the terminology table):
 
 ```ftl
-# Textos de LeemuSync para Rust (español neutro latinoamericano). Mismas claves que en/leemusync.ftl.
+# Textos de LemuSync para Rust (español neutro latinoamericano). Mismas claves que en/lemusync.ftl.
 
 ## Ayuda
 help-about = Mantiene tus partidas guardadas sincronizadas entre tus dispositivos, con un almacenamiento que es tuyo.
@@ -8422,12 +8422,12 @@ help-join = Une este dispositivo a un repo existente.
 help-join-recovery = Usa la clave de recuperación en lugar de la frase de contraseña.
 help-backend = Configura dónde se guarda el repo.
 help-backend-add = Elige el almacenamiento.
-help-backend-add-gdrive = Usa Google Drive (LeemuSync solo ve los archivos que creó).
+help-backend-add-gdrive = Usa Google Drive (LemuSync solo ve los archivos que creó).
 help-backend-add-gdrive-client_id = Tu id de cliente OAuth (tipo "App de escritorio").
 help-backend-add-fs = Usa una carpeta local o montada.
 help-backend-add-fs-path = La carpeta.
 help-backend-login = Vuelve a iniciar sesión en Google Drive.
-help-grant = Elige qué carpetas puede leer y escribir LeemuSync.
+help-grant = Elige qué carpetas puede leer y escribir LemuSync.
 help-grant-add = Permite una carpeta (la carpeta del emulador).
 help-grant-add-path = La carpeta.
 help-grant-list = Lista las carpetas permitidas.
@@ -8459,7 +8459,7 @@ help-restore = Restaura una versión o una copia local (antes se respaldan los a
 help-restore-player = El nombre del jugador.
 help-restore-emulator = El id del emulador, por ejemplo cemu.
 help-restore-game = El id del juego, por ejemplo 101c9400.
-help-restore-what = Un id de versión o el nombre de una copia de `leemusync history`.
+help-restore-what = Un id de versión o el nombre de una copia de `lemusync history`.
 help-restore-yes = No pide confirmación.
 help-doctor = Revisa el llavero del sistema, el almacenamiento y las carpetas del emulador.
 
@@ -8467,17 +8467,17 @@ help-doctor = Revisa el llavero del sistema, el almacenamiento y las carpetas de
 error-usage = { $detail }
 error-config = El archivo de configuración no es válido: { $detail }
 error-backend = Problema con el almacenamiento: { $detail }
-error-backend_auth = Falló el inicio de sesión del almacenamiento ({ $detail }). Ejecuta `leemusync backend login`.
+error-backend_auth = Falló el inicio de sesión del almacenamiento ({ $detail }). Ejecuta `lemusync backend login`.
 error-io = Problema con un archivo: { $detail }
 error-crypto = Problema de cifrado: { $detail }
 error-unlock = La frase de contraseña o la clave de recuperación no es correcta.
-error-locked = Ya hay otro proceso de LeemuSync en ejecución ({ $detail }).
+error-locked = Ya hay otro proceso de LemuSync en ejecución ({ $detail }).
 error-emulator_running = { $detail } está abierto. Ciérralo y vuelve a intentarlo.
-error-not_granted = LeemuSync no tiene permiso para usar { $detail }. Ejecuta `leemusync grant add <carpeta>`.
+error-not_granted = LemuSync no tiene permiso para usar { $detail }. Ejecuta `lemusync grant add <carpeta>`.
 error-not_set_up = Todavía falta configurar: { $detail }
 error-secrets = Falló el llavero del sistema: { $detail }
 error-data = El repo tiene datos no válidos: { $detail }
-error-needs_confirmation = Es la primera sincronización en este dispositivo. Primero respalda las partidas guardadas de este dispositivo y luego ejecuta `leemusync sync --yes`.
+error-needs_confirmation = Es la primera sincronización en este dispositivo. Primero respalda las partidas guardadas de este dispositivo y luego ejecuta `lemusync sync --yes`.
 error-busy = { $detail } cambió mientras se leía. Vuelve a intentarlo cuando el juego esté en reposo.
 error-injected = Falla de prueba en { $detail }.
 error-needs-choice = Usa --keep o --replace (la cuenta ya tiene partidas guardadas de: { $games }).
@@ -8499,7 +8499,7 @@ answer-keep = c
 answer-replace = r
 
 ## Resultados
-login-open-url = Abre esta dirección en tu navegador para que LeemuSync use su propia carpeta de Google Drive:
+login-open-url = Abre esta dirección en tu navegador para que LemuSync use su propia carpeta de Google Drive:
 login-waiting = Esperando al navegador (hasta 5 minutos)…
 login-done = Google Drive está conectado.
 backend-fs-done = El repo se guardará en { $path }.
@@ -8512,7 +8512,7 @@ players-added = Se agregó el jugador { $name }.
 players-none = Todavía no hay jugadores.
 map-done = { $player } ahora usa la cuenta { $account } de { $emulator } en este dispositivo.
 recover-done = La partida huérfana ahora es la primera versión de { $game } de { $player }.
-restore-done = Se restauró { $what } para { $player }. Ejecuta `leemusync sync` para subirla.
+restore-done = Se restauró { $what } para { $player }. Ejecuta `lemusync sync` para subirla.
 sync-line = { $player } · { $game } · { $action }
 dry-run = Prueba: no se cambió nada.
 sync-conflicts = { $count ->
@@ -8528,34 +8528,34 @@ action-upload_then_conflict = subida, con un conflicto por resolver
 action-conflict = conflicto por resolver
 action-local_missing = falta la carpeta de la partida guardada
 action-remote_behind = el repo volvió a un estado anterior; no se cambió nada
-action-needs_account = no hay cuenta en este dispositivo: ejecuta `leemusync accounts map`
+action-needs_account = no hay cuenta en este dispositivo: ejecuta `lemusync accounts map`
 action-skipped = omitida (el emulador está abierto)
 
 warning-emulator_running = { $detail } está abierto, así que se omitieron sus partidas guardadas.
-warning-not_granted = Todavía sin permiso: { $detail }. Ejecuta `leemusync grant add`.
+warning-not_granted = Todavía sin permiso: { $detail }. Ejecuta `lemusync grant add`.
 warning-shared_folder_not_empty = { $detail } lo comparten todas las cuentas y todavía no se sincroniza.
-warning-orphaned_save = Partida huérfana { $detail }: se borró su cuenta. Ejecuta `leemusync accounts recover` para conservarla.
+warning-orphaned_save = Partida huérfana { $detail }: se borró su cuenta. Ejecuta `lemusync accounts recover` para conservarla.
 warning-config_merged = Se combinaron cambios de dos dispositivos.
 warning-player_renamed = Dos jugadores tenían el mismo nombre; uno ahora se llama { $detail }.
 warning-remote_behind = Al repo le faltan versiones que este dispositivo vio ({ $detail }). No se cambió nada.
 warning-restore_rolled_back = Se deshizo una restauración interrumpida en { $detail }.
 warning-invalid_version = Se ignoraron datos no válidos del repo: { $detail }
-warning-setup_incomplete = Se creó el repo, pero este dispositivo no quedó configurado del todo ({ $detail }). Ejecuta `leemusync join` con tu frase de contraseña para terminar.
+warning-setup_incomplete = Se creó el repo, pero este dispositivo no quedó configurado del todo ({ $detail }). Ejecuta `lemusync join` con tu frase de contraseña para terminar.
 warning-unreadable_folder = No se pudo leer una carpeta de guardado de forma segura y se omitió: { $detail }
 
 scan-install = { $emulator } en { $base }
-scan-needs-grant = Permítelo: leemusync grant add { $path }
+scan-needs-grant = Permítelo: lemusync grant add { $path }
 scan-account = cuenta { $id } · { $name } · { $player }
 scan-unknown = (ninguno)
 scan-save = partida guardada { $game }/{ $account } · { $files ->
     [one] 1 archivo
    *[other] { $files } archivos
 }
-scan-orphan = partida huérfana { $game }/{ $account }: ejecuta `leemusync accounts recover`
+scan-orphan = partida huérfana { $game }/{ $account }: ejecuta `lemusync accounts recover`
 
 status-device = Dispositivo: { $device }
 status-repo = Repo: { $repo } en { $backend }
-status-no-repo = Todavía no hay un repo: ejecuta `leemusync init` o `leemusync join`.
+status-no-repo = Todavía no hay un repo: ejecuta `lemusync init` o `lemusync join`.
 status-stream = { $player } · { $emulator } { $game } · cuenta { $account }
 
 history-version = { $id } · { $files ->
@@ -8579,8 +8579,8 @@ Have a Spanish-speaking reviewer (the maintainer) read this file once before the
 
 use fluent_bundle::{FluentArgs, FluentBundle, FluentResource, FluentValue};
 
-const EN: &str = include_str!("../../../locales/en/leemusync.ftl");
-const ES: &str = include_str!("../../../locales/es/leemusync.ftl");
+const EN: &str = include_str!("../../../locales/en/lemusync.ftl");
+const ES: &str = include_str!("../../../locales/es/lemusync.ftl");
 
 pub struct I18n {
     bundle: FluentBundle<FluentResource>,
@@ -8655,7 +8655,7 @@ mod tests {
 
 use std::io::{BufRead as _, IsTerminal as _, Write as _};
 
-use leemusync_engine::EngineError;
+use lemusync_engine::EngineError;
 use zeroize::Zeroizing;
 
 use crate::i18n::{I18n, s};
@@ -8721,8 +8721,8 @@ pub fn keep_or_replace(t: &I18n, question: &str) -> Result<Option<bool>, EngineE
 //! Human (Fluent) or `--json` output. JSON goes to stdout; human results to stdout, problems to stderr.
 
 use fluent_bundle::FluentValue;
-use leemusync_api::{API_VERSION, DoctorReport, ErrorBody, ErrorReport, HistoryReport, ScanReport, StatusReport, SyncReport, Warning};
-use leemusync_engine::EngineError;
+use lemusync_api::{API_VERSION, DoctorReport, ErrorBody, ErrorReport, HistoryReport, ScanReport, StatusReport, SyncReport, Warning};
+use lemusync_engine::EngineError;
 use serde::Serialize;
 
 use crate::i18n::{I18n, s};
@@ -8850,7 +8850,7 @@ pub fn doctor(t: &I18n, r: &DoctorReport) {
 - [x] **Step 8: Implement `crates/cli/src/main.rs`:**
 
 ```rust
-//! `leemusync`: command-line interface. Spec: docs/specs/config-and-cli.md.
+//! `lemusync`: command-line interface. Spec: docs/specs/config-and-cli.md.
 
 mod i18n;
 mod output;
@@ -8860,13 +8860,13 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::{CommandFactory as _, FromArgMatches as _, Parser, Subcommand};
-use leemusync_api::StreamAction;
-use leemusync_engine::{BackendConfig, Engine, EngineEnv, EngineError, JoinSecret, Locations, MapChoice, MapOutcome, SyncOptions};
+use lemusync_api::StreamAction;
+use lemusync_engine::{BackendConfig, Engine, EngineEnv, EngineError, JoinSecret, Locations, MapChoice, MapOutcome, SyncOptions};
 
 use crate::i18n::{I18n, s};
 
 #[derive(Parser)]
-#[command(name = "leemusync", version)]
+#[command(name = "lemusync", version)]
 struct Cli {
     #[arg(long, global = true)]
     json: bool,
@@ -8996,7 +8996,7 @@ fn localize(cmd: clap::Command, path: &str, t: &I18n) -> clap::Command {
 
 fn env() -> Result<EngineEnv, EngineError> {
     let mut env = EngineEnv::system()?;
-    if let Some(root) = std::env::var_os("LEEMUSYNC_TEST_ROOT") {
+    if let Some(root) = std::env::var_os("LEMUSYNC_TEST_ROOT") {
         env.locations = Locations::under(Path::new(&root));
     }
     Ok(env)
@@ -9071,7 +9071,7 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
         }
         Cmd::Backend { cmd: BackendCmd::Login } => {
             let Some(BackendConfig::Gdrive { client_id, .. }) = engine.local_config().backend.clone() else {
-                return Err(EngineError::NotSetUp("Google Drive: run `leemusync backend add gdrive`"));
+                return Err(EngineError::NotSetUp("Google Drive: run `lemusync backend add gdrive`"));
             };
             gdrive_login(&mut engine, t, &client_id).await?;
         }
@@ -9214,7 +9214,7 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
 
 ```rust
 const FTL_DIR: &str = "locales";
-const FTL_FILE: &str = "leemusync.ftl";
+const FTL_FILE: &str = "lemusync.ftl";
 
 /// Message ids of a Fluent file: lines `id = …` at column 0 (comments and continuation lines skipped).
 fn ftl_keys(path: &Path) -> Result<BTreeSet<String>, String> {
@@ -9265,10 +9265,10 @@ fn ftl_keys_skip_comments_and_continuations() {
 }
 ```
 
-- [x] **Step 10: Run** `cargo test -p leemusync-cli -p xtask && cargo xtask i18n-check && cargo clippy --workspace --all-targets -- -D warnings` → PASS. Then try it by hand: `LEEMUSYNC_TEST_ROOT=$(mktemp -d) LANG=es_MX.UTF-8 cargo run -q -p leemusync-cli -- --help` shows Spanish command descriptions.
+- [x] **Step 10: Run** `cargo test -p lemusync-cli -p xtask && cargo xtask i18n-check && cargo clippy --workspace --all-targets -- -D warnings` → PASS. Then try it by hand: `LEMUSYNC_TEST_ROOT=$(mktemp -d) LANG=es_MX.UTF-8 cargo run -q -p lemusync-cli -- --help` shows Spanish command descriptions.
 - [x] **Step 11: Commit.** Docs in the same commit:
-  - `docs/specs/i18n.md`: **Code:** `` `app/lib/l10n/`, `locales/` ``; §Parity check: "checks ARB and Fluent (`locales/<lang>/leemusync.ftl`)"; §Terminology: rows "orphaned save | partida huérfana" and "system keyring | llavero del sistema"; §Open questions: "clap's built-in headings (`Usage:`, `Options:`) and `-h`/`-V` descriptions are English. Localise them with a custom help template before 1.0."
-  - `docs/specs/config-and-cli.md`: §Commands notes `LEEMUSYNC_TEST_ROOT` as test-only, and that secrets are only typed at prompts.
+  - `docs/specs/i18n.md`: **Code:** `` `app/lib/l10n/`, `locales/` ``; §Parity check: "checks ARB and Fluent (`locales/<lang>/lemusync.ftl`)"; §Terminology: rows "orphaned save | partida huérfana" and "system keyring | llavero del sistema"; §Open questions: "clap's built-in headings (`Usage:`, `Options:`) and `-h`/`-V` descriptions are English. Localise them with a custom help template before 1.0."
+  - `docs/specs/config-and-cli.md`: §Commands notes `LEMUSYNC_TEST_ROOT` as test-only, and that secrets are only typed at prompts.
 
   Then `just check`, then:
 
@@ -9289,18 +9289,18 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 The maintainer moved the first real test from Google Drive to an R2 bucket, starting on the Fedora PC alone.
 
 - [x] **Step 1:** `crates/store/src/s3.rs`: OpenDAL `s3` (`services-s3`), static keys, `disable_config_load` + `disable_ec2_metadata`, `https://` only, our rustls client. `Store::s3`, native `create_only` from the operator's capability. Redaction also covers `secret_access_key` and SigV4 `Credential=`.
-- [x] **Step 2:** engine `BackendConfig::S3 { endpoint, bucket, region, root, access_key_id }`, keystore entry `device-<id>-s3-secret-access-key`, `Engine::backend_add_s3(S3Backend, secret)` with a write/read/list/delete probe under `leemusync/.probe/` before anything is saved. `status` shows `s3 <endpoint>/<bucket>`.
+- [x] **Step 2:** engine `BackendConfig::S3 { endpoint, bucket, region, root, access_key_id }`, keystore entry `device-<id>-s3-secret-access-key`, `Engine::backend_add_s3(S3Backend, secret)` with a write/read/list/delete probe under `lemusync/.probe/` before anything is saved. `status` shows `s3 <endpoint>/<bucket>`.
 - [x] **Step 3:** CLI `backend add s3 --endpoint <url> --bucket <name> --access-key-id <id> [--region auto]`; the secret only at a no-echo prompt. en + es strings.
 - [x] **Step 4:** tests: S3 operator needs `https://` and has native `create_only`; config round-trip without the secret; a bad backend saves nothing; the probe cleans up; CLI help and no-terminal refusal. Live (ignored): `s3_conformance` runs the suite plus a 20-way `create_only` race (V-STORE-1).
 - [x] **Step 5:** `deny.toml` ignores RUSTSEC-2026-0374 (`basic-toml` unmaintained, build-time only via uniffi → askama; it also failed on `main`).
 - [ ] **Step 6: Live R2 run (maintainer, once).** Create an R2 API token with "Object Read & Write" for the bucket only. Then:
 
     ```sh
-    secret-tool store --label "leemusync-test s3" service leemusync-test username s3-secret   # paste the secret key
-    LEEMUSYNC_TEST_S3_ENDPOINT=https://<account id>.r2.cloudflarestorage.com \
-    LEEMUSYNC_TEST_S3_BUCKET=<bucket> LEEMUSYNC_TEST_S3_KEY_ID=<access key id> \
-      cargo test -p leemusync-store --test conformance s3_conformance -- --ignored
-    secret-tool clear service leemusync-test username s3-secret
+    secret-tool store --label "lemusync-test s3" service lemusync-test username s3-secret   # paste the secret key
+    LEMUSYNC_TEST_S3_ENDPOINT=https://<account id>.r2.cloudflarestorage.com \
+    LEMUSYNC_TEST_S3_BUCKET=<bucket> LEMUSYNC_TEST_S3_KEY_ID=<access key id> \
+      cargo test -p lemusync-store --test conformance s3_conformance -- --ignored
+    secret-tool clear service lemusync-test username s3-secret
     ```
 
     Expected: pass. Record the result in storage-backends V-STORE-1.
@@ -9321,7 +9321,7 @@ Found in Task 18 Part A: the first R2 sync failed on one blob `PutObject` with `
 - [x] **Step 4: engine uploads 4 blobs at a time.** In `upload.rs`, verify every history file against the snapshot first (as now, in order, before any network call), then upload with `futures_util::stream::iter(..).map(|data| repo.put_blob(data)).buffer_unordered(4)` and stop at the first error (`try_for_each` / `try_collect`). Keep the existing `blob_corrupt` and `history_changed` behaviour and tests. Memory stays bounded: read the file inside the stream item, not all up front (re-check size and blob id after reading, as now). Test: an upload of 12 files lands all 12 blobs and one manifest; existing faults/two-device tests stay green.
 - [x] **Step 5: specs (W1).** storage-backends §Interface, replace the "All errors are classified" bullet with: "All errors are classified as `transient`, `auth` (ask the user), `quota`, or `permanent`. The store retries `transient` errors itself: up to 5 tries, exponential backoff with full jitter (1 s base, 30 s cap), or the server's `Retry-After` in seconds (capped at 30 s). A retried `create_only` that finds the object already there reads it back: the same bytes mean the earlier try landed and count as success." reliability §Network, append: "Inside one sync the store retries each request (storage-backends §Interface); the daemon's 1 s → 5 min backoff is for whole syncs that still fail (Phase 2). Blobs upload 4 at a time."
 - [x] **Step 6:** `just check` green, commit `feat(store): retry transient errors with backoff and upload blobs 4 at a time`.
-- [x] **Step 7: Live (maintainer).** Rebuild the release binary; on Fedora run `leemusync sync` after a play session and check `history`. Done 2026-10-20: `uploaded` in 52.45 s with no output until the end (0.4 s of CPU), which led to Task 17d.
+- [x] **Step 7: Live (maintainer).** Rebuild the release binary; on Fedora run `lemusync sync` after a play session and check `history`. Done 2026-10-20: `uploaded` in 52.45 s with no output until the end (0.4 s of CPU), which led to Task 17d.
 
 ---
 
@@ -9329,7 +9329,7 @@ Found in Task 18 Part A: the first R2 sync failed on one blob `PutObject` with `
 
 Found in Task 17c Step 7: a sync after a short play session took 52 s and printed nothing until the end. `upload` sent every blob of the snapshot. For each one already on the remote, the create-only put failed with `AlreadyExists` and `put_blob` downloaded the blob to verify it. So each sync moved the whole save up and down again (~15.6 MB each way for BotW). Restores also downloaded one blob at a time. The maintainer asked for live progress (what is being transferred, how far along), with richer CLI output (2026-10-20).
 
-**Files:** `crates/api/src/lib.rs` (`TransferProgress`, `TransferPhase`; `StreamReport.files`/`bytes`), `crates/engine/src/progress.rs` (new), `crates/engine/src/upload.rs`, `crates/engine/src/restore.rs`, `crates/engine/src/sync.rs`, `crates/engine/src/accounts.rs`, `crates/engine/src/lib.rs`, `crates/cli/src/progress.rs` (new), `crates/cli/src/output.rs`, `crates/cli/src/main.rs`, `crates/cli/Cargo.toml` (tokio `macros`, `time`), `locales/{en,es}/leemusync.ftl`, specs `reliability.md` §Upload procedure, `architecture.md` §Engine API, `config-and-cli.md` §Commands.
+**Files:** `crates/api/src/lib.rs` (`TransferProgress`, `TransferPhase`; `StreamReport.files`/`bytes`), `crates/engine/src/progress.rs` (new), `crates/engine/src/upload.rs`, `crates/engine/src/restore.rs`, `crates/engine/src/sync.rs`, `crates/engine/src/accounts.rs`, `crates/engine/src/lib.rs`, `crates/cli/src/progress.rs` (new), `crates/cli/src/output.rs`, `crates/cli/src/main.rs`, `crates/cli/Cargo.toml` (tokio `macros`, `time`), `locales/{en,es}/lemusync.ftl`, specs `reliability.md` §Upload procedure, `architecture.md` §Engine API, `config-and-cli.md` §Commands.
 
 - [x] **Step 1: upload only new blobs.** `upload` skips every blob that the base version already references (`UploadMeta.base_files`): its manifest was committed after its blobs, so they're on the remote. The rest are deduplicated by blob id (two equal files → one put) and uploaded 4 at a time as before. Every snapshot file is still checked against its history copy first (I6). A blob that's on the remote but not in the base (another device's version) still goes through the create-only put and the read-back check. Tests: an upload whose base holds 10 of 12 files puts 2 blobs (count via the store's object list before and after); two identical files → one blob; a first upload (no base) puts all.
 - [x] **Step 2: restore downloads 4 at a time.** `restore::stage` fetches and verifies blobs with `buffer_unordered(4)` and stops at the first error, writing each file to staging as it arrives. The size checks stay before any download. Existing restore tests stay green.
@@ -9337,7 +9337,7 @@ Found in Task 17c Step 7: a sync after a short play session took 52 s and printe
 - [x] **Step 4: CLI live line and summary.** `cli/src/progress.rs`: while `sync` and `restore` run, redraw one stderr line every 100 ms: spinner, player · game, phase, a 20-cell bar, files, MB and MB/s. Only when stderr is a terminal, `TERM` isn't `dumb` and `--json` is off. The line is cleared before anything else prints (results, prompts, errors). The summary pads the player and game columns, adds "N files, X MB" when something moved, colors the action (green done, yellow skipped/needs account, red conflict) only when stdout is a terminal and `NO_COLOR` is unset, and ends with the elapsed time. en + es strings. Tests: the line text and bar for given numbers; no color when `NO_COLOR` is set; `--json` output unchanged apart from the two new fields.
 - [x] **Step 5: specs (W1).** reliability §Upload procedure step 2: "Upload the blobs the base version doesn't already reference, deduplicated, 4 at a time." architecture §Engine API: `TransferProgress` carries player, emulator, game, phase and file/byte counts. config-and-cli §Commands: the live progress line and its conditions.
 - [x] **Step 6:** `just check` green, commit `feat(sync): upload only new blobs and show live progress`.
-- [ ] **Step 7: Live (maintainer).** Rebuild the release binary, play, `time leemusync sync`: expect a progress line and only the changed files uploaded.
+- [ ] **Step 7: Live (maintainer).** Rebuild the release binary, play, `time lemusync sync`: expect a progress line and only the changed files uploaded.
 
 ---
 
@@ -9345,31 +9345,31 @@ Found in Task 17c Step 7: a sync after a short play session took 52 s and printe
 
 **Change (maintainer, 2026-10-20, D31):** the backend is Cloudflare R2, not Google Drive, and the test starts on the Fedora PC alone ("Part A"). Part B (two PCs) follows, with CachyOS joining the R2 repo.
 
-**Part A: Fedora alone, play and sync.** Use `./target/release/leemusync` from the repo (the system rpm is older). Cemu closed unless a step says otherwise.
+**Part A: Fedora alone, play and sync.** Use `./target/release/lemusync` from the repo (the system rpm is older). Cemu closed unless a step says otherwise.
 
 - [x] **A1: Set up.**
 
     ```sh
-    alias leemusync="$PWD/target/release/leemusync"
-    leemusync backend add s3 --endpoint https://<account id>.r2.cloudflarestorage.com --bucket <bucket> --access-key-id <id>
-    leemusync init                                   # passphrase twice; store the recovery key safely
-    leemusync grant add ~/.var/app/info.cemu.Cemu
-    leemusync scan                                   # expect account 80000001 and orphaned 80000002
-    leemusync players add "<Fedora player>"
-    leemusync accounts map "<Fedora player>" cemu 80000001
-    leemusync doctor                                 # all ok
+    alias lemusync="$PWD/target/release/lemusync"
+    lemusync backend add s3 --endpoint https://<account id>.r2.cloudflarestorage.com --bucket <bucket> --access-key-id <id>
+    lemusync init                                   # passphrase twice; store the recovery key safely
+    lemusync grant add ~/.var/app/info.cemu.Cemu
+    lemusync scan                                   # expect account 80000001 and orphaned 80000002
+    lemusync players add "<Fedora player>"
+    lemusync accounts map "<Fedora player>" cemu 80000001
+    lemusync doctor                                 # all ok
     ```
 
-- [x] **A2: First push.** `leemusync sync --dry-run` (expect `uploaded` for BotW), then `leemusync sync` (answer yes: the panic backup exists). `leemusync history "<Fedora player>" cemu 101c9400` shows 1 version. Run `leemusync sync` again: `up to date`.
-- [x] **A3: Play.** Open Cemu, play BotW and save in game. While it's open, run `leemusync sync`: BotW is skipped with "emulator running", and `doctor` shows `cemu running running`. Close Cemu.
-- [x] **A4: Second push.** `leemusync sync --dry-run` (expect `uploaded`), `leemusync sync`, then `history`: 2 versions, the newest is the head and its parent is the first. Record object counts and timings from the R2 dashboard if notable.
+- [x] **A2: First push.** `lemusync sync --dry-run` (expect `uploaded` for BotW), then `lemusync sync` (answer yes: the panic backup exists). `lemusync history "<Fedora player>" cemu 101c9400` shows 1 version. Run `lemusync sync` again: `up to date`.
+- [x] **A3: Play.** Open Cemu, play BotW and save in game. While it's open, run `lemusync sync`: BotW is skipped with "emulator running", and `doctor` shows `cemu running running`. Close Cemu.
+- [x] **A4: Second push.** `lemusync sync --dry-run` (expect `uploaded`), `lemusync sync`, then `history`: 2 versions, the newest is the head and its parent is the first. Record object counts and timings from the R2 dashboard if notable.
 - [x] **A5: Check without copying.** Compare names and hashes of `user/80000001` with what `history` reports (files and bytes of the head). Open Cemu once more and confirm the save is where you left it.
-- [ ] **A6 (optional): Restore round trip.** `leemusync restore "<Fedora player>" cemu 101c9400 <first version id>`, then check it in Cemu and close it. A `sync` now uploads that old state as a new version on top. To go back, `restore … <the A4 version id>` and `sync` again. History is never rewritten, and every pre-restore copy is in `~/.local/share/leemusync/history/`.
+- [ ] **A6 (optional): Restore round trip.** `lemusync restore "<Fedora player>" cemu 101c9400 <first version id>`, then check it in Cemu and close it. A `sync` now uploads that old state as a new version on top. To go back, `restore … <the A4 version id>` and `sync` again. History is never rewritten, and every pre-restore copy is in `~/.local/share/lemusync/history/`.
 
-**Part B: both PCs** (after Part A; rewritten 2026-10-20). The repo already exists on R2 from Part A, so CachyOS **joins** it. The Fedora player (named in Part A; `leemusync players list` shows the exact name) gets a new Cemu account on CachyOS, and the CachyOS player gets a new one on Fedora. Use each PC's own release binary built from the branch below. Cemu is closed unless a step says otherwise.
+**Part B: both PCs** (after Part A; rewritten 2026-10-20). The repo already exists on R2 from Part A, so CachyOS **joins** it. The Fedora player (named in Part A; `lemusync players list` shows the exact name) gets a new Cemu account on CachyOS, and the CachyOS player gets a new one on Fedora. Use each PC's own release binary built from the branch below. Cemu is closed unless a step says otherwise.
 
 
-Done by the maintainer, with an agent on each PC if wanted. It needs Tasks 1–17 merged to `main` and `just check` green. Real saves are only read and written by `leemusync`, after the panic backups exist. Agents never copy saves anywhere else and never record save contents. Names, sizes and hashes are fine to record.
+Done by the maintainer, with an agent on each PC if wanted. It needs Tasks 1–17 merged to `main` and `just check` green. Real saves are only read and written by `lemusync`, after the panic backups exist. Agents never copy saves anywhere else and never record save contents. Names, sizes and hashes are fine to record.
 
 - [x] **Step 1: Panic backups.**
   - **CachyOS laptop:** done on 2026-10-18 at `~/Documents/panic/botw-cachyos-2026-10-18/` (170 files sha256-verified, `RESTORE.md` inside). Check it's still there. If BotW was played on CachyOS since, take a fresh one with the commands below, using `S=~/.local/share/Cemu/mlc01/usr/save` and `D=~/Documents/panic/botw-cachyos-$(date +%F)`.
@@ -9392,56 +9392,56 @@ Done by the maintainer, with an agent on each PC if wanted. It needs Tasks 1–1
 
     ```sh
     git fetch && git switch feat/store-s3 && git pull --ff-only
-    cargo build --release -p leemusync-cli
-    alias leemusync="$PWD/target/release/leemusync"
-    leemusync doctor                    # keystore ok; backend "not set up yet" is fine here
+    cargo build --release -p lemusync-cli
+    alias lemusync="$PWD/target/release/lemusync"
+    lemusync doctor                    # keystore ok; backend "not set up yet" is fine here
     ```
 
     On Fedora, rebuild the same commit too, so both PCs run the same code.
 - [x] **Step 3: CachyOS joins, maps its own player and pushes first.** Nothing is restored on CachyOS until its own save is safely in the repo.
 
     ```sh
-    leemusync backend add s3 --endpoint https://<account id>.r2.cloudflarestorage.com --bucket lemusync --access-key-id <id>
-    leemusync join                                   # the passphrase from Part A (or the recovery key)
-    leemusync grant add ~/.local/share/Cemu
-    leemusync grant add ~/.config/Cemu
-    leemusync scan                                   # expect account 80000001 and orphaned 80000002
-    leemusync players add "<CachyOS player>"
-    leemusync accounts map "<CachyOS player>" cemu 80000001
-    leemusync sync --dry-run                         # CachyOS player: uploaded; Fedora player: no account on this device
-    leemusync sync                                   # answer yes: the panic backup exists
+    lemusync backend add s3 --endpoint https://<account id>.r2.cloudflarestorage.com --bucket lemusync --access-key-id <id>
+    lemusync join                                   # the passphrase from Part A (or the recovery key)
+    lemusync grant add ~/.local/share/Cemu
+    lemusync grant add ~/.config/Cemu
+    lemusync scan                                   # expect account 80000001 and orphaned 80000002
+    lemusync players add "<CachyOS player>"
+    lemusync accounts map "<CachyOS player>" cemu 80000001
+    lemusync sync --dry-run                         # CachyOS player: uploaded; Fedora player: no account on this device
+    lemusync sync                                   # answer yes: the panic backup exists
     ```
 
     `accounts map` must not ask keep or replace here (the CachyOS player has no versions yet). If it does, stop: the wrong player name was typed.
 - [x] **Step 4: Keep CachyOS's orphan.** Before Cemu creates any account, because it may reuse id `80000002` and its folder still holds the orphan's files:
 
     ```sh
-    leemusync players add "Old CachyOS"
-    leemusync accounts recover cemu 80000002 --player "Old CachyOS"
+    lemusync players add "Old CachyOS"
+    lemusync accounts recover cemu 80000002 --player "Old CachyOS"
     ```
 
     To skip it instead, the panic backup already holds it.
 - [x] **Step 5: New account for the Fedora player on CachyOS.**
-  1. Open Cemu, create an account (account settings, under General settings in 2.6; check the menu on the day), close Cemu. LeemuSync can't create it yet: that's option c, behind SP8 (Task 19).
-  2. `leemusync scan` to see its id (`80000002` if Cemu reuses it, else `80000003`; record which in Step 9).
-  3. `leemusync accounts map "<Fedora player>" cemu <new id>`. If it asks keep or replace (the folder holds the orphan's files), choose **replace**: those files go to local history first and Step 4 already put them in the repo.
-  4. `leemusync sync --dry-run` (Fedora player: `restored the latest version`; CachyOS player: `up to date`), then `leemusync sync`. The progress line shows the download.
+  1. Open Cemu, create an account (account settings, under General settings in 2.6; check the menu on the day), close Cemu. LemuSync can't create it yet: that's option c, behind SP8 (Task 19).
+  2. `lemusync scan` to see its id (`80000002` if Cemu reuses it, else `80000003`; record which in Step 9).
+  3. `lemusync accounts map "<Fedora player>" cemu <new id>`. If it asks keep or replace (the folder holds the orphan's files), choose **replace**: those files go to local history first and Step 4 already put them in the repo.
+  4. `lemusync sync --dry-run` (Fedora player: `restored the latest version`; CachyOS player: `up to date`), then `lemusync sync`. The progress line shows the download.
 - [x] **Step 6: Back on Fedora, the CachyOS player.**
 
     ```sh
-    leemusync sync                                   # pulls the config; CachyOS and Old CachyOS players show "no account on this device"
-    leemusync players add "Old Fedora"
-    leemusync accounts recover cemu 80000002 --player "Old Fedora"
+    lemusync sync                                   # pulls the config; CachyOS and Old CachyOS players show "no account on this device"
+    lemusync players add "Old Fedora"
+    lemusync accounts recover cemu 80000002 --player "Old Fedora"
     ```
 
-    Then create an account in Cemu, close it, `leemusync scan`, `leemusync accounts map "<CachyOS player>" cemu <new id>` (**replace** if asked), `leemusync sync --dry-run` (expect `restored the latest version`), `leemusync sync`. "Old CachyOS" stays at `no account on this device` on Fedora, and "Old Fedora" on CachyOS: expected.
+    Then create an account in Cemu, close it, `lemusync scan`, `lemusync accounts map "<CachyOS player>" cemu <new id>` (**replace** if asked), `lemusync sync --dry-run` (expect `restored the latest version`), `lemusync sync`. "Old CachyOS" stays at `no account on this device` on Fedora, and "Old Fedora" on CachyOS: expected.
 - [x] **Step 7: Check.**
   - Open Cemu on each PC, pick each account in turn, load BotW, and confirm it's the right save (location and play time). Close Cemu.
-  - While Cemu is open, run `leemusync doctor` once on each PC. Expect `cemu running running`, which confirms process detection for the Flatpak and the native package.
-  - Run `leemusync sync` on both PCs. Expect `up to date` everywhere, with nothing transferred.
+  - While Cemu is open, run `lemusync doctor` once on each PC. Expect `cemu running running`, which confirms process detection for the Flatpak and the native package.
+  - Run `lemusync sync` on both PCs. Expect `up to date` everywhere, with nothing transferred.
   - Compare names and hashes only, without copying files. On each PC, for each account folder: `(cd <save>/00050000/101c9400/user/<id> && find . -type f -exec sha256sum {} + | sort -k2)`. CachyOS's new account must match Fedora's `80000001`, and Fedora's new account must match CachyOS's `80000001`.
   - **Handoff once:** play as the Fedora player on CachyOS, save, close Cemu, `sync` (uploaded, only the changed files). On Fedora, `sync` (restored the latest version), then load it in Cemu.
-- [x] **Step 8: If anything looks wrong**, stop syncing, follow `RESTORE.md` on that PC, and keep `~/.local/share/leemusync/history/` (it holds every pre-restore backup). Debug with `superpowers:systematic-debugging`.
+- [x] **Step 8: If anything looks wrong**, stop syncing, follow `RESTORE.md` on that PC, and keep `~/.local/share/lemusync/history/` (it holds every pre-restore backup). Debug with `superpowers:systematic-debugging`.
 - [x] **Step 9: Record and close.** Done 2026-10-20 (maintainer's report plus names, counts and hashes read on Fedora). New accounts: Fedora `80000002` (reused), CachyOS `80000003`. Orphans weren't recovered; the panic backups hold them.
   - `docs/progress/roadmap.md` Phase 1: "M1a reached on <date>", plus anything surprising.
   - `docs/specs/emulator-profiles.md` §Linux paths: process detection seen live for the Flatpak and `cemu-bin`.

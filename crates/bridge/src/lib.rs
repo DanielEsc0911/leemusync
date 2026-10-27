@@ -15,7 +15,7 @@ mod native;
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
-uniffi::setup_scaffolding!("leemusync");
+uniffi::setup_scaffolding!("lemusync");
 
 /// Calls through either binding. SP1 uses it to prove both bindings reach
 /// the same instance.

@@ -57,7 +57,7 @@ mod tests {
         assert!(n(&c) > n(&b));
     }
 
-    // Network probes for SP1: `cargo test -p leemusync-bridge -- --ignored`.
+    // Network probes for SP1: `cargo test -p lemusync-bridge -- --ignored`.
     #[test]
     #[ignore = "needs the network"]
     fn https_accepts_a_valid_certificate() {

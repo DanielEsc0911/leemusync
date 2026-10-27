@@ -1,4 +1,4 @@
-//! `leemusync`: command-line interface. Spec: docs/specs/config-and-cli.md.
+//! `lemusync`: command-line interface. Spec: docs/specs/config-and-cli.md.
 
 mod i18n;
 mod output;
@@ -10,8 +10,8 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::{CommandFactory as _, FromArgMatches as _, Parser, Subcommand};
-use leemusync_api::StreamAction;
-use leemusync_engine::{
+use lemusync_api::StreamAction;
+use lemusync_engine::{
     BackendConfig, Engine, EngineEnv, EngineError, JoinSecret, Locations, MapChoice, MapOutcome,
     S3Backend, SyncOptions, VersionId,
 };
@@ -19,7 +19,7 @@ use leemusync_engine::{
 use crate::i18n::{I18n, s};
 
 #[derive(Parser)]
-#[command(name = "leemusync", version)]
+#[command(name = "lemusync", version)]
 struct Cli {
     #[arg(long, global = true)]
     json: bool,
@@ -210,7 +210,7 @@ fn localize(cmd: clap::Command, path: &str, t: &I18n) -> clap::Command {
 
 fn env() -> Result<EngineEnv, EngineError> {
     let mut env = EngineEnv::system()?;
-    if let Some(root) = std::env::var_os("LEEMUSYNC_TEST_ROOT") {
+    if let Some(root) = std::env::var_os("LEMUSYNC_TEST_ROOT") {
         env.locations = Locations::under(Path::new(&root));
     }
     Ok(env)
@@ -293,7 +293,7 @@ async fn run_play(engine: &mut Engine, cmd: &Cmd, t: &I18n, json: bool) -> Resul
                     game,
                     args,
                     &p,
-                    &leemusync_engine::OsLauncher,
+                    &lemusync_engine::OsLauncher,
                 )
                 .await;
             guard.abort();
@@ -308,7 +308,7 @@ async fn run_play(engine: &mut Engine, cmd: &Cmd, t: &I18n, json: bool) -> Resul
             let (list, warnings) = engine.conflicts().await?;
             if json {
                 output::json(&serde_json::json!({
-                    "api_version": leemusync_api::API_VERSION,
+                    "api_version": lemusync_api::API_VERSION,
                     "conflicts": list,
                     "warnings": warnings,
                 }));
@@ -358,7 +358,7 @@ async fn run_play(engine: &mut Engine, cmd: &Cmd, t: &I18n, json: bool) -> Resul
             let (list, warnings) = engine.lease_status().await?;
             if json {
                 output::json(&serde_json::json!({
-                    "api_version": leemusync_api::API_VERSION,
+                    "api_version": lemusync_api::API_VERSION,
                     "leases": list,
                     "warnings": warnings,
                 }));
@@ -373,7 +373,7 @@ async fn run_play(engine: &mut Engine, cmd: &Cmd, t: &I18n, json: bool) -> Resul
             let released = engine.lease_release_game(game).await?;
             if json {
                 output::json(&serde_json::json!({
-                    "api_version": leemusync_api::API_VERSION,
+                    "api_version": lemusync_api::API_VERSION,
                     "released": released,
                 }));
             } else {

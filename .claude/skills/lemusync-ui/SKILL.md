@@ -1,9 +1,9 @@
 ---
-name: leemusync-ui
-description: Use when creating or changing any LeemuSync Flutter screen, widget, theme value, animation, navigation route or user-facing text, or when reviewing the UI for platform parity, accessibility or jank.
+name: lemusync-ui
+description: Use when creating or changing any LemuSync Flutter screen, widget, theme value, animation, navigation route or user-facing text, or when reviewing the UI for platform parity, accessibility or jank.
 ---
 
-# LeemuSync UI
+# LemuSync UI
 
 Three unbreakable rules: F1 same look everywhere, F2 no jank and nothing broken, F3 same navigation everywhere.
 

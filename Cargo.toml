@@ -6,7 +6,7 @@ members = ["crates/*", "xtask"]
 version = "0.0.1-alpha.1"
 edition = "2024"
 license = "MPL-2.0"
-repository = "https://github.com/DanielEsc0911/leemusync"
+repository = "https://github.com/DanielEsc0911/lemusync"
 rust-version = "1.99" # same as rust-toolchain.toml
 
 [workspace.dependencies]

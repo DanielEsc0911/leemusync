@@ -8,7 +8,7 @@ use jni::objects::{JClass, JObject};
 /// `rustls-platform-verifier`, which calls Android's certificate verifier
 /// through the JVM. Errors become a Java `RuntimeException`.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_io_github_danielesc0911_leemusync_Bridge_initTls<'caller>(
+pub extern "system" fn Java_io_github_danielesc0911_lemusync_Bridge_initTls<'caller>(
     mut env: EnvUnowned<'caller>,
     _class: JClass<'caller>,
     context: JObject<'caller>,

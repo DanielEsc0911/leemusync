@@ -8,9 +8,9 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use futures_util::{StreamExt, TryStreamExt, stream};
-use leemusync_api::{TransferPhase, Warning, WarningCode};
-use leemusync_core::manifest::Version;
-use leemusync_core::{RelPath, StreamId};
+use lemusync_api::{TransferPhase, Warning, WarningCode};
+use lemusync_core::manifest::Version;
+use lemusync_core::{RelPath, StreamId};
 use serde::{Deserialize, Serialize};
 
 use crate::progress::Meter;
@@ -376,7 +376,7 @@ pub(crate) fn recover(
 mod tests {
     use super::*;
     use crate::{FakeProbe, State};
-    use leemusync_core::{DeviceId, Hash32, PlayerId, VersionId};
+    use lemusync_core::{DeviceId, Hash32, PlayerId, VersionId};
 
     struct World {
         _dir: tempfile::TempDir,
@@ -390,8 +390,8 @@ mod tests {
     async fn world() -> World {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path().to_path_buf();
-        let store = leemusync_store::Store::fs(&root.join("remote")).unwrap();
-        let fast = leemusync_crypto::KdfParams {
+        let store = lemusync_store::Store::fs(&root.join("remote")).unwrap();
+        let fast = lemusync_crypto::KdfParams {
             m_kib: 19_456,
             t: 1,
             p: 1,

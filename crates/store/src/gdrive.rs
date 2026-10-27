@@ -16,7 +16,7 @@ use crate::oauth::{self, OAuthClient};
 const REFRESH_MARGIN_MS: u64 = 60_000;
 
 pub struct GdriveConfig {
-    /// Folder inside "My Drive", e.g. `/`. The repo itself lives under `leemusync/`.
+    /// Folder inside "My Drive", e.g. `/`. The repo itself lives under `lemusync/`.
     pub root: String,
     pub client: OAuthClient,
     pub refresh_token: Zeroizing<String>,

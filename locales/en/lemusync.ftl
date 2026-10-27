@@ -1,5 +1,5 @@
-# LeemuSync Rust strings (English source). Keys describe meaning (i18n §Rules).
-# Every key here must exist in es/leemusync.ftl (cargo xtask i18n-check).
+# LemuSync Rust strings (English source). Keys describe meaning (i18n §Rules).
+# Every key here must exist in es/lemusync.ftl (cargo xtask i18n-check).
 
 ## Help
 help-about = Keeps your emulator saves in sync across your devices, through storage you own.
@@ -9,7 +9,7 @@ help-join = Join an existing repo from this device.
 help-join-recovery = Use the recovery key instead of the passphrase.
 help-backend = Set up where the repo is stored.
 help-backend-add = Choose the storage.
-help-backend-add-gdrive = Use Google Drive (LeemuSync only sees the files it created).
+help-backend-add-gdrive = Use Google Drive (LemuSync only sees the files it created).
 help-backend-add-gdrive-client_id = Your OAuth client id (type "Desktop app").
 help-backend-add-s3 = Use an S3-compatible bucket (Cloudflare R2, AWS S3, Backblaze B2…).
 help-backend-add-s3-endpoint = The endpoint, for example https://<account id>.r2.cloudflarestorage.com
@@ -19,7 +19,7 @@ help-backend-add-s3-region = The region (R2 uses auto).
 help-backend-add-fs = Use a local or mounted folder.
 help-backend-add-fs-path = The folder.
 help-backend-login = Log in to Google Drive again.
-help-grant = Choose which folders LeemuSync may read and write.
+help-grant = Choose which folders LemuSync may read and write.
 help-grant-add = Allow a folder (an emulator's own folder).
 help-grant-add-path = The folder.
 help-grant-list = List the allowed folders.
@@ -56,7 +56,7 @@ help-restore = Put back a version or a local backup (the current files are backe
 help-restore-player = The player's name.
 help-restore-emulator = The emulator id, for example cemu.
 help-restore-game = The game id, for example 101c9400.
-help-restore-what = A version id or a backup name from `leemusync history`.
+help-restore-what = A version id or a backup name from `lemusync history`.
 help-restore-yes = Don't ask for confirmation.
 help-doctor = Check the keystore, the storage and the emulator folders.
 
@@ -64,31 +64,31 @@ help-doctor = Check the keystore, the storage and the emulator folders.
 error-usage = { $detail }
 error-config = The config file is invalid: { $detail }
 error-backend = Storage problem: { $detail }
-error-backend_auth = The storage login failed ({ $detail }). Run `leemusync backend login`.
+error-backend_auth = The storage login failed ({ $detail }). Run `lemusync backend login`.
 error-io = File problem: { $detail }
 error-crypto = Encryption problem: { $detail }
 error-unlock = Wrong passphrase or recovery key.
-error-locked = Another LeemuSync process is running ({ $detail }).
+error-locked = Another LemuSync process is running ({ $detail }).
 error-emulator_running = { $detail } is running. Close it and try again.
-error-not_granted = LeemuSync isn't allowed to use { $detail }. Run `leemusync grant add <folder>`.
+error-not_granted = LemuSync isn't allowed to use { $detail }. Run `lemusync grant add <folder>`.
 error-not_set_up = Not set up yet: { $detail }
 error-secrets = The system keyring failed: { $detail }
 error-data = The repo has invalid data: { $detail }
-error-needs_confirmation = This is the first sync on this device. Back up this device's saves first, then run `leemusync sync --yes`.
+error-needs_confirmation = This is the first sync on this device. Back up this device's saves first, then run `lemusync sync --yes`.
 error-busy = { $detail } changed while it was being read. Try again when the game is idle.
 error-injected = Test fault at { $detail }.
 error-needs-choice = Use --keep or --replace (the account already has saves for: { $games }).
 error-needs-tty = This needs a terminal to ask you: { $what }.
 
 ## Keyed errors: error-<code>-<key>. After `key:` the engine passes data ($detail: a path, id or name).
-error-not_set_up-backend = No storage set up yet. Run `leemusync backend add fs <folder>`, `leemusync backend add s3 --endpoint <url> --bucket <name> --access-key-id <id>` or `leemusync backend add gdrive --client-id <id>`.
-error-not_set_up-s3_key = The S3 secret key isn't in this device's system keyring. Run `leemusync backend add s3` again.
-error-not_set_up-gdrive_login = Google Drive isn't logged in on this device. Run `leemusync backend login`.
-error-not_set_up-gdrive_backend = Google Drive isn't the storage on this device. Run `leemusync backend add gdrive --client-id <id>`.
-error-not_set_up-repo = This device has no repo yet. Run `leemusync init` or `leemusync join`.
-error-not_set_up-repo_key = This device's repo key is missing from the system keyring. Run `leemusync join` again.
-error-usage-repo_exists = The storage already has a repo. Run `leemusync join` instead.
-error-usage-repo_race = Another device created a repo on the storage at the same time. Run `leemusync join` instead.
+error-not_set_up-backend = No storage set up yet. Run `lemusync backend add fs <folder>`, `lemusync backend add s3 --endpoint <url> --bucket <name> --access-key-id <id>` or `lemusync backend add gdrive --client-id <id>`.
+error-not_set_up-s3_key = The S3 secret key isn't in this device's system keyring. Run `lemusync backend add s3` again.
+error-not_set_up-gdrive_login = Google Drive isn't logged in on this device. Run `lemusync backend login`.
+error-not_set_up-gdrive_backend = Google Drive isn't the storage on this device. Run `lemusync backend add gdrive --client-id <id>`.
+error-not_set_up-repo = This device has no repo yet. Run `lemusync init` or `lemusync join`.
+error-not_set_up-repo_key = This device's repo key is missing from the system keyring. Run `lemusync join` again.
+error-usage-repo_exists = The storage already has a repo. Run `lemusync join` instead.
+error-usage-repo_race = Another device created a repo on the storage at the same time. Run `lemusync join` instead.
 error-usage-already_joined = This device already uses another repo.
 error-usage-passphrase_too_short = The passphrase needs at least 8 characters.
 error-usage-player_name_invalid = A player name needs 1 to 32 visible characters.
@@ -99,16 +99,16 @@ error-usage-grant_path_missing = That folder doesn't exist.
 error-usage-grant_path_not_allowed = That folder can't be allowed: choose the emulator's own folder, not / or your home folder.
 error-usage-invalid_game_or_account = That game id or account id isn't valid.
 error-usage-restore_reason_invalid = Invalid backup name: { $detail }
-error-usage-unknown_player = There's no player { $detail }. Run `leemusync players add`.
-error-usage-no_install = { $detail } wasn't found on this device. Run `leemusync scan`.
-error-usage-no_account = This device has no emulator account { $detail }. Create it in the emulator, then run `leemusync scan`.
+error-usage-unknown_player = There's no player { $detail }. Run `lemusync players add`.
+error-usage-no_install = { $detail } wasn't found on this device. Run `lemusync scan`.
+error-usage-no_account = This device has no emulator account { $detail }. Create it in the emulator, then run `lemusync scan`.
 error-usage-account_taken = That account is already used by { $detail }.
 error-usage-not_orphaned = { $detail } isn't an orphaned save on this device.
 error-usage-already_has_save = The player already has a save for { $detail }. Recover it to a new player instead.
 error-usage-folder_empty = That save folder is empty.
-error-usage-not_mapped = The player has no { $detail } account on this device. Run `leemusync accounts map`.
-error-usage-unknown_restore_point = { $detail } is neither a version nor a backup. See `leemusync history`.
-error-usage-cannot_create = LeemuSync can't create { $detail } accounts. Create it in the emulator, then run `leemusync accounts map`.
+error-usage-not_mapped = The player has no { $detail } account on this device. Run `lemusync accounts map`.
+error-usage-unknown_restore_point = { $detail } is neither a version nor a backup. See `lemusync history`.
+error-usage-cannot_create = LemuSync can't create { $detail } accounts. Create it in the emulator, then run `lemusync accounts map`.
 error-usage-too_many_accounts = The emulator already has its maximum of { $detail } accounts.
 error-usage-account_exists = Something named { $detail } is already in the accounts folder. Nothing was changed.
 error-usage-bad_account_name = That account name is empty or has characters the emulator can't store.
@@ -119,8 +119,8 @@ error-config-no_home_dir = Your home folder couldn't be found.
 error-config-invalid_flatpak_app_id = An emulator profile has an invalid Flatpak app id.
 error-config-invalid_regex = An emulator profile has an invalid pattern.
 error-config-unsupported_capture = An emulator profile uses an unsupported pattern.
-error-secrets-bad_master_key = The repo key in the system keyring is damaged. Run `leemusync join` again.
-error-data-repo_format_newer = The repo was made by a newer LeemuSync. Update LeemuSync on this device.
+error-secrets-bad_master_key = The repo key in the system keyring is damaged. Run `lemusync join` again.
+error-data-repo_format_newer = The repo was made by a newer LemuSync. Update LemuSync on this device.
 error-data-history_changed = A local history copy changed while it was being uploaded: { $detail }
 error-data-blob_corrupt = A file in the repo is damaged ({ $detail }).
 error-data-manifest_invalid = A version in the repo is invalid.
@@ -145,7 +145,7 @@ answer-keep = k
 answer-replace = r
 
 ## Results
-login-open-url = Open this address in your browser to let LeemuSync use its own Google Drive folder:
+login-open-url = Open this address in your browser to let LemuSync use its own Google Drive folder:
 login-waiting = Waiting for the browser (up to 5 minutes)…
 login-done = Google Drive is connected.
 backend-fs-done = The repo will be stored in { $path }.
@@ -160,7 +160,7 @@ players-none = No players yet.
 map-done = { $player } now uses { $emulator } account { $account } on this device.
 recover-done = The orphaned save is now { $player }'s first { $game } version.
 create-done = Created { $emulator } account “{ $name }” ({ $account }) for { $player }. Open { $emulator } and select “{ $name }” in Account settings.
-restore-done = Restored { $what } for { $player }. Run `leemusync sync` to upload it.
+restore-done = Restored { $what } for { $player }. Run `lemusync sync` to upload it.
 sync-line = { $player } · { $game } · { $action }
 sync-line-moved = { $player } · { $game } · { $action } · { $files ->
     [one] 1 file
@@ -172,8 +172,8 @@ progress-uploading = { $player } · { $game } · uploading { $bar } { $done }/{ 
 progress-downloading = { $player } · { $game } · downloading { $bar } { $done }/{ $total } · { $size_done }/{ $size_total } MB · { $rate } MB/s
 dry-run = Dry run: nothing was changed.
 sync-conflicts = { $count ->
-    [one] One save has a conflict. Both versions are kept. Run `leemusync conflicts`.
-   *[other] { $count } saves have a conflict. All versions are kept. Run `leemusync conflicts`.
+    [one] One save has a conflict. Both versions are kept. Run `lemusync conflicts`.
+   *[other] { $count } saves have a conflict. All versions are kept. Run `lemusync conflicts`.
 }
 
 action-nothing = up to date
@@ -184,37 +184,37 @@ action-upload_then_conflict = uploaded, conflict to resolve
 action-conflict = conflict to resolve
 action-local_missing = the save folder is missing
 action-remote_behind = the repo went back in time; nothing changed
-action-needs_account = no account on this device: run `leemusync accounts map`
+action-needs_account = no account on this device: run `lemusync accounts map`
 action-skipped = skipped (the emulator is running)
 action-resolved = conflict resolved; the other versions stay in history
 
 warning-emulator_running = { $detail } is running, so its saves were skipped.
-warning-not_granted = Not allowed yet: { $detail }. Run `leemusync grant add`.
+warning-not_granted = Not allowed yet: { $detail }. Run `lemusync grant add`.
 warning-shared_folder_not_empty = { $detail } is shared by every account and isn't synced yet.
-warning-orphaned_save = Orphaned save { $detail }: its account was deleted. Run `leemusync accounts recover` to keep it.
+warning-orphaned_save = Orphaned save { $detail }: its account was deleted. Run `lemusync accounts recover` to keep it.
 warning-config_merged = Changes from two devices were merged.
 warning-player_renamed = Two players had the same name; one is now { $detail }.
 warning-remote_behind = The repo is missing versions this device saw ({ $detail }). Nothing was changed.
 warning-restore_rolled_back = An interrupted restore was undone in { $detail }.
 warning-invalid_version = Ignored invalid data in the repo: { $detail }
-warning-setup_incomplete = The repo was created, but this device isn't fully set up ({ $detail }). Run `leemusync join` with your passphrase to finish.
+warning-setup_incomplete = The repo was created, but this device isn't fully set up ({ $detail }). Run `lemusync join` with your passphrase to finish.
 warning-unreadable_folder = A save folder couldn't be read safely and was skipped: { $detail }
 warning-lease_renew_failed = Couldn't renew the lease ({ $detail }); retrying. The game keeps running.
 warning-lease_release_failed = Couldn't release the lease ({ $detail }); it expires on its own.
 
 scan-install = { $emulator } at { $base }
-scan-needs-grant = Allow it: leemusync grant add { $path }
+scan-needs-grant = Allow it: lemusync grant add { $path }
 scan-account = account { $id } · { $name } · { $player }
 scan-unknown = (none)
 scan-save = save { $game }/{ $account } · { $files ->
     [one] 1 file
    *[other] { $files } files
 }
-scan-orphan = orphaned save { $game }/{ $account }: run `leemusync accounts recover`
+scan-orphan = orphaned save { $game }/{ $account }: run `lemusync accounts recover`
 
 status-device = Device: { $device }
 status-repo = Repo: { $repo } on { $backend }
-status-no-repo = No repo yet: run `leemusync init` or `leemusync join`.
+status-no-repo = No repo yet: run `lemusync init` or `lemusync join`.
 status-stream = { $player } · { $emulator } { $game } · account { $account }
 
 history-version = { $id } · { $files ->
@@ -236,7 +236,7 @@ help-play-args = Extra arguments for the emulator, after --.
 help-conflicts = List saves with a conflict and their versions.
 help-resolve = Resolve a conflict by keeping one version (the others stay in history).
 help-resolve-game = The game id, for example 101c9400.
-help-resolve-version = The version id to keep, from `leemusync conflicts`.
+help-resolve-version = The version id to keep, from `lemusync conflicts`.
 help-resolve-player = The player (needed when several players have a conflict on this game).
 help-lease = Show or release leases (which device is playing what).
 help-lease-status = Show every lease in the repo.
@@ -248,7 +248,7 @@ play-pulling = Getting the newest save…
 play-waiting = Another device is playing. Waiting for it to finish…
 play-running = { $emulator } is running. Your save uploads when you close it.
 play-uploading = { $emulator } closed. Uploading your save…
-play-ctrl-c = The game is still running. Close it there; LeemuSync then uploads your save.
+play-ctrl-c = The game is still running. Close it there; LemuSync then uploads your save.
 play-done = { $emulator } exited with code { $code }.
 prompt-lease-held = { $device } is playing this save (last seen { $ago } s ago).
 prompt-lease-stale = { $device } was playing this save but stopped answering { $ago } s ago.
@@ -280,9 +280,9 @@ lease-released = { $count ->
     [one] Released this device's lease on { $game }.
    *[other] Released { $count } leases of this device on { $game }.
 }
-error-lease_held = { $detail } is playing this save. Run `leemusync play` in a terminal to wait or play anyway.
-error-needs_decision = { $detail } has a conflict. Run `leemusync conflicts`, then `leemusync resolve`.
+error-lease_held = { $detail } is playing this save. Run `lemusync play` in a terminal to wait or play anyway.
+error-needs_decision = { $detail } has a conflict. Run `lemusync conflicts`, then `lemusync resolve`.
 error-usage-player_needed = Choose the player with --as <name>.
-error-usage-version_invalid = { $detail } isn't a version id. Run `leemusync conflicts` to see them.
+error-usage-version_invalid = { $detail } isn't a version id. Run `lemusync conflicts` to see them.
 error-usage-no_conflict = { $detail } has no conflict.
 error-usage-lease_live = That lease is live; it can't be taken over.

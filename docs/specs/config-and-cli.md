@@ -10,9 +10,9 @@ Resolved with the `directories` crate:
 
 | OS | Config | Data (state DB, history, staging) |
 |---|---|---|
-| Linux | `~/.config/leemusync/` | `~/.local/share/leemusync/` |
-| macOS | `~/Library/Application Support/LeemuSync/` | same |
-| Windows | `%APPDATA%\LeemuSync\` | `%LOCALAPPDATA%\LeemuSync\` |
+| Linux | `~/.config/lemusync/` | `~/.local/share/lemusync/` |
+| macOS | `~/Library/Application Support/LemuSync/` | same |
+| Windows | `%APPDATA%\LemuSync\` | `%LOCALAPPDATA%\LemuSync\` |
 | Android / iOS | App-private storage | App-private storage |
 
 ## Config file
@@ -27,34 +27,34 @@ Every command supports `--json` (stable English keys, versioned) and `--help`. H
 
 | Command | Does |
 |---|---|
-| `leemusync init` | Create a repo on a backend; set passphrase; show recovery key. Once the repo exists the key is always shown: if a later step fails on this device, `init` warns and `leemusync join` finishes it |
-| `leemusync join` | Join an existing repo (passphrase or recovery key) |
-| `leemusync status` | Engine state, pending transfers, conflicts, leases |
-| `leemusync sync [--dry-run]` | Sync now |
-| `leemusync play <emulator> <game> [--as <player>] [-- <args>]` | Launcher mode |
-| `leemusync games` / `history <game>` / `restore <game> <version>` | Browse and restore |
-| `leemusync conflicts` / `resolve <game> <version>` | Conflict handling |
-| `leemusync lease status` / `lease release --force` | Lease handling |
-| `leemusync players add/list` / `accounts map <player> <emulator> <id> [--keep\|--replace]` | Players and account mappings |
-| `leemusync accounts recover <emulator> <id> --player <name>` | Upload an orphaned save folder as a player's first version |
-| `leemusync accounts create <player> <emulator> [--name <name>] [--yes]` | Write a new emulator account from profile data, map it to the player, then sync to restore their saves ([players-and-accounts](players-and-accounts.md#creating-a-cemu-account-sp8)) |
-| `leemusync scan` | Accounts, save folders, orphaned saves, grants needed |
-| `leemusync devices` | Devices in the repo |
-| `leemusync backend add/test/show` | Storage setup and probe |
-| `leemusync backend add s3 --endpoint <url> --bucket <name> --access-key-id <id> [--region auto]` / `backend add gdrive --client-id <id>` / `backend add fs <path>` / `backend login` | S3-compatible (R2), Google Drive or local-folder setup, with a probe for S3; OAuth login |
-| `leemusync grant add/list/revoke` | Folder permissions |
-| `leemusync profiles list/show/validate <file>` | Emulator profiles |
-| `leemusync service install/uninstall/start/stop/status` | Daemon service management |
-| `leemusync logs [--follow]` | Local, redacted logs |
-| `leemusync doctor` | Diagnose permissions, paths, keystore, battery/background settings, clock skew |
+| `lemusync init` | Create a repo on a backend; set passphrase; show recovery key. Once the repo exists the key is always shown: if a later step fails on this device, `init` warns and `lemusync join` finishes it |
+| `lemusync join` | Join an existing repo (passphrase or recovery key) |
+| `lemusync status` | Engine state, pending transfers, conflicts, leases |
+| `lemusync sync [--dry-run]` | Sync now |
+| `lemusync play <emulator> <game> [--as <player>] [-- <args>]` | Launcher mode |
+| `lemusync games` / `history <game>` / `restore <game> <version>` | Browse and restore |
+| `lemusync conflicts` / `resolve <game> <version>` | Conflict handling |
+| `lemusync lease status` / `lease release --force` | Lease handling |
+| `lemusync players add/list` / `accounts map <player> <emulator> <id> [--keep\|--replace]` | Players and account mappings |
+| `lemusync accounts recover <emulator> <id> --player <name>` | Upload an orphaned save folder as a player's first version |
+| `lemusync accounts create <player> <emulator> [--name <name>] [--yes]` | Write a new emulator account from profile data, map it to the player, then sync to restore their saves ([players-and-accounts](players-and-accounts.md#creating-a-cemu-account-sp8)) |
+| `lemusync scan` | Accounts, save folders, orphaned saves, grants needed |
+| `lemusync devices` | Devices in the repo |
+| `lemusync backend add/test/show` | Storage setup and probe |
+| `lemusync backend add s3 --endpoint <url> --bucket <name> --access-key-id <id> [--region auto]` / `backend add gdrive --client-id <id>` / `backend add fs <path>` / `backend login` | S3-compatible (R2), Google Drive or local-folder setup, with a probe for S3; OAuth login |
+| `lemusync grant add/list/revoke` | Folder permissions |
+| `lemusync profiles list/show/validate <file>` | Emulator profiles |
+| `lemusync service install/uninstall/start/stop/status` | Daemon service management |
+| `lemusync logs [--follow]` | Local, redacted logs |
+| `lemusync doctor` | Diagnose permissions, paths, keystore, battery/background settings, clock skew |
 
 The Phase 1 first slice ships `init`, `join`, `backend add/login`, `grant add/list`, `players add/list`, `scan`, `accounts map/recover`, `sync [--dry-run] [--yes]`, `status`, `history`, `restore` and `doctor` ([plan](../progress/plans/phase-1-first-sync.md)). M1b adds `play`, `conflicts`, `resolve <game> <version> [--as <player>]`, `lease status`, `lease release --force <game>` and `accounts create` ([plan](../progress/plans/phase-1b-play.md)). `--as` defaults to the only player in the repo. `conflict_policy` and `[emulators.<id>] exe`/`games` are set in `config.toml` only.
 
-**`play` in the terminal.** One line on stderr per step (getting the newest save, waiting for another device, the emulator running, uploading), then the emulator's exit code and the upload result on stdout. Lease renewals are silent unless one fails. On Unix the emulator runs in its own process group: Ctrl-C reaches only LeemuSync, which prints a hint and keeps waiting, then uploads and releases the lease when the emulator closes. A held lease or a conflict is asked about only with a terminal and without `--json`; otherwise `play` stops before launch with exit 5 or 4.
+**`play` in the terminal.** One line on stderr per step (getting the newest save, waiting for another device, the emulator running, uploading), then the emulator's exit code and the upload result on stdout. Lease renewals are silent unless one fails. On Unix the emulator runs in its own process group: Ctrl-C reaches only LemuSync, which prints a hint and keeps waiting, then uploads and releases the lease when the emulator closes. A held lease or a conflict is asked about only with a terminal and without `--json`; otherwise `play` stops before launch with exit 5 or 4.
 
 **Progress and results.** While `sync`, `restore` and `accounts recover` run, one line on stderr shows the stream being worked on: a spinner, player · game, the phase, a bar, files, MB and MB/s. It's redrawn every 100 ms and cleared before anything else prints. It only appears when stderr is a terminal, `TERM` isn't `dumb` and `--json` is off. `sync` then prints one aligned line per stream (with "N files, X MB" when something moved) and the elapsed time. The action is colored (green done, yellow waiting on the user, red conflict) only when stdout is a terminal and `NO_COLOR` is unset.
 
-Secrets (passphrase, recovery key, OAuth client secret, S3 secret key) are only typed at no-echo prompts, never taken from arguments or environment variables; without a terminal the command fails with a usage error. The recovery key is printed once by `init`, to stderr, even with `--json`. `LEEMUSYNC_TEST_ROOT=<dir>` puts the config, data and emulator search under `<dir>`: it's for tests only (the OS keystore is still used).
+Secrets (passphrase, recovery key, OAuth client secret, S3 secret key) are only typed at no-echo prompts, never taken from arguments or environment variables; without a terminal the command fails with a usage error. The recovery key is printed once by `init`, to stderr, even with `--json`. `LEMUSYNC_TEST_ROOT=<dir>` puts the config, data and emulator search under `<dir>`: it's for tests only (the OS keystore is still used).
 
 ## Exit codes
 | Code | Meaning |

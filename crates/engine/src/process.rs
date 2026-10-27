@@ -117,6 +117,6 @@ mod tests {
 
     #[test]
     fn sysinfo_does_not_see_a_made_up_process() {
-        assert!(!SysinfoProbe.running(&["leemusync-no-such-process-7f3a".into()]));
+        assert!(!SysinfoProbe.running(&["lemusync-no-such-process-7f3a".into()]));
     }
 }

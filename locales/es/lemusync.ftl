@@ -1,4 +1,4 @@
-# Textos de LeemuSync para Rust (español neutro latinoamericano). Mismas claves que en/leemusync.ftl.
+# Textos de LemuSync para Rust (español neutro latinoamericano). Mismas claves que en/lemusync.ftl.
 
 ## Ayuda
 help-about = Mantiene tus partidas guardadas sincronizadas entre tus dispositivos, con un almacenamiento que es tuyo.
@@ -8,7 +8,7 @@ help-join = Une este dispositivo a un repo existente.
 help-join-recovery = Usa la clave de recuperación en lugar de la frase de contraseña.
 help-backend = Configura dónde se guarda el repo.
 help-backend-add = Elige el almacenamiento.
-help-backend-add-gdrive = Usa Google Drive (LeemuSync solo ve los archivos que creó).
+help-backend-add-gdrive = Usa Google Drive (LemuSync solo ve los archivos que creó).
 help-backend-add-gdrive-client_id = Tu id de cliente OAuth (tipo "App de escritorio").
 help-backend-add-s3 = Usa un bucket compatible con S3 (Cloudflare R2, AWS S3, Backblaze B2…).
 help-backend-add-s3-endpoint = El endpoint, por ejemplo https://<id de cuenta>.r2.cloudflarestorage.com
@@ -18,7 +18,7 @@ help-backend-add-s3-region = La región (R2 usa auto).
 help-backend-add-fs = Usa una carpeta local o montada.
 help-backend-add-fs-path = La carpeta.
 help-backend-login = Vuelve a iniciar sesión en Google Drive.
-help-grant = Elige qué carpetas puede leer y escribir LeemuSync.
+help-grant = Elige qué carpetas puede leer y escribir LemuSync.
 help-grant-add = Permite una carpeta (la carpeta del emulador).
 help-grant-add-path = La carpeta.
 help-grant-list = Lista las carpetas permitidas.
@@ -55,7 +55,7 @@ help-restore = Restaura una versión o una copia local (antes se respaldan los a
 help-restore-player = El nombre del jugador.
 help-restore-emulator = El id del emulador, por ejemplo cemu.
 help-restore-game = El id del juego, por ejemplo 101c9400.
-help-restore-what = Un id de versión o el nombre de una copia de `leemusync history`.
+help-restore-what = Un id de versión o el nombre de una copia de `lemusync history`.
 help-restore-yes = No pide confirmación.
 help-doctor = Revisa el llavero del sistema, el almacenamiento y las carpetas del emulador.
 
@@ -63,31 +63,31 @@ help-doctor = Revisa el llavero del sistema, el almacenamiento y las carpetas de
 error-usage = { $detail }
 error-config = El archivo de configuración no es válido: { $detail }
 error-backend = Problema con el almacenamiento: { $detail }
-error-backend_auth = Falló el inicio de sesión del almacenamiento ({ $detail }). Ejecuta `leemusync backend login`.
+error-backend_auth = Falló el inicio de sesión del almacenamiento ({ $detail }). Ejecuta `lemusync backend login`.
 error-io = Problema con un archivo: { $detail }
 error-crypto = Problema de cifrado: { $detail }
 error-unlock = La frase de contraseña o la clave de recuperación no es correcta.
-error-locked = Ya hay otro proceso de LeemuSync en ejecución ({ $detail }).
+error-locked = Ya hay otro proceso de LemuSync en ejecución ({ $detail }).
 error-emulator_running = { $detail } está abierto. Ciérralo y vuelve a intentarlo.
-error-not_granted = LeemuSync no tiene permiso para usar { $detail }. Ejecuta `leemusync grant add <carpeta>`.
+error-not_granted = LemuSync no tiene permiso para usar { $detail }. Ejecuta `lemusync grant add <carpeta>`.
 error-not_set_up = Todavía falta configurar: { $detail }
 error-secrets = Falló el llavero del sistema: { $detail }
 error-data = El repo tiene datos no válidos: { $detail }
-error-needs_confirmation = Es la primera sincronización en este dispositivo. Primero respalda las partidas guardadas de este dispositivo y luego ejecuta `leemusync sync --yes`.
+error-needs_confirmation = Es la primera sincronización en este dispositivo. Primero respalda las partidas guardadas de este dispositivo y luego ejecuta `lemusync sync --yes`.
 error-busy = { $detail } cambió mientras se leía. Vuelve a intentarlo cuando el juego esté en reposo.
 error-injected = Falla de prueba en { $detail }.
 error-needs-choice = Usa --keep o --replace (la cuenta ya tiene partidas guardadas de: { $games }).
 error-needs-tty = Esto necesita una terminal para preguntarte: { $what }.
 
 ## Errores con clave: error-<código>-<clave>. Tras `clave:` el motor pasa datos ($detail: una ruta, id o nombre).
-error-not_set_up-backend = Todavía no hay almacenamiento configurado. Ejecuta `leemusync backend add fs <carpeta>`, `leemusync backend add s3 --endpoint <url> --bucket <nombre> --access-key-id <id>` o `leemusync backend add gdrive --client-id <id>`.
-error-not_set_up-s3_key = La clave secreta de S3 no está en el llavero del sistema de este dispositivo. Vuelve a ejecutar `leemusync backend add s3`.
-error-not_set_up-gdrive_login = No iniciaste sesión en Google Drive en este dispositivo. Ejecuta `leemusync backend login`.
-error-not_set_up-gdrive_backend = Google Drive no es el almacenamiento de este dispositivo. Ejecuta `leemusync backend add gdrive --client-id <id>`.
-error-not_set_up-repo = Este dispositivo todavía no tiene un repo. Ejecuta `leemusync init` o `leemusync join`.
-error-not_set_up-repo_key = Falta la clave del repo en el llavero del sistema. Vuelve a ejecutar `leemusync join`.
-error-usage-repo_exists = El almacenamiento ya tiene un repo. Mejor ejecuta `leemusync join`.
-error-usage-repo_race = Otro dispositivo creó un repo en el almacenamiento al mismo tiempo. Mejor ejecuta `leemusync join`.
+error-not_set_up-backend = Todavía no hay almacenamiento configurado. Ejecuta `lemusync backend add fs <carpeta>`, `lemusync backend add s3 --endpoint <url> --bucket <nombre> --access-key-id <id>` o `lemusync backend add gdrive --client-id <id>`.
+error-not_set_up-s3_key = La clave secreta de S3 no está en el llavero del sistema de este dispositivo. Vuelve a ejecutar `lemusync backend add s3`.
+error-not_set_up-gdrive_login = No iniciaste sesión en Google Drive en este dispositivo. Ejecuta `lemusync backend login`.
+error-not_set_up-gdrive_backend = Google Drive no es el almacenamiento de este dispositivo. Ejecuta `lemusync backend add gdrive --client-id <id>`.
+error-not_set_up-repo = Este dispositivo todavía no tiene un repo. Ejecuta `lemusync init` o `lemusync join`.
+error-not_set_up-repo_key = Falta la clave del repo en el llavero del sistema. Vuelve a ejecutar `lemusync join`.
+error-usage-repo_exists = El almacenamiento ya tiene un repo. Mejor ejecuta `lemusync join`.
+error-usage-repo_race = Otro dispositivo creó un repo en el almacenamiento al mismo tiempo. Mejor ejecuta `lemusync join`.
 error-usage-already_joined = Este dispositivo ya usa otro repo.
 error-usage-passphrase_too_short = La frase de contraseña necesita al menos 8 caracteres.
 error-usage-player_name_invalid = El nombre de un jugador necesita de 1 a 32 caracteres visibles.
@@ -98,16 +98,16 @@ error-usage-grant_path_missing = Esa carpeta no existe.
 error-usage-grant_path_not_allowed = No se puede permitir esa carpeta: elige la carpeta del emulador, no / ni tu carpeta personal.
 error-usage-invalid_game_or_account = Ese id de juego o de cuenta no es válido.
 error-usage-restore_reason_invalid = Nombre de copia no válido: { $detail }
-error-usage-unknown_player = No hay ningún jugador { $detail }. Ejecuta `leemusync players add`.
-error-usage-no_install = No se encontró { $detail } en este dispositivo. Ejecuta `leemusync scan`.
-error-usage-no_account = Este dispositivo no tiene la cuenta del emulador { $detail }. Créala en el emulador y luego ejecuta `leemusync scan`.
+error-usage-unknown_player = No hay ningún jugador { $detail }. Ejecuta `lemusync players add`.
+error-usage-no_install = No se encontró { $detail } en este dispositivo. Ejecuta `lemusync scan`.
+error-usage-no_account = Este dispositivo no tiene la cuenta del emulador { $detail }. Créala en el emulador y luego ejecuta `lemusync scan`.
 error-usage-account_taken = { $detail } ya usa esa cuenta.
 error-usage-not_orphaned = { $detail } no es una partida huérfana en este dispositivo.
 error-usage-already_has_save = El jugador ya tiene una partida guardada de { $detail }. Mejor recupérala para un jugador nuevo.
 error-usage-folder_empty = Esa carpeta de guardado está vacía.
-error-usage-not_mapped = El jugador no tiene una cuenta de { $detail } en este dispositivo. Ejecuta `leemusync accounts map`.
-error-usage-unknown_restore_point = { $detail } no es una versión ni una copia. Consulta `leemusync history`.
-error-usage-cannot_create = LeemuSync no puede crear cuentas de { $detail }. Créala en el emulador y luego ejecuta `leemusync accounts map`.
+error-usage-not_mapped = El jugador no tiene una cuenta de { $detail } en este dispositivo. Ejecuta `lemusync accounts map`.
+error-usage-unknown_restore_point = { $detail } no es una versión ni una copia. Consulta `lemusync history`.
+error-usage-cannot_create = LemuSync no puede crear cuentas de { $detail }. Créala en el emulador y luego ejecuta `lemusync accounts map`.
 error-usage-too_many_accounts = El emulador ya tiene su máximo de { $detail } cuentas.
 error-usage-account_exists = Ya hay algo llamado { $detail } en la carpeta de cuentas. No se cambió nada.
 error-usage-bad_account_name = Ese nombre de cuenta está vacío o tiene caracteres que el emulador no puede guardar.
@@ -118,8 +118,8 @@ error-config-no_home_dir = No se encontró tu carpeta personal.
 error-config-invalid_flatpak_app_id = Un perfil de emulador tiene un id de app de Flatpak no válido.
 error-config-invalid_regex = Un perfil de emulador tiene un patrón no válido.
 error-config-unsupported_capture = Un perfil de emulador usa un patrón no compatible.
-error-secrets-bad_master_key = La clave del repo en el llavero del sistema está dañada. Vuelve a ejecutar `leemusync join`.
-error-data-repo_format_newer = El repo lo creó una versión más nueva de LeemuSync. Actualiza LeemuSync en este dispositivo.
+error-secrets-bad_master_key = La clave del repo en el llavero del sistema está dañada. Vuelve a ejecutar `lemusync join`.
+error-data-repo_format_newer = El repo lo creó una versión más nueva de LemuSync. Actualiza LemuSync en este dispositivo.
 error-data-history_changed = Una copia del historial local cambió mientras se subía: { $detail }
 error-data-blob_corrupt = Un archivo del repo está dañado ({ $detail }).
 error-data-manifest_invalid = Una versión del repo no es válida.
@@ -144,7 +144,7 @@ answer-keep = c
 answer-replace = r
 
 ## Resultados
-login-open-url = Abre esta dirección en tu navegador para que LeemuSync use su propia carpeta de Google Drive:
+login-open-url = Abre esta dirección en tu navegador para que LemuSync use su propia carpeta de Google Drive:
 login-waiting = Esperando al navegador (hasta 5 minutos)…
 login-done = Google Drive está conectado.
 backend-fs-done = El repo se guardará en { $path }.
@@ -159,7 +159,7 @@ players-none = Todavía no hay jugadores.
 map-done = { $player } ahora usa la cuenta { $account } de { $emulator } en este dispositivo.
 recover-done = La partida huérfana ahora es la primera versión de { $game } de { $player }.
 create-done = Se creó la cuenta “{ $name }” ({ $account }) de { $emulator } para { $player }. Abre { $emulator } y elige “{ $name }” en la configuración de cuentas.
-restore-done = Se restauró { $what } para { $player }. Ejecuta `leemusync sync` para subirla.
+restore-done = Se restauró { $what } para { $player }. Ejecuta `lemusync sync` para subirla.
 sync-line = { $player } · { $game } · { $action }
 sync-line-moved = { $player } · { $game } · { $action } · { $files ->
     [one] 1 archivo
@@ -171,8 +171,8 @@ progress-uploading = { $player } · { $game } · subiendo { $bar } { $done }/{ $
 progress-downloading = { $player } · { $game } · descargando { $bar } { $done }/{ $total } · { $size_done }/{ $size_total } MB · { $rate } MB/s
 dry-run = Prueba: no se cambió nada.
 sync-conflicts = { $count ->
-    [one] Una partida guardada tiene un conflicto. Se conservan ambas versiones. Ejecuta `leemusync conflicts`.
-   *[other] { $count } partidas guardadas tienen un conflicto. Se conservan todas las versiones. Ejecuta `leemusync conflicts`.
+    [one] Una partida guardada tiene un conflicto. Se conservan ambas versiones. Ejecuta `lemusync conflicts`.
+   *[other] { $count } partidas guardadas tienen un conflicto. Se conservan todas las versiones. Ejecuta `lemusync conflicts`.
 }
 
 action-nothing = al día
@@ -183,37 +183,37 @@ action-upload_then_conflict = subida, con un conflicto por resolver
 action-conflict = conflicto por resolver
 action-local_missing = falta la carpeta de la partida guardada
 action-remote_behind = el repo volvió a un estado anterior; no se cambió nada
-action-needs_account = no hay cuenta en este dispositivo: ejecuta `leemusync accounts map`
+action-needs_account = no hay cuenta en este dispositivo: ejecuta `lemusync accounts map`
 action-skipped = omitida (el emulador está abierto)
 action-resolved = conflicto resuelto; las otras versiones quedan en el historial
 
 warning-emulator_running = { $detail } está abierto, así que se omitieron sus partidas guardadas.
-warning-not_granted = Todavía sin permiso: { $detail }. Ejecuta `leemusync grant add`.
+warning-not_granted = Todavía sin permiso: { $detail }. Ejecuta `lemusync grant add`.
 warning-shared_folder_not_empty = { $detail } lo comparten todas las cuentas y todavía no se sincroniza.
-warning-orphaned_save = Partida huérfana { $detail }: se borró su cuenta. Ejecuta `leemusync accounts recover` para conservarla.
+warning-orphaned_save = Partida huérfana { $detail }: se borró su cuenta. Ejecuta `lemusync accounts recover` para conservarla.
 warning-config_merged = Se combinaron cambios de dos dispositivos.
 warning-player_renamed = Dos jugadores tenían el mismo nombre; uno ahora se llama { $detail }.
 warning-remote_behind = Al repo le faltan versiones que este dispositivo vio ({ $detail }). No se cambió nada.
 warning-restore_rolled_back = Se deshizo una restauración interrumpida en { $detail }.
 warning-invalid_version = Se ignoraron datos no válidos del repo: { $detail }
-warning-setup_incomplete = Se creó el repo, pero este dispositivo no quedó configurado del todo ({ $detail }). Ejecuta `leemusync join` con tu frase de contraseña para terminar.
+warning-setup_incomplete = Se creó el repo, pero este dispositivo no quedó configurado del todo ({ $detail }). Ejecuta `lemusync join` con tu frase de contraseña para terminar.
 warning-unreadable_folder = No se pudo leer una carpeta de guardado de forma segura y se omitió: { $detail }
 warning-lease_renew_failed = No se pudo renovar el bloqueo ({ $detail }); se reintenta. El juego sigue abierto.
 warning-lease_release_failed = No se pudo liberar el bloqueo ({ $detail }); vence solo.
 
 scan-install = { $emulator } en { $base }
-scan-needs-grant = Permítelo: leemusync grant add { $path }
+scan-needs-grant = Permítelo: lemusync grant add { $path }
 scan-account = cuenta { $id } · { $name } · { $player }
 scan-unknown = (ninguno)
 scan-save = partida guardada { $game }/{ $account } · { $files ->
     [one] 1 archivo
    *[other] { $files } archivos
 }
-scan-orphan = partida huérfana { $game }/{ $account }: ejecuta `leemusync accounts recover`
+scan-orphan = partida huérfana { $game }/{ $account }: ejecuta `lemusync accounts recover`
 
 status-device = Dispositivo: { $device }
 status-repo = Repo: { $repo } en { $backend }
-status-no-repo = Todavía no hay un repo: ejecuta `leemusync init` o `leemusync join`.
+status-no-repo = Todavía no hay un repo: ejecuta `lemusync init` o `lemusync join`.
 status-stream = { $player } · { $emulator } { $game } · cuenta { $account }
 
 history-version = { $id } · { $files ->
@@ -235,7 +235,7 @@ help-play-args = Argumentos extra para el emulador, después de --.
 help-conflicts = Muestra las partidas guardadas con conflicto y sus versiones.
 help-resolve = Resuelve un conflicto conservando una versión (las demás quedan en el historial).
 help-resolve-game = El id del juego, por ejemplo 101c9400.
-help-resolve-version = El id de la versión que se conserva, de `leemusync conflicts`.
+help-resolve-version = El id de la versión que se conserva, de `lemusync conflicts`.
 help-resolve-player = El jugador (necesario si varios jugadores tienen un conflicto en este juego).
 help-lease = Muestra o libera bloqueos (qué dispositivo está jugando qué).
 help-lease-status = Muestra todos los bloqueos del repo.
@@ -247,7 +247,7 @@ play-pulling = Trayendo la partida guardada más reciente…
 play-waiting = Otro dispositivo está jugando. Esperando a que termine…
 play-running = { $emulator } está abierto. Tu partida se sube cuando lo cierres.
 play-uploading = Se cerró { $emulator }. Subiendo tu partida…
-play-ctrl-c = El juego sigue abierto. Ciérralo ahí; luego LeemuSync sube tu partida.
+play-ctrl-c = El juego sigue abierto. Ciérralo ahí; luego LemuSync sube tu partida.
 play-done = { $emulator } terminó con el código { $code }.
 prompt-lease-held = { $device } está jugando esta partida (visto hace { $ago } s).
 prompt-lease-stale = { $device } estaba jugando esta partida pero dejó de responder hace { $ago } s.
@@ -279,9 +279,9 @@ lease-released = { $count ->
     [one] Se liberó el bloqueo de este dispositivo en { $game }.
    *[other] Se liberaron { $count } bloqueos de este dispositivo en { $game }.
 }
-error-lease_held = { $detail } está jugando esta partida. Ejecuta `leemusync play` en una terminal para esperar o jugar de todos modos.
-error-needs_decision = { $detail } tiene un conflicto. Ejecuta `leemusync conflicts` y luego `leemusync resolve`.
+error-lease_held = { $detail } está jugando esta partida. Ejecuta `lemusync play` en una terminal para esperar o jugar de todos modos.
+error-needs_decision = { $detail } tiene un conflicto. Ejecuta `lemusync conflicts` y luego `lemusync resolve`.
 error-usage-player_needed = Elige el jugador con --as <nombre>.
-error-usage-version_invalid = { $detail } no es un id de versión. Ejecuta `leemusync conflicts` para verlos.
+error-usage-version_invalid = { $detail } no es un id de versión. Ejecuta `lemusync conflicts` para verlos.
 error-usage-no_conflict = { $detail } no tiene conflictos.
 error-usage-lease_live = Ese bloqueo está activo; no se puede tomar.

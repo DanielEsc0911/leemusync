@@ -1,6 +1,6 @@
 {
   "@@locale": "en",
-  "appTitle": "LeemuSync",
+  "appTitle": "LemuSync",
   "@appTitle": { "description": "Product name. Never translated." },
   "statusSynced": "All saves synced",
   "@statusSynced": { "description": "Home status when nothing is pending." },

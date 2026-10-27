@@ -10,12 +10,12 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use common::{Pc, SAVE, join, map};
-use leemusync_api::{ConflictInfo, PlayLease, StreamAction};
-use leemusync_core::VersionId;
-use leemusync_engine::{
+use lemusync_api::{ConflictInfo, PlayLease, StreamAction};
+use lemusync_core::VersionId;
+use lemusync_engine::{
     Child, EmulatorOverride, EngineError, Launcher, LeaseChoice, Locations, MapChoice, PlayPrompt,
 };
-use leemusync_store::{Fault, Faults};
+use lemusync_store::{Fault, Faults};
 
 const GAME: &str = "101c9400";
 
@@ -160,7 +160,7 @@ async fn two() -> Two {
 }
 
 fn lock_files(remote: &Path) -> usize {
-    let dir = remote.join("leemusync/locks");
+    let dir = remote.join("lemusync/locks");
     std::fs::read_dir(dir).map_or(0, |d| {
         d.flatten()
             .map(|s| std::fs::read_dir(s.path()).map_or(0, Iterator::count))
@@ -169,7 +169,7 @@ fn lock_files(remote: &Path) -> usize {
 }
 
 fn versions(remote: &Path) -> usize {
-    let dir = remote.join("leemusync/streams");
+    let dir = remote.join("lemusync/streams");
     std::fs::read_dir(dir).map_or(0, |d| {
         d.flatten()
             .map(|s| std::fs::read_dir(s.path().join("versions")).map_or(0, Iterator::count))
@@ -226,10 +226,10 @@ async fn a_held_lease_waits_until_the_holder_releases() {
             .lease_acquire(stream, player, false)
             .await
             .unwrap();
-    assert!(matches!(got, leemusync_engine::Acquire::Ours(_)));
+    assert!(matches!(got, lemusync_engine::Acquire::Ours(_)));
     let a_lock = t
         .remote
-        .join("leemusync/locks")
+        .join("lemusync/locks")
         .join(stream.to_string())
         .join(t.a.engine.device_id().to_string().to_lowercase());
     assert!(a_lock.exists());

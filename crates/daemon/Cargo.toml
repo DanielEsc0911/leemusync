@@ -1,6 +1,6 @@
 [package]
-name = "leemusync-daemon"
-description = "LeemuSync always-on sync daemon."
+name = "lemusync-daemon"
+description = "LemuSync always-on sync daemon."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -9,7 +9,7 @@ rust-version.workspace = true
 publish = false
 
 [[bin]]
-name = "leemusyncd"
+name = "lemusyncd"
 path = "src/main.rs"
 
 [lints]

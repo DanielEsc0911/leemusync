@@ -1,3 +1,3 @@
-# leemusync
+# lemusync
 
 A new Flutter project.

@@ -1,9 +1,9 @@
 # Security
 
-> **Status:** Draft · **Related:** [rules](../rules.md) (B2 is the rule this spec implements; also P2, P7, W3), [architecture](architecture.md#ipc), [sync-model](sync-model.md), [storage-backends](storage-backends.md), [emulator-profiles](emulator-profiles.md#validation), [release](release.md), [skill: leemusync-security](../../.claude/skills/leemusync-security/SKILL.md) · **Code:** `crates/crypto/src/lib.rs`, `crates/core` (validation), `crates/ipc` (planned)
+> **Status:** Draft · **Related:** [rules](../rules.md) (B2 is the rule this spec implements; also P2, P7, W3), [architecture](architecture.md#ipc), [sync-model](sync-model.md), [storage-backends](storage-backends.md), [emulator-profiles](emulator-profiles.md#validation), [release](release.md), [skill: lemusync-security](../../.claude/skills/lemusync-security/SKILL.md) · **Code:** `crates/crypto/src/lib.rs`, `crates/core` (validation), `crates/ipc` (planned)
 
 ## Purpose
-LeemuSync handles people's data, credentials and file systems on millions of possible machines. It must never become a way to attack those machines. This spec is the threat model and the required controls. [rules.md](../rules.md) B2 is the non-negotiable summary.
+LemuSync handles people's data, credentials and file systems on millions of possible machines. It must never become a way to attack those machines. This spec is the threat model and the required controls. [rules.md](../rules.md) B2 is the non-negotiable summary.
 
 ## Threat model
 | Adversary | Can | Must not be able to |
@@ -11,7 +11,7 @@ LeemuSync handles people's data, credentials and file systems on millions of pos
 | Storage provider / server operator | Read, delete, reorder, replay, withhold objects | Read saves or names; forge or alter versions undetected; make a device write outside its grants |
 | Network attacker | Observe and tamper with traffic | Anything beyond what the provider can do (TLS) |
 | Malicious profile contributor | Submit a profile PR | Run code; write outside grants; read non-granted files |
-| Malicious website / app | Open `leemusync://` links | Trigger actions without user confirmation |
+| Malicious website / app | Open `lemusync://` links | Trigger actions without user confirmation |
 | Other local users | Use the same computer | Talk to someone else's daemon or read their state |
 | Compromised device with the repo key | Write valid encrypted objects | Write outside other devices' grants or exceed size limits |
 | Attacker targeting the project | Compromise a dependency or CI | Ship a malicious release unnoticed (signing, reproducibility, review) |
@@ -19,7 +19,7 @@ LeemuSync handles people's data, credentials and file systems on millions of pos
 Out of scope: malware already running as the user (it can read anything the user can), and physical access to an unlocked device.
 
 ## No global blast radius
-LeemuSync runs no server, auto-updater, remote profile feed or telemetry endpoint. There's no central component whose compromise reaches all users. Releases are the only shared channel, so they're signed and reproducible ([Supply chain](#supply-chain)).
+LemuSync runs no server, auto-updater, remote profile feed or telemetry endpoint. There's no central component whose compromise reaches all users. Releases are the only shared channel, so they're signed and reproducible ([Supply chain](#supply-chain)).
 
 ## Cryptography
 Use audited RustCrypto/BLAKE3 crates only. No custom primitives ([D21](../decisions.md#d21-encryption-from-rustcryptoblake3-primitives-not-the-age-file-format-2026-10-07)).
@@ -32,14 +32,14 @@ Use audited RustCrypto/BLAKE3 crates only. No custom primitives ([D21](../decisi
 | Randomness | OS CSPRNG (`getrandom`) |
 | Secret memory | `zeroize` on drop |
 
-`repo.json` KDF parameters are bounded on read (`m` 19 456–1 048 576 KiB, `t` 1–10, `p` 1–4), so a tampered file can neither weaken a rewrap below OWASP's minimum nor exhaust memory. The recovery key is 32 random bytes shown as Crockford base32 in groups of 4; its key-encryption key is BLAKE3 `derive_key("leemusync v1 recovery-kek", recovery key)` (it's already full-entropy, so no Argon2id).
+`repo.json` KDF parameters are bounded on read (`m` 19 456–1 048 576 KiB, `t` 1–10, `p` 1–4), so a tampered file can neither weaken a rewrap below OWASP's minimum nor exhaust memory. The recovery key is 32 random bytes shown as Crockford base32 in groups of 4; its key-encryption key is BLAKE3 `derive_key("lemusync v1 recovery-kek", recovery key)` (it's already full-entropy, so no Argon2id).
 
 - **AAD** binds every ciphertext to its kind and id (e.g., `"blob" ‖ blobId`), so the server can't swap objects.
 - **Blob ids** are a keyed hash of the plaintext. After decryption the id is recomputed and must match.
 - **Manifests** carry file names and metadata, and they're encrypted. The provider sees only object counts, sizes and timing (accepted leak).
 
 ### Keys
-- A random 256-bit **master key** per repo. Subkeys come from BLAKE3 `derive_key`: `"leemusync v1 object"`, `"leemusync v1 blob-id"`, `"leemusync v1 stream-id"`.
+- A random 256-bit **master key** per repo. Subkeys come from BLAKE3 `derive_key`: `"lemusync v1 object"`, `"lemusync v1 blob-id"`, `"lemusync v1 stream-id"`.
 - `repo.json` stores the master key **wrapped** twice: under the passphrase KEK, and under a **recovery key** (random, shown once at setup for the user to print or store).
 - On each device the master key is cached in the OS keystore ([Credentials](#credentials)).
 - **Passphrase change** rewraps the master key and doesn't revoke devices. **Revoking a device** requires key rotation (re-encrypting the repo), planned for Phase 7. The UI says this plainly.
@@ -65,7 +65,7 @@ Same-user only: socket permissions plus a peer credential check ([architecture �
 
 ## Profiles, deep links, launching
 - Profiles are data: schema-validated, allow-listed variables, linear-time regex, no executable fields ([emulator-profiles §Validation](emulator-profiles.md#validation)). Bundled profiles change only through reviewed PRs and signed releases. Nothing is downloaded at runtime.
-- `leemusync://` deep links only **navigate**. Any action they lead to needs an explicit confirmation in the UI.
+- `lemusync://` deep links only **navigate**. Any action they lead to needs an explicit confirmation in the UI.
 - Emulators are launched with the user-chosen executable and an argv array. Never through a shell; arguments are never parsed by a shell.
 
 ## Credentials
@@ -94,7 +94,7 @@ No telemetry, analytics or crash upload. Logs stay local. Users can export them 
 
 ## Verify
 - **V-SEC-1** Argon2id parameters stay fast enough on low-end Android and Pi Zero 2 (target under 2 s). Benchmark in Phase 1.
-- **V-SEC-2** `rustls` platform verifier works on every target, Android and iOS included (SP1). Linux is done (2026-10-17, Fedora 44, `rustls-platform-verifier` 0.7.1, `ring` provider): a valid certificate (`www.rust-lang.org`) is accepted, and expired, self-signed and wrong-host certificates (`*.badssl.com`) are rejected with a certificate error. Test: `cargo test -p leemusync-bridge -- --include-ignored`. Android done on the API 34 emulator (2026-10-18, release build, same four bad-certificate cases rejected; [architecture §Bridge](architecture.md#bridge)). CachyOS done (2026-10-18, same test, all pass). Windows, macOS, iOS and a real Android device are still to run.
+- **V-SEC-2** `rustls` platform verifier works on every target, Android and iOS included (SP1). Linux is done (2026-10-17, Fedora 44, `rustls-platform-verifier` 0.7.1, `ring` provider): a valid certificate (`www.rust-lang.org`) is accepted, and expired, self-signed and wrong-host certificates (`*.badssl.com`) are rejected with a certificate error. Test: `cargo test -p lemusync-bridge -- --include-ignored`. Android done on the API 34 emulator (2026-10-18, release build, same four bad-certificate cases rejected; [architecture §Bridge](architecture.md#bridge)). CachyOS done (2026-10-18, same test, all pass). Windows, macOS, iOS and a real Android device are still to run.
 - **V-SEC-3** Keystore access from the daemon on Windows and macOS (SP2). Linux with a Secret Service is done ([Credentials](#credentials)). Windows and macOS deferred by the maintainer on 2026-10-08.
 - **V-SEC-4** OpenDAL's `gdrive` puts the OAuth refresh token and client secret in the token URL, and they appear in error text when a refresh fails to send ([storage-backends §Google Drive (live)](storage-backends.md#google-drive-live), V-STORE-7). The log redaction layer must cover it (Phase 1). Store errors pass through `crates/store/src/redact.rs`; tests cover the token URL, JSON bodies and Bearer headers. Since D27 the store refreshes tokens itself with a form body (`crates/store/src/oauth.rs`), so OpenDAL no longer builds that URL.
 

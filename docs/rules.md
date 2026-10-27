@@ -44,7 +44,7 @@
 
 ## Product
 - **P1 KISS.** Pick the simplest design that satisfies every rule. No speculative features. A new dependency or component needs a written reason.
-- **P2 Your storage, your data.** LeemuSync works with storage the user owns, runs no server and has no accounts. Only the user's devices can read the data.
+- **P2 Your storage, your data.** LemuSync works with storage the user owns, runs no server and has no accounts. Only the user's devices can read the data.
 - **P3 Any emulator, any layout.** Every emulator gets the safety features, and capabilities scale by tier ([emulator-profiles §Tiers](specs/emulator-profiles.md#tiers)). Folder layouts are user-overridable. Profiles are declarative data. Core never parses game save formats.
 - **P4 Every platform, at its best.** Windows, macOS, Linux (x86_64, arm64), Raspberry Pi, Android and iOS, each using its best integration: tray/menu bar, Live Updates (Now Bar, Super Island), Live Activities and Dynamic Island, App Intents/Shortcuts, Quick Settings tiles.
 - **P5 Simple by default, powerful underneath.** Defaults work with no configuration. Every setting can be reached in the UI (Advanced), the CLI and the config file. The CLI offers `--json`.

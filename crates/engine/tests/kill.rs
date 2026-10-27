@@ -12,13 +12,13 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use common::{Pc, SAVE, join, map};
-use leemusync_api::StreamAction;
-use leemusync_core::VersionId;
-use leemusync_engine::{Acquire, JoinSecret, MapChoice, SyncOptions, fsx};
+use lemusync_api::StreamAction;
+use lemusync_core::VersionId;
+use lemusync_engine::{Acquire, JoinSecret, MapChoice, SyncOptions, fsx};
 
 const GAME: &str = "101c9400";
-const ENV_ROOT: &str = "LEEMUSYNC_KILL_ROOT";
-const ENV_POINT: &str = "LEEMUSYNC_KILL_POINT";
+const ENV_ROOT: &str = "LEMUSYNC_KILL_ROOT";
+const ENV_POINT: &str = "LEMUSYNC_KILL_POINT";
 
 /// Every `hit` name in `crates/engine/src`. `every_failpoint_has_a_crash_case` keeps this whole.
 const CASES: &[&str] = &[
@@ -280,7 +280,7 @@ async fn a_kill_after_writing_a_lease_lets_this_device_take_it_again() {
     let (stream, player) = a.engine.stream_for("Ana", "cemu", GAME).await.unwrap();
     let locks = root
         .path()
-        .join("remote/leemusync/locks")
+        .join("remote/lemusync/locks")
         .join(stream.to_string());
     assert_eq!(std::fs::read_dir(&locks).unwrap().count(), 1, "left behind");
     let (got, _) = a.engine.lease_acquire(stream, player, false).await.unwrap();

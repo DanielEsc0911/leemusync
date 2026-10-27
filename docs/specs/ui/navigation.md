@@ -51,7 +51,7 @@ Settings → Emulators → emulator → Advanced → path override / extra roots
 Settings → Storage → edit or test → probe → save. Changing provider means migrating the repo (guided copy, verified, then switch).
 
 ## Deep links
-`leemusync://` opens Home, a game, a conflict, or a lease. Links **only navigate**. Every action needs an explicit confirmation ([security](../security.md#profiles-deep-links-launching)). Notifications use these links.
+`lemusync://` opens Home, a game, a conflict, or a lease. Links **only navigate**. Every action needs an explicit confirmation ([security](../security.md#profiles-deep-links-launching)). Notifications use these links.
 
 ## Desktop extras
 - Keyboard shortcuts (⌘/Ctrl+1–5 for destinations, ⌘/Ctrl+, for Settings, ⌘/Ctrl+R to sync now).

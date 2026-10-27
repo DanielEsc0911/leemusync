@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use leemusync_core::DeviceId;
+use lemusync_core::DeviceId;
 use serde::{Deserialize, Serialize};
 
 use crate::{EngineError, fsx};
@@ -170,13 +170,13 @@ impl LocalConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use leemusync_core::VersionId;
+    use lemusync_core::VersionId;
 
     fn sample() -> LocalConfig {
         let mut c = LocalConfig::new(DeviceId(VersionId::from_parts(1, [3; 10])), "fedora-pc");
         c.repo = Some("r1".into());
         c.backend = Some(BackendConfig::Gdrive {
-            root: "/LeemuSync".into(),
+            root: "/LemuSync".into(),
             client_id: "abc.apps".into(),
         });
         c.grants = vec![PathBuf::from("/home/u/.local/share/Cemu")];

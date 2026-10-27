@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 
 import 'l10n/generated/app_localizations.dart';
 
-void main() => runApp(const LeemuSyncApp());
+void main() => runApp(const LemuSyncApp());
 
 /// Root widget. The design system and navigation shell replace the
 /// placeholder home in Phase 3 (docs/specs/ui/).
-class LeemuSyncApp extends StatelessWidget {
-  const LeemuSyncApp({super.key, this.locale});
+class LemuSyncApp extends StatelessWidget {
+  const LemuSyncApp({super.key, this.locale});
 
   /// Forces a locale (tests, user override). Null follows the OS.
   final Locale? locale;

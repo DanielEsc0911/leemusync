@@ -3,7 +3,7 @@
 > **Status:** Draft · **Related:** [rules](../rules.md) (B2, F2, P6, P7), [decisions](../decisions.md) (D16, D22, D23, D24), [security §Supply chain](security.md#supply-chain), [testing](testing.md#device-lab), [git-workflow](git-workflow.md), [progress](../progress/README.md) · **Code:** `.github/workflows/release.yml`, `packaging/`, `xtask/src/version.rs`
 
 ## Purpose
-Ship verifiable builds for every platform from one pipeline, without ever shipping something half-wired (F2). Repository: `github.com/DanielEsc0911/leemusync`.
+Ship verifiable builds for every platform from one pipeline, without ever shipping something half-wired (F2). Repository: `github.com/DanielEsc0911/lemusync`.
 
 ## Versioning
 | Thing | Scheme |
@@ -22,7 +22,7 @@ A release tag `vX.Y.Z[-pre]` must match `workspace.package.version` in `Cargo.to
 | `nightly.yml` | Schedule (later) | Fuzzing, Docker backend conformance, integration tests |
 
 ## Artifacts
-Every desktop package contains the Flutter app plus the `leemusync` CLI and `leemusyncd` daemon. File names: `leemusync-<version>-<os>-<arch>.<ext>`.
+Every desktop package contains the Flutter app plus the `lemusync` CLI and `lemusyncd` daemon. File names: `lemusync-<version>-<os>-<arch>.<ext>`.
 
 | Format | Platform | Runner | Tool |
 |---|---|---|---|
@@ -46,49 +46,49 @@ Every desktop package contains the Flutter app plus the `leemusync` CLI and `lee
 - No iOS artifact until an Apple Developer membership exists ([D23](../decisions.md#d23-distribution-before-store-accounts-2026-10-07)).
 
 ## Dry run results (2026-10-08)
-Workflow `release`, [run 37789852214](https://github.com/DanielEsc0911/leemusync/actions/runs/37789852214) (PR #4, commit `feeb76f`, version `0.0.0-dev.2`): all 7 build jobs and `pr-bundle` succeeded; `publish` was skipped, as designed for PRs. The earlier run 37684498198 failed on WIX0367, fixed in `feeb76f`.
+Workflow `release`, [run 37789852214](https://github.com/DanielEsc0911/lemusync/actions/runs/37789852214) (PR #4, commit `feeb76f`, version `0.0.0-dev.2`): all 7 build jobs and `pr-bundle` succeeded; `publish` was skipped, as designed for PRs. The earlier run 37684498198 failed on WIX0367, fixed in `feeb76f`.
 
 Manual install pass on the [Device lab](testing.md#device-lab):
 
 | Format | Device | Result | By |
 |---|---|---|---|
-| `.rpm` | Fedora 44 x86_64 (XFCE/X11) | Installs; app opens showing "All saves synced"; `leemusync --version` → `leemusync 0.0.0` | maintainer + agent |
-| `.AppImage`, `.tar.gz` | Fedora 44 x86_64 | Window maps (X11 `WM_CLASS` `io.github.danielesc0911.leemusync`); `bin/leemusync` and `bin/leemusyncd --version` → 0.0.0 | agent |
+| `.rpm` | Fedora 44 x86_64 (XFCE/X11) | Installs; app opens showing "All saves synced"; `lemusync --version` → `lemusync 0.0.0` | maintainer + agent |
+| `.AppImage`, `.tar.gz` | Fedora 44 x86_64 | Window maps (X11 `WM_CLASS` `io.github.danielesc0911.lemusync`); `bin/lemusync` and `bin/lemusyncd --version` → 0.0.0 | agent |
 | `.deb` | Debian machine (external) | Installs and opens | maintainer |
 | `.apk` (arm64-v8a, debug-signed) | Galaxy A25 | Installs and opens in English and Spanish ("Todas las partidas están sincronizadas") | maintainer |
 | `.dmg` (universal) | MacBook Air M4, macOS 26 | Opens and runs | maintainer |
 
 Findings:
-- The window title and Android label said "leemusync". Fixed in PR #5 (`80dcb25`).
+- The window title and Android label said "lemusync". Fixed in PR #5 (`80dcb25`).
 - On XFCE without a running `xdg-desktop-portal`, the GTK runner logs harmless `CRITICAL … Failed to read XDG desktop portal settings` lines. The app still runs.
 - Not yet tested (deferred by the maintainer on 2026-10-08): V-PKG-6.
 
 ## Tag test results (2026-10-08)
-Annotated tag `v0.0.1-alpha.1` on commit `4382675` (the merge of PR #12). Workflow `release`, [run 37832589541](https://github.com/DanielEsc0911/leemusync/actions/runs/37832589541): `version` (tag/version check passed), `linux` x86_64 and aarch64, `headless`, `windows`, `macos`, `android` and `publish` all succeeded; `pr-bundle` was skipped, as designed for tags.
+Annotated tag `v0.0.1-alpha.1` on commit `4382675` (the merge of PR #12). Workflow `release`, [run 37832589541](https://github.com/DanielEsc0911/lemusync/actions/runs/37832589541): `version` (tag/version check passed), `linux` x86_64 and aarch64, `headless`, `windows`, `macos`, `android` and `publish` all succeeded; `pr-bundle` was skipped, as designed for tags.
 
 - Android signing: the maintainer stored the release key as the four secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. The `android` job's "Decode the release keystore" step ran, so the APKs are release-signed and have no `-debug` suffix.
-- Draft release "LeemuSync 0.0.1-alpha.1", created by github-actions: 18 files + `SHA256SUMS` (GitHub also shows its two automatic "Source code" archives). Each file is `leemusync-0.0.1-alpha.1-` followed by: `android-arm64-v8a.apk`, `android-armeabi-v7a.apk`, `android-x86_64.apk`, `linux-aarch64-headless.tar.gz`, `linux-armv7-headless.tar.gz`, `linux-x86_64-headless.tar.gz`, `linux-aarch64.AppImage`, `linux-aarch64.deb`, `linux-aarch64.rpm`, `linux-aarch64.tar.gz`, `linux-x86_64.AppImage`, `linux-x86_64.deb`, `linux-x86_64.rpm`, `linux-x86_64.tar.gz`, `macos-universal.dmg`, `windows-x64-en.msi`, `windows-x64-es.msi`, `windows-x64-setup.exe`. This matches every row of the [Artifacts](#artifacts) table.
+- Draft release "LemuSync 0.0.1-alpha.1", created by github-actions: 18 files + `SHA256SUMS` (GitHub also shows its two automatic "Source code" archives). Each file is `lemusync-0.0.1-alpha.1-` followed by: `android-arm64-v8a.apk`, `android-armeabi-v7a.apk`, `android-x86_64.apk`, `linux-aarch64-headless.tar.gz`, `linux-armv7-headless.tar.gz`, `linux-x86_64-headless.tar.gz`, `linux-aarch64.AppImage`, `linux-aarch64.deb`, `linux-aarch64.rpm`, `linux-aarch64.tar.gz`, `linux-x86_64.AppImage`, `linux-x86_64.deb`, `linux-x86_64.rpm`, `linux-x86_64.tar.gz`, `macos-universal.dmg`, `windows-x64-en.msi`, `windows-x64-es.msi`, `windows-x64-setup.exe`. This matches every row of the [Artifacts](#artifacts) table.
 - Sizes: APKs 11.9–15.8 MB, desktop Linux packages 8.2–8.9 MB, headless tarballs 299–315 KB, `.dmg` 17 MB, each `.msi` 8.66 MB, `.exe` 9.38 MB.
 - The SHA-256 digest GitHub shows for each asset equals its line in `SHA256SUMS`.
-- Attestations: each of the 19 files (18 + `SHA256SUMS`) has exactly one build-provenance attestation whose subject name and digest match, made by `.github/workflows/release.yml` at `refs/tags/v0.0.1-alpha.1` in run 37832589541. They were fetched without login from the public API `GET https://api.github.com/repos/DanielEsc0911/leemusync/attestations/sha256:<digest>`.
-- `gh attestation verify SHA256SUMS --bundle <bundle from the API> --repo DanielEsc0911/leemusync --source-ref refs/tags/v0.0.1-alpha.1 --signer-workflow DanielEsc0911/leemusync/.github/workflows/release.yml` passed with gh 2.102.0, not logged in (signer `release.yml@refs/tags/v0.0.1-alpha.1`, source commit `4382675`, one transparency-log timestamp). A tampered copy of `SHA256SUMS` and `--repo cli/cli` both failed, as expected.
+- Attestations: each of the 19 files (18 + `SHA256SUMS`) has exactly one build-provenance attestation whose subject name and digest match, made by `.github/workflows/release.yml` at `refs/tags/v0.0.1-alpha.1` in run 37832589541. They were fetched without login from the public API `GET https://api.github.com/repos/DanielEsc0911/lemusync/attestations/sha256:<digest>`.
+- `gh attestation verify SHA256SUMS --bundle <bundle from the API> --repo DanielEsc0911/lemusync --source-ref refs/tags/v0.0.1-alpha.1 --signer-workflow DanielEsc0911/lemusync/.github/workflows/release.yml` passed with gh 2.102.0, not logged in (signer `release.yml@refs/tags/v0.0.1-alpha.1`, source commit `4382675`, one transparency-log timestamp). A tampered copy of `SHA256SUMS` and `--repo cli/cli` both failed, as expected.
 - Not done yet: `gh attestation verify <file>` on each of the 18 binaries, because draft-release assets can only be downloaded while signed in. They are covered indirectly: the verified `SHA256SUMS` lists their digests, and each has its own matching attestation. The arm64 APK gets a direct check when it is downloaded for SP3.
 - The maintainer decided on 2026-10-08 to keep the release as an unpublished draft. The tag stays.
 
 ## Install layout
-GUI and CLI never share a folder, because Windows and macOS file systems are case-insensitive (`LeemuSync` ≙ `leemusync`).
+GUI and CLI never share a folder, because Windows and macOS file systems are case-insensitive (`LemuSync` ≙ `lemusync`).
 
 | Package | GUI | CLI + daemon |
 |---|---|---|
-| Windows `.msi` / `.exe` | `%ProgramFiles%\LeemuSync\LeemuSync.exe` + Start Menu shortcut with AppUserModelID (needed for toasts) | `%ProgramFiles%\LeemuSync\bin\` (added to `PATH`) |
-| macOS `.dmg` | `LeemuSync.app` | `LeemuSync.app/Contents/Helpers/` |
-| Linux `.deb` / `.rpm` | `/opt/leemusync/leemusync-gui`, symlink `/usr/bin/leemusync-gui`, desktop file + icon under `/usr/share` | `/usr/bin/leemusync`, `/usr/bin/leemusyncd` |
-| `.AppImage` | AppRun → `leemusync-gui` (bundle at the image root) | `usr/bin/` inside the image |
-| `.tar.gz` | `leemusync/leemusync-gui` | `leemusync/bin/` |
+| Windows `.msi` / `.exe` | `%ProgramFiles%\LemuSync\LemuSync.exe` + Start Menu shortcut with AppUserModelID (needed for toasts) | `%ProgramFiles%\LemuSync\bin\` (added to `PATH`) |
+| macOS `.dmg` | `LemuSync.app` | `LemuSync.app/Contents/Helpers/` |
+| Linux `.deb` / `.rpm` | `/opt/lemusync/lemusync-gui`, symlink `/usr/bin/lemusync-gui`, desktop file + icon under `/usr/share` | `/usr/bin/lemusync`, `/usr/bin/lemusyncd` |
+| `.AppImage` | AppRun → `lemusync-gui` (bundle at the image root) | `usr/bin/` inside the image |
+| `.tar.gz` | `lemusync/lemusync-gui` | `lemusync/bin/` |
 
-Display name: "LeemuSync" on every platform (window title, launcher label, Start Menu, bundle display name).
+Display name: "LemuSync" on every platform (window title, launcher label, Start Menu, bundle display name).
 
-GUI executable names: `LeemuSync.exe` (Windows), `LeemuSync.app` (macOS), `leemusync-gui` (Linux). App and bundle id: `io.github.danielesc0911.leemusync` ([D22](../decisions.md#d22-app-and-bundle-id-iogithubdanielesc0911leemusync-2026-10-07)).
+GUI executable names: `LemuSync.exe` (Windows), `LemuSync.app` (macOS), `lemusync-gui` (Linux). App and bundle id: `io.github.danielesc0911.lemusync` ([D22](../decisions.md#d22-app-and-bundle-id-iogithubdanielesc0911lemusync-2026-10-07)).
 
 ## Signing
 | Platform | Now ([D23](../decisions.md#d23-distribution-before-store-accounts-2026-10-07)) | Later |
@@ -97,7 +97,7 @@ GUI executable names: `LeemuSync.exe` (Windows), `LeemuSync.app` (macOS), `leemu
 | macOS | Ad-hoc signed, not notarised → Gatekeeper warning. Users open it via System Settings → Privacy & Security → Open Anyway | Developer ID + notarisation (Apple Developer membership) |
 | Windows | Unsigned → SmartScreen warning | Authenticode through a free open-source signing programme (Verify when applying) |
 | Linux | Packages unsigned | Repository signing with Flatpak/AUR |
-| Every artifact | SHA-256 in `SHA256SUMS` + GitHub build-provenance attestation (Sigstore-backed, verify with `gh attestation verify <file> --repo DanielEsc0911/leemusync`) | + CycloneDX SBOM (Phase 7) |
+| Every artifact | SHA-256 in `SHA256SUMS` + GitHub build-provenance attestation (Sigstore-backed, verify with `gh attestation verify <file> --repo DanielEsc0911/lemusync`) | + CycloneDX SBOM (Phase 7) |
 
 ## Channels
 | Channel | When |
@@ -119,4 +119,4 @@ GUI executable names: `LeemuSync.exe` (Windows), `LeemuSync.app` (macOS), `leemu
 ## Verify
 - **V-PKG-3** The aarch64 `.AppImage` (built on `ubuntu-22.04-arm`, see [Artifacts](#artifacts)) runs on arm64 Linux hardware. No arm64 Linux device in the [Device lab](testing.md#device-lab) yet (Phase 0 Task 6 or later).
 - **V-PKG-5** Whether an all-in-one packager now covers all eight formats, which would let us revisit D24 (Task 5).
-- **V-PKG-6** Windows `.exe` and both `.msi`: install, Start Menu entry, `leemusync` on `PATH` in a new terminal, uninstall leaves nothing, Spanish installer UI. CachyOS: `.AppImage` and `.tar.gz` open and run. Deferred by the maintainer on 2026-10-08 (Phase 0 Task 6).
+- **V-PKG-6** Windows `.exe` and both `.msi`: install, Start Menu entry, `lemusync` on `PATH` in a new terminal, uninstall leaves nothing, Spanish installer UI. CachyOS: `.AppImage` and `.tar.gz` open and run. Deferred by the maintainer on 2026-10-08 (Phase 0 Task 6).

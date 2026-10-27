@@ -2,8 +2,8 @@
 
 use fluent_bundle::{FluentArgs, FluentBundle, FluentResource, FluentValue};
 
-const EN: &str = include_str!("../../../locales/en/leemusync.ftl");
-const ES: &str = include_str!("../../../locales/es/leemusync.ftl");
+const EN: &str = include_str!("../../../locales/en/lemusync.ftl");
+const ES: &str = include_str!("../../../locales/es/lemusync.ftl");
 
 pub struct I18n {
     bundle: FluentBundle<FluentResource>,

@@ -1,5 +1,5 @@
 [package]
-name = "leemusync-ipc"
+name = "lemusync-ipc"
 description = "Same-user local IPC transport."
 version.workspace = true
 edition.workspace = true

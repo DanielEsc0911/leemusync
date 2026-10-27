@@ -1,5 +1,5 @@
 [package]
-name = "leemusync-api"
+name = "lemusync-api"
 description = "Engine API types and trait."
 version.workspace = true
 edition.workspace = true

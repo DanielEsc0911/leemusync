@@ -4,9 +4,9 @@
 //! A lease that doesn't decrypt or parse is ignored with a warning and never trusted (B2); any
 //! race leases miss still ends as a conflict, never a lost save.
 
-use leemusync_api::{LeaseInfo, Warning, WarningCode};
-use leemusync_core::lease::{self, Lease, Liveness, Observed, SKEW_MS};
-use leemusync_core::{DeviceId, PlayerId, SessionId, StreamId};
+use lemusync_api::{LeaseInfo, Warning, WarningCode};
+use lemusync_core::lease::{self, Lease, Liveness, Observed, SKEW_MS};
+use lemusync_core::{DeviceId, PlayerId, SessionId, StreamId};
 
 use crate::repo::{ListedLease, Repo};
 use crate::{Engine, EngineError, new_version_id, now_ms, repo_config};

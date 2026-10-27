@@ -1,6 +1,6 @@
 ---
-name: leemusync-backend
-description: Use when adding, configuring or debugging a LeemuSync storage backend (S3, WebDAV/Nextcloud, SFTP, Google Drive, OneDrive, Dropbox, MEGA, local folder), or when hitting backend auth, rate-limit, listing-consistency or conditional-write problems.
+name: lemusync-backend
+description: Use when adding, configuring or debugging a LemuSync storage backend (S3, WebDAV/Nextcloud, SFTP, Google Drive, OneDrive, Dropbox, MEGA, local folder), or when hitting backend auth, rate-limit, listing-consistency or conditional-write problems.
 ---
 
 # Storage backends
@@ -14,13 +14,13 @@ The store moves opaque encrypted objects and knows nothing about saves. Spec: `d
 4. Report capabilities honestly: native or emulated `create_only`; `server_mtime` only if the provider returns it.
 5. Run the conformance suite (`crates/store/tests/conformance.rs`) against CI services or a real account, and record the results.
 6. Credentials go in the OS keystore. OAuth uses authorization code + PKCE, with no client secrets in the app. Never log tokens.
-7. Setup flow: UI wizard + `leemusync backend add` + config (P5), with a probe step and strings in en + es.
+7. Setup flow: UI wizard + `lemusync backend add` + config (P5), with a probe step and strings in en + es.
 8. Update the adapters table, quirks and Verify lines in the spec.
 
 ## Debugging
 | Symptom | Look at |
 |---|---|
 | A version appears late on another device | Listing consistency (V-SYNC-2); version cache in the state DB |
-| A lease shows wrongly as stale or live | `server_mtime` capability; clock skew (`leemusync doctor`) |
+| A lease shows wrongly as stale or live | `server_mtime` capability; clock skew (`lemusync doctor`) |
 | 429 / throttling | Backoff, per-prefix listing, batch size |
 | Repeated auth prompts | Token refresh path, keystore entry, OAuth scope |

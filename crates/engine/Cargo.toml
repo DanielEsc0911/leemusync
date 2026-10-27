@@ -1,5 +1,5 @@
 [package]
-name = "leemusync-engine"
+name = "lemusync-engine"
 description = "Sync engine orchestration."
 version.workspace = true
 edition.workspace = true
@@ -13,13 +13,13 @@ workspace = true
 
 [features]
 # Test-only fault injection (crates/engine/src/failpoints.rs).
-failpoints = ["leemusync-store/faults"]
+failpoints = ["lemusync-store/faults"]
 
 [dependencies]
-leemusync-api = { path = "../api" }
-leemusync-core = { path = "../core" }
-leemusync-crypto = { path = "../crypto" }
-leemusync-store = { path = "../store" }
+lemusync-api = { path = "../api" }
+lemusync-core = { path = "../core" }
+lemusync-crypto = { path = "../crypto" }
+lemusync-store = { path = "../store" }
 directories = { workspace = true }
 futures-util = { workspace = true }
 regex = { workspace = true }
@@ -34,7 +34,7 @@ toml = { workspace = true }
 zeroize = { workspace = true }
 
 [dev-dependencies]
-leemusync-engine = { path = ".", features = ["failpoints"] }
+lemusync-engine = { path = ".", features = ["failpoints"] }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 criterion = { workspace = true }

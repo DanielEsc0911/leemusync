@@ -3,12 +3,12 @@
 use std::collections::BTreeMap;
 use std::sync::Mutex;
 
-use leemusync_core::DeviceId;
+use lemusync_core::DeviceId;
 use zeroize::Zeroizing;
 
 use crate::EngineError;
 
-const SERVICE: &str = "leemusync";
+const SERVICE: &str = "lemusync";
 
 pub trait SecretStore: Send + Sync {
     /// # Errors
@@ -45,7 +45,7 @@ pub fn secret_s3_key(device: DeviceId) -> String {
 pub struct KeyringSecrets;
 
 fn keyring_err(e: &keyring::Error) -> EngineError {
-    EngineError::Secrets(leemusync_store::redact(&e.to_string()))
+    EngineError::Secrets(lemusync_store::redact(&e.to_string()))
 }
 
 impl SecretStore for KeyringSecrets {
@@ -127,14 +127,14 @@ mod tests {
     #[ignore = "uses the real OS keystore"]
     fn keyring_round_trip() {
         let s = KeyringSecrets;
-        s.set("leemusync-selftest", "x").unwrap();
+        s.set("lemusync-selftest", "x").unwrap();
         assert_eq!(
-            s.get("leemusync-selftest")
+            s.get("lemusync-selftest")
                 .unwrap()
                 .as_deref()
                 .map(String::as_str),
             Some("x")
         );
-        s.delete("leemusync-selftest").unwrap();
+        s.delete("lemusync-selftest").unwrap();
     }
 }

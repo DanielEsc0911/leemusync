@@ -10,8 +10,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
-import 'package:leemusync/bridge/api/probe.dart';
-import 'package:leemusync/bridge/frb_generated.dart';
+import 'package:lemusync/bridge/api/probe.dart';
+import 'package:lemusync/bridge/frb_generated.dart';
 
 const _host = String.fromEnvironment(
   'SP1_HOST',
@@ -52,7 +52,7 @@ class _ProbeState extends State<_Probe> with SingleTickerProviderStateMixin {
     // counter means one library instance in the process.
     _result['first'] = coreVersion();
     if (Platform.isAndroid || Platform.isIOS) {
-      _result['native'] = await const MethodChannel('leemusync/sp1')
+      _result['native'] = await const MethodChannel('lemusync/sp1')
           .invokeMethod<String>('enginePing');
     }
     _result['second'] = coreVersion();

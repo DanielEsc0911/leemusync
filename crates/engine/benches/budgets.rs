@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use common::{FileSecrets, Pc, SAVE, env_with, map};
 use criterion::{Criterion, criterion_group, criterion_main};
-use leemusync_engine::{Engine, FakeProbe, MapChoice, SecretStore, SyncOptions};
+use lemusync_engine::{Engine, FakeProbe, MapChoice, SecretStore, SyncOptions};
 
 const FILES: usize = 10_000;
 

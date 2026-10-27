@@ -5,12 +5,12 @@
 use std::fmt;
 use std::path::Path;
 
-use leemusync_api::{API_VERSION, InitReport, Warning, WarningCode};
-use leemusync_core::PlayerId;
-use leemusync_core::config::{ConfigError, RepoConfig};
-use leemusync_crypto::{Key, RecoveryKey};
-use leemusync_store::oauth::{self, OAuthClient, PendingLogin};
-use leemusync_store::{ErrorClass, GdriveConfig, PutMode, S3Config, Store, StoreError};
+use lemusync_api::{API_VERSION, InitReport, Warning, WarningCode};
+use lemusync_core::PlayerId;
+use lemusync_core::config::{ConfigError, RepoConfig};
+use lemusync_crypto::{Key, RecoveryKey};
+use lemusync_store::oauth::{self, OAuthClient, PendingLogin};
+use lemusync_store::{ErrorClass, GdriveConfig, PutMode, S3Config, Store, StoreError};
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use crate::repo::{DeviceRecord, Repo, Unlock, key_from_hex, key_to_hex};
@@ -76,12 +76,12 @@ fn player_error(e: &ConfigError) -> EngineError {
 
 /// Write, read back, list and delete one object (storage-backends §Setup).
 async fn probe(store: &Store, name: &str) -> Result<(), EngineError> {
-    let path = format!("leemusync/.probe/{}", name.to_ascii_lowercase());
+    let path = format!("lemusync/.probe/{}", name.to_ascii_lowercase());
     store
         .put(&path, b"probe".to_vec(), PutMode::CreateOnly)
         .await?;
     let read = store.get(&path).await?;
-    let listed = store.list("leemusync/.probe/").await?;
+    let listed = store.list("lemusync/.probe/").await?;
     store.delete(&path).await?;
     if read != b"probe" || !listed.iter().any(|e| e.path == path) {
         return Err(EngineError::Store(StoreError::new(
@@ -106,7 +106,7 @@ impl Engine {
     }
 
     /// Uses an S3-compatible bucket (R2 for the first test, D31). Probes first (storage-backends
-    /// §Setup): writes, reads, lists and deletes an object under `leemusync/.probe/`, so a wrong
+    /// §Setup): writes, reads, lists and deletes an object under `lemusync/.probe/`, so a wrong
     /// endpoint, bucket or key, or a read-only key, fails here and nothing is saved. The secret
     /// key goes to the OS keystore, the rest to `config.toml`.
     ///
@@ -167,7 +167,7 @@ impl Engine {
     /// # Errors
     /// `Store(Auth)` for a refused or timed-out login; `Secrets` if the keystore fails.
     pub async fn gdrive_login_finish(&mut self, login: GdriveLogin) -> Result<(), EngineError> {
-        let http = leemusync_store::http::http_client()?;
+        let http = lemusync_store::http::http_client()?;
         let tokens = login.pending.finish(&login.client, &http).await?;
         let device = self.device_id();
         self.env
@@ -315,7 +315,7 @@ impl Engine {
             Repo::create(self.store()?, passphrase, self.env.kdf).await?;
         // repo.json is committed: from here on `init` never fails, or the recovery key (wrapped
         // in repo.json, never shown yet) would be lost. A failed step becomes a warning, and
-        // `leemusync join` with the passphrase finishes this device.
+        // `lemusync join` with the passphrase finishes this device.
         let shown = recovery.to_display();
         drop(recovery);
         let repo_id = repo.id().to_owned();
@@ -413,9 +413,9 @@ impl Engine {
 
 #[cfg(test)]
 mod tests {
-    use leemusync_api::{Warning, WarningCode};
-    use leemusync_core::config::RepoConfig;
-    use leemusync_core::{PlayerId, VersionId};
+    use lemusync_api::{Warning, WarningCode};
+    use lemusync_core::config::RepoConfig;
+    use lemusync_core::{PlayerId, VersionId};
 
     use crate::tests::test_env;
     use crate::{Engine, EngineError, JoinSecret, S3Backend};
@@ -423,9 +423,9 @@ mod tests {
     #[tokio::test]
     async fn the_probe_round_trips_and_cleans_up() {
         let root = tempfile::tempdir().unwrap();
-        let store = leemusync_store::Store::fs(root.path()).unwrap();
+        let store = lemusync_store::Store::fs(root.path()).unwrap();
         super::probe(&store, "01ABC-1").await.unwrap();
-        assert_eq!(store.list("leemusync/.probe/").await.unwrap(), Vec::new());
+        assert_eq!(store.list("lemusync/.probe/").await.unwrap(), Vec::new());
     }
 
     #[tokio::test]
@@ -478,7 +478,7 @@ mod tests {
             .await
             .unwrap();
         let config =
-            std::fs::read_to_string(root.path().join("c/config/leemusync/config.toml")).unwrap();
+            std::fs::read_to_string(root.path().join("c/config/lemusync/config.toml")).unwrap();
         assert!(
             !config.contains("pass phrase")
                 && !config.to_lowercase().contains(&recovery.to_lowercase())

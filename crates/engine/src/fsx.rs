@@ -6,7 +6,7 @@ use std::io::{self, Write as _};
 use std::path::{Component, Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
-const TEMP_PREFIX: &str = ".leemusync-";
+const TEMP_PREFIX: &str = ".lemusync-";
 const TEMP_SUFFIX: &str = ".tmp";
 
 /// `write_atomic`'s temp names. A crash can orphan one; it is never snapshotted or restored.
@@ -40,9 +40,9 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
     result
 }
 
-/// A fresh random temp name (`.leemusync-<hex>.tmp`) that `list_files` skips.
+/// A fresh random temp name (`.lemusync-<hex>.tmp`) that `list_files` skips.
 fn temp_name() -> io::Result<String> {
-    let random = leemusync_crypto::random_bytes::<8>().map_err(io::Error::other)?;
+    let random = lemusync_crypto::random_bytes::<8>().map_err(io::Error::other)?;
     let name = random.iter().fold(String::new(), |mut acc, b| {
         let _ = write!(acc, "{b:02x}");
         acc
@@ -311,24 +311,16 @@ mod tests {
     fn list_files_skips_orphaned_temp_files_without_deleting_them() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(dir.path().join("0")).unwrap();
-        std::fs::write(
-            dir.path().join("0/.leemusync-0011223344556677.tmp"),
-            b"half",
-        )
-        .unwrap();
-        std::fs::write(dir.path().join(".leemusync-aa.tmp"), b"half").unwrap();
+        std::fs::write(dir.path().join("0/.lemusync-0011223344556677.tmp"), b"half").unwrap();
+        std::fs::write(dir.path().join(".lemusync-aa.tmp"), b"half").unwrap();
         std::fs::write(dir.path().join("0/a.sav"), b"a").unwrap();
-        std::fs::write(dir.path().join(".leemusync-notes.txt"), b"kept").unwrap();
+        std::fs::write(dir.path().join(".lemusync-notes.txt"), b"kept").unwrap();
         let names: Vec<String> = list_files(dir.path())
             .unwrap()
             .into_iter()
             .map(|(n, _)| n)
             .collect();
-        assert_eq!(names, [".leemusync-notes.txt", "0/a.sav"]);
-        assert!(
-            dir.path()
-                .join("0/.leemusync-0011223344556677.tmp")
-                .exists()
-        );
+        assert_eq!(names, [".lemusync-notes.txt", "0/a.sav"]);
+        assert!(dir.path().join("0/.lemusync-0011223344556677.tmp").exists());
     }
 }

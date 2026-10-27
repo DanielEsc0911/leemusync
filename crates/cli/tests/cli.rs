@@ -4,9 +4,9 @@ use std::path::Path;
 use std::process::{Command, Output};
 
 fn run(root: &Path, lang: &str, args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_leemusync"))
+    Command::new(env!("CARGO_BIN_EXE_lemusync"))
         .args(args)
-        .env("LEEMUSYNC_TEST_ROOT", root)
+        .env("LEMUSYNC_TEST_ROOT", root)
         .env_remove("LC_ALL")
         .env_remove("LC_MESSAGES")
         .env_remove("LANGUAGE")

@@ -2,7 +2,7 @@
 
 use std::io::{BufRead as _, IsTerminal as _, Write as _};
 
-use leemusync_engine::EngineError;
+use lemusync_engine::EngineError;
 use zeroize::Zeroizing;
 
 use crate::i18n::{I18n, s};
