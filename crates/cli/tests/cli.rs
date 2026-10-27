@@ -301,8 +301,14 @@ fn config_set_get_unset_round_trips_every_key_family() {
     config_ok(r, &["unset", "leases.ttl_secs"]);
     assert_eq!(get("leases.ttl_secs"), 300);
 
-    config_ok(r, &["set", "emulators.cemu.root", "/opt/cemu"]);
-    assert_eq!(get("emulators.cemu.root"), "/opt/cemu");
+    // Paths must be absolute on the host OS: "/opt/cemu" has no drive on
+    // Windows, so build them from the temp dir.
+    let cemu_root = r.join("opt").join("cemu");
+    let cemu_root = cemu_root.to_str().unwrap();
+    let zelda = r.join("games").join("zelda.wux");
+    let zelda = zelda.to_str().unwrap();
+    config_ok(r, &["set", "emulators.cemu.root", cemu_root]);
+    assert_eq!(get("emulators.cemu.root"), cemu_root);
     config_ok(
         r,
         &[
@@ -317,18 +323,14 @@ fn config_set_get_unset_round_trips_every_key_family() {
         get("emulators.cemu.exe"),
         serde_json::json!(["flatpak", "run", "info.cemu.Cemu"])
     );
-    config_ok(
-        r,
-        &["set", "emulators.cemu.games.101C9500", "/games/zelda.wux"],
-    );
-    assert_eq!(get("emulators.cemu.games.101c9500"), "/games/zelda.wux");
-    config_ok(r, &["set", "emulators.cemu.game_dirs", "/games", "/more"]);
-    assert_eq!(
-        get("emulators.cemu.game_dirs"),
-        serde_json::json!(["/games", "/more"])
-    );
-    assert_eq!(get("emulators.cemu")["root"], "/opt/cemu");
-    assert_eq!(get("emulators.cemu.games")["101c9500"], "/games/zelda.wux");
+    config_ok(r, &["set", "emulators.cemu.games.101C9500", zelda]);
+    assert_eq!(get("emulators.cemu.games.101c9500"), zelda);
+    let dirs = [r.join("games"), r.join("more")];
+    let dirs = dirs.map(|d| d.to_str().unwrap().to_owned());
+    config_ok(r, &["set", "emulators.cemu.game_dirs", &dirs[0], &dirs[1]]);
+    assert_eq!(get("emulators.cemu.game_dirs"), serde_json::json!(dirs));
+    assert_eq!(get("emulators.cemu")["root"], cemu_root);
+    assert_eq!(get("emulators.cemu.games")["101c9500"], zelda);
     assert_eq!(get("backend"), serde_json::Value::Null);
     let list = config_json(r, &["list"]);
     assert_eq!(list["api_version"], 1);
@@ -463,18 +465,13 @@ fn games_lists_detected_games_offline_in_both_languages() {
     );
     let es = run(r, "es_MX.UTF-8", &["games"]);
     assert!(String::from_utf8_lossy(&es.stdout).contains("del emulador"));
-    // The user's path wins.
-    config_ok(
-        r,
-        &[
-            "set",
-            "emulators.cemu.games.1FFFFF00",
-            "/elsewhere/game.wux",
-        ],
-    );
+    // The user's path wins. It must be absolute on the host OS.
+    let elsewhere = r.join("elsewhere").join("game.wux");
+    let elsewhere = elsewhere.to_str().unwrap();
+    config_ok(r, &["set", "emulators.cemu.games.1FFFFF00", elsewhere]);
     let json = run(r, "en_US.UTF-8", &["--json", "games"]);
     let json: serde_json::Value = serde_json::from_slice(&json.stdout).unwrap();
-    assert_eq!(json["games"][0]["path"], "/elsewhere/game.wux");
+    assert_eq!(json["games"][0]["path"], elsewhere);
     assert_eq!(json["games"][0]["source"], "config");
     assert_eq!(json["games"][0]["name"], "Synthetic Game");
 }
