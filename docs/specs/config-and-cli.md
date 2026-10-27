@@ -69,5 +69,17 @@ Secrets (passphrase, recovery key, OAuth client secret, S3 secret key) are only 
 | 5 | Locked by another device (`play` found a held lease without a terminal or with `--json`; never a silent "play anyway") |
 | 6 | Backend unreachable or auth failed |
 
+## Error codes
+Every error has a stable `code` (the `--json` `error.code`, and the key of its localized message `error-<code>` in `locales/`). Storage errors map by class ([storage-backends §Interface](storage-backends.md#interface)):
+
+| Class | Code | Exit | Message says |
+|---|---|---|---|
+| `transient` (after the store's retries) | `backend_offline` | 6 | Can't reach the storage; check the connection and try again; saves on this device are safe |
+| `auth` | `backend_auth` | 6 | The login failed; run `lemusync backend login` |
+| `quota` | `backend_quota` | 1 | The storage is full; free up space; saves on this device are safe |
+| `not_found`, `already_exists`, `permanent` | `backend` | 1 | The storage returned an error; try again, then `lemusync doctor` |
+
+"Saves on this device are safe" holds because a sync or restore downloads and verifies everything into staging before it touches a save folder, and an upload only reads local files ([reliability §Restore procedure](reliability.md#restore-procedure)). The message never contains provider text. That goes on a second, dim line, `Details: …` / `Detalles: …`, and in `--json` as `error.detail` next to `code` and `message` (the English message for storage errors). It always passes through `crates/store/src/redact.rs` first (B2), with control characters replaced and at most 500 characters. Other errors have no `detail`. Code: `crates/engine/src/error.rs`, `crates/cli/src/output.rs`.
+
 ## Parity rule
 Any feature added to the UI gets its CLI command (desktop/headless) in the same plan, and the other way round. Mobile has no CLI. Its Settings → Advanced exposes the same options.

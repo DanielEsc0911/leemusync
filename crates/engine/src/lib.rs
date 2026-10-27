@@ -39,6 +39,7 @@ pub use error::EngineError;
 pub use failpoints::Failpoints;
 pub use lease::{Acquire, LeaseHandle};
 pub use lemusync_core::VersionId;
+pub use lemusync_store::redact;
 pub use local_config::{
     BackendConfig, ConflictPolicy, DeviceSection, EmulatorOverride, LeaseSettings, LocalConfig,
 };

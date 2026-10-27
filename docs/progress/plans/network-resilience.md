@@ -65,9 +65,10 @@
 
 **Files:** `crates/engine/src/error.rs` (`code()`), `crates/cli/src/output.rs`, `locales/{en,es}/lemusync.ftl`, specs `config-and-cli.md` §Exit codes (add an error-code table) and `storage-backends.md` (link to it).
 
-- [ ] **Step 1: failing tests.** Each `ErrorClass` maps to its own code: Transient → `backend_offline`, Quota → `backend_quota`, Auth → `backend_auth` (exists), NotFound/AlreadyExists/Permanent → `backend`. Exit codes stay as they are.
-- [ ] **Step 2: messages.** Each code gets an en and es message that says what happened and what to do, with no raw text. Only say "your saves are safe" where B3 actually guarantees it (a failed upload or download never touches local saves; check the restore path before claiming it). Don't add a `--verbose` flag (P1). The raw detail goes on one dim second line, `Details: …`, and into the `--json` output as a `detail` field next to `code` and `message`. It **always** goes through `crates/store/src/redact.rs` first (B2: OpenDAL text can contain endpoints, bucket names and signed query strings). Test it with a fake token in a URL.
-- [ ] **Step 3:** CLI tests for the human and JSON output, specs, `just check`, commit `feat(cli): friendly storage errors in English and Spanish`.
+- [x] **Step 1: failing tests.** Each `ErrorClass` maps to its own code: Transient → `backend_offline`, Quota → `backend_quota`, Auth → `backend_auth` (exists), NotFound/AlreadyExists/Permanent → `backend`. Exit codes stay as they are.
+- [x] **Step 2: messages.** Each code gets an en and es message that says what happened and what to do, with no raw text. Only say "your saves are safe" where B3 actually guarantees it (a failed upload or download never touches local saves; check the restore path before claiming it). Don't add a `--verbose` flag (P1). The raw detail goes on one dim second line, `Details: …`, and into the `--json` output as a `detail` field next to `code` and `message`. It **always** goes through `crates/store/src/redact.rs` first (B2: OpenDAL text can contain endpoints, bucket names and signed query strings). Test it with a fake token in a URL.
+- [x] **Step 2 outcome:** `redact` already scrubs signed query strings and tokens, not endpoints or bucket names; the detail line is shown only to the device's own user, so those stay. `error-backend_auth` lost its inline detail (it moved to the Details line). The CLI unit tests use `lemusync-store` as a dev-dependency to build `StoreError`s.
+- [x] **Step 3:** CLI tests for the human and JSON output, specs, `just check`, commit `feat(cli): friendly storage errors in English and Spanish`.
 
 ### Task 4: Close out
 

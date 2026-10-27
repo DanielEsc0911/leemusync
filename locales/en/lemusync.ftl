@@ -63,8 +63,11 @@ help-doctor = Check the keystore, the storage and the emulator folders.
 ## Errors ($detail is never translated: paths, ids, provider text)
 error-usage = { $detail }
 error-config = The config file is invalid: { $detail }
-error-backend = Storage problem: { $detail }
-error-backend_auth = The storage login failed ({ $detail }). Run `lemusync backend login`.
+error-backend = The storage returned an error. Try again; if it keeps happening, run `lemusync doctor`.
+error-backend_auth = The storage login failed. Run `lemusync backend login`.
+error-backend_offline = Can't reach your storage. Check your internet connection and try again. Your saves on this device are safe.
+error-backend_quota = Your storage is full. Free up space or get more, then try again. Your saves on this device are safe.
+error-details = Details: { $detail }
 error-io = File problem: { $detail }
 error-crypto = Encryption problem: { $detail }
 error-unlock = Wrong passphrase or recovery key.

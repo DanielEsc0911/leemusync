@@ -457,6 +457,9 @@ pub struct ErrorBody {
     pub code: String,
     /// Display text, never translated.
     pub message: String,
+    /// Raw, redacted provider text behind a storage error (config-and-cli §Error codes).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
 }
 
 #[cfg(test)]
