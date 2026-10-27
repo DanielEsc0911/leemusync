@@ -35,9 +35,9 @@
 
 **Files:** `crates/store/src/faults.rs`, `crates/engine/tests/faults.rs` (or a new `network.rs` beside it if `faults.rs` passes ~400 lines), spec `testing.md` and `reliability.md` (an SC5 coverage table: scenario × direction × test name).
 
-- [ ] **Step 1: list what's already covered.** Read `faults.rs` and `kill.rs`. Write the coverage table in `reliability.md` §SC5 with what exists, and mark the gaps.
-- [ ] **Step 2: fault primitives.** Add to `Faults`, test-only behind the existing `faults` feature: a per-request delay (slow link), and an outage that heals by itself after K failed requests. Unit-test both in `store`.
-- [ ] **Step 3: failing tests, then the fixes they expose.** Fill only the gaps from Step 1. The target matrix, all on `Store::fs` with the fast test retry policy:
+- [x] **Step 1: list what's already covered.** Read `faults.rs` and `kill.rs`. Write the coverage table in `reliability.md` §SC5 with what exists, and mark the gaps.
+- [x] **Step 2: fault primitives.** Add to `Faults`, test-only behind the existing `faults` feature: a per-request delay (slow link), and an outage that heals by itself after K failed requests. Unit-test both in `store`.
+- [x] **Step 3: failing tests, then the fixes they expose.** Fill only the gaps from Step 1. The target matrix, all on `Store::fs` with the fast test retry policy:
   - a download-only sync and a full `play` session (lease → download → fake emulator → upload → release; reuse the fake-emulator helper the existing play tests use, found with `grep -rn "fn \|exe" crates/engine/tests/common* crates/engine/tests/play*`), each at every request N × {cut, lost response}. Then heal and run again. Expect: no corruption, files byte-identical to either the old or the new version, empty journal, no spurious conflict, lease released or expired.
   - an outage shorter than the retry budget on upload and on download: the operation completes with no error. This is what Daniel saw.
   - an outage longer than the budget: exit code 6 (Transient), and the next run converges.
@@ -45,7 +45,8 @@
   - a store-level unit test that `list` is retried, if one doesn't exist yet.
 
   Keep the whole suite under ~30 s on this machine. Each scenario runs at most 12 request indices N: all of them when the run has ≤ 12 requests, otherwise a sample from a fixed seed that always includes the first and last request.
-- [ ] **Step 4:** fill in the coverage table, run `just check`, commit `test(engine): synthetic network fault suite for SC5`.
+- [x] **Step 3 outcome:** no fixes were needed; every new case passed first time. The new cases live in `crates/engine/tests/network.rs`. The existing cut/lost-response matrices already run every N and stay exhaustive (each round makes ≤ 20 requests, under 3 s).
+- [x] **Step 4:** fill in the coverage table, run `just check`, commit `test(engine): synthetic network fault suite for SC5`.
 
 ### Task 2: "Connection trouble" notice while retrying
 
