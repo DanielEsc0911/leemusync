@@ -2,6 +2,7 @@
 //! Spec: docs/specs/architecture.md (Engine internals), docs/specs/reliability.md.
 
 mod accounts;
+mod config_keys;
 mod discover;
 mod error;
 mod failpoints;

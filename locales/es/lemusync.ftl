@@ -290,3 +290,24 @@ error-usage-player_needed = Elige el jugador con --as <nombre>.
 error-usage-version_invalid = { $detail } no es un id de versión. Ejecuta `lemusync conflicts` para verlos.
 error-usage-no_conflict = { $detail } no tiene conflictos.
 error-usage-lease_live = Ese bloqueo está activo; no se puede tomar.
+
+## config (config-and-cli §Commands)
+help-config = Lee y cambia los ajustes de este dispositivo (config.toml).
+help-config-path = Muestra dónde está el archivo de configuración.
+help-config-list = Lista todos los ajustes.
+help-config-get = Muestra un ajuste.
+help-config-get-key = El ajuste, por ejemplo conflict_policy o emulators.cemu.exe.
+help-config-set = Cambia un ajuste. Los comentarios del archivo se conservan.
+help-config-set-key = El ajuste, por ejemplo leases.ttl_secs o emulators.cemu.games.101c9500.
+help-config-set-values = El valor nuevo. emulators.<id>.exe acepta varias palabras: el comando que abre el emulador.
+help-config-unset = Quita un ajuste y vuelve a su valor predeterminado.
+help-config-unset-key = El ajuste.
+config-unset-value = (sin definir)
+config-set-done = { $key } = { $value }
+config-unset-done = Se quitó { $key }.
+error-usage-config_managed = Ese ajuste se cambia con `{ $detail }`, no con `lemusync config`.
+error-usage-config_fixed = { $detail } no se puede cambiar.
+error-usage-config_unknown_key = No existe el ajuste { $detail }. Ejecuta `lemusync config list`.
+error-usage-config_unknown_emulator = No existe el emulador { $detail }.
+error-usage-config_bad_value = Ese no es un valor válido para { $detail }. No se cambió nada.
+error-usage-config_one_value = { $detail } acepta un solo valor.

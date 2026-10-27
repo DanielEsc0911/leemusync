@@ -31,6 +31,7 @@ sysinfo = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt", "sync", "time"] }
 toml = { workspace = true }
+toml_edit = { workspace = true }
 zeroize = { workspace = true }
 
 [dev-dependencies]
