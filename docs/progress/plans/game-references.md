@@ -52,13 +52,13 @@
 
 **Interfaces:** `config set aliases.<alias> <emulator>/<key>` is the source of truth. `games alias <game> <alias>` is a helper that resolves `<game>` with the Task 1 resolver and writes that same key. It refuses an ambiguous game rather than picking one, and it stores the resolved `<emulator>/<key>`, never the query text.
 
-- [ ] **Step 1: failing tests.**
+- [x] **Step 1: failing tests.**
   - Alias syntax is `^[a-z0-9][a-z0-9_-]{0,31}$`.
   - An alias is unique, and it can't equal another game's key.
   - An alias on an unknown game is refused.
   - An invalid alias in a hand-edited `config.toml` is rejected on load with a clear error naming the key.
   - `games alias` with an ambiguous `<game>` refuses and lists the candidates.
-- [ ] **Step 2: implement**, then specs, `just check`, commit `feat(cli): game aliases`.
+- [x] **Step 2: implement**, then specs, `just check`, commit `feat(cli): game aliases`.
 
 ### Task 3: Every game argument goes through the resolver
 

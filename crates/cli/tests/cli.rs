@@ -399,3 +399,103 @@ fn games_lists_detected_games_offline_in_both_languages() {
     assert_eq!(json["games"][0]["source"], "config");
     assert_eq!(json["games"][0]["name"], "Synthetic Game");
 }
+
+/// Another synthetic game next to the one `cemu_with_a_game` made.
+fn add_game(root: &Path, folder: &str, title: &str, name: &str) {
+    let game = root.join("games").join(folder);
+    std::fs::create_dir_all(game.join("meta")).expect("fixture written");
+    std::fs::create_dir_all(game.join("code")).expect("fixture written");
+    std::fs::write(
+        game.join("meta/meta.xml"),
+        format!("<menu><title_id>{title}</title_id><longname_en>{name}</longname_en></menu>"),
+    )
+    .expect("fixture written");
+}
+
+#[test]
+fn games_alias_resolves_once_and_stores_the_key() {
+    let root = tempfile::tempdir().unwrap();
+    let r = root.path();
+    cemu_with_a_game(r);
+    let out = run(
+        r,
+        "en_US.UTF-8",
+        &["--json", "games", "alias", "synthetic game", "sg"],
+    );
+    assert!(out.status.success(), "{out:?}");
+    let json: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(json["key"], "1fffff00");
+    assert_eq!(
+        config_json(r, &["get", "aliases.sg"])["value"],
+        "cemu/1fffff00"
+    );
+    let en = run(r, "en_US.UTF-8", &["games"]);
+    assert!(
+        String::from_utf8_lossy(&en.stdout).contains("alias: sg"),
+        "{en:?}"
+    );
+    let json = run(r, "en_US.UTF-8", &["--json", "games"]);
+    let json: serde_json::Value = serde_json::from_slice(&json.stdout).unwrap();
+    assert_eq!(json["games"][0]["aliases"][0], "sg");
+
+    // Bad aliases and unknown games are refused, nothing written.
+    for args in [
+        &["games", "alias", "synthetic game", "Bad Name"][..],
+        &["games", "alias", "nothing like it", "x"],
+        &["config", "set", "aliases.x", "cemu/deadbeef"],
+        &["config", "set", "aliases.sg", "cemu/1fffff01"],
+        &["games", "unalias", "nope"],
+    ] {
+        assert_eq!(
+            run(r, "en_US.UTF-8", args).status.code(),
+            Some(2),
+            "{args:?}"
+        );
+    }
+    // Two games with the same name apart from a region tag: refused, both listed.
+    add_game(r, "Twin", "000500001FFFFF01", "Synthetic Game (EUR)");
+    let out = run(
+        r,
+        "en_US.UTF-8",
+        &["games", "alias", "synthetic game", "sg2"],
+    );
+    assert_eq!(out.status.code(), Some(2));
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        err.contains("cemu/1fffff00")
+            && err.contains("Synthetic Game (EUR) (cemu/1fffff01)")
+            && err.contains("--emu"),
+        "{err}"
+    );
+    let es = run(
+        r,
+        "es_MX.UTF-8",
+        &["games", "alias", "synthetic game", "sg2"],
+    );
+    assert!(
+        String::from_utf8_lossy(&es.stderr).contains("Hay más de un juego"),
+        "{es:?}"
+    );
+
+    let out = run(r, "en_US.UTF-8", &["games", "unalias", "sg"]);
+    assert!(out.status.success(), "{out:?}");
+    assert!(config_json(r, &["get", "aliases.sg"])["value"].is_null());
+
+    // A bad alias typed into config.toml by hand is an invalid config that names the key.
+    let path = config_json(r, &["path"])["path"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let text = std::fs::read_to_string(&path).unwrap();
+    std::fs::write(
+        &path,
+        format!("{text}\n[aliases]\n\"Bad\" = \"cemu/1fffff00\"\n"),
+    )
+    .unwrap();
+    let out = run(r, "en_US.UTF-8", &["games"]);
+    assert_eq!(out.status.code(), Some(3), "{out:?}");
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("aliases.Bad"),
+        "{out:?}"
+    );
+}

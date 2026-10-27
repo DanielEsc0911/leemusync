@@ -7,6 +7,7 @@ mod discover;
 mod error;
 mod failpoints;
 pub mod fsx;
+mod game_refs;
 mod games;
 mod grants;
 mod launch;

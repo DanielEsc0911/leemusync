@@ -50,7 +50,10 @@ enum Cmd {
         cmd: PlayersCmd,
     },
     Scan,
-    Games,
+    Games {
+        #[command(subcommand)]
+        cmd: Option<GamesCmd>,
+    },
     Accounts {
         #[command(subcommand)]
         cmd: AccountsCmd,
@@ -98,6 +101,19 @@ enum Cmd {
     Config {
         #[command(subcommand)]
         cmd: config_cmd::ConfigCmd,
+    },
+}
+
+#[derive(Subcommand)]
+enum GamesCmd {
+    Alias {
+        game: String,
+        alias: String,
+        #[arg(long)]
+        emu: Option<String>,
+    },
+    Unalias {
+        alias: String,
     },
 }
 
@@ -753,12 +769,47 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
                 return Ok(4);
             }
         }
-        Cmd::Games => {
+        Cmd::Games { cmd: None } => {
             let report = engine.games_report()?;
             if json {
                 output::json(&report);
             } else {
                 games_cmd::print(t, &report);
+            }
+        }
+        Cmd::Games {
+            cmd: Some(GamesCmd::Alias { game, alias, emu }),
+        } => {
+            let (emulator, key) = engine.alias_add(game, emu.as_deref(), alias).await?;
+            if json {
+                output::json(&serde_json::json!({
+                    "api_version": lemusync_api::API_VERSION,
+                    "alias": alias,
+                    "emulator": emulator,
+                    "key": key,
+                }));
+            } else {
+                output::line(
+                    t,
+                    "games-alias-done",
+                    &[
+                        ("alias", s(alias.clone())),
+                        ("game", s(games_cmd::label_of(&engine, &emulator, &key))),
+                    ],
+                );
+            }
+        }
+        Cmd::Games {
+            cmd: Some(GamesCmd::Unalias { alias }),
+        } => {
+            engine.alias_remove(alias)?;
+            if json {
+                output::json(&serde_json::json!({
+                    "api_version": lemusync_api::API_VERSION,
+                    "removed": alias,
+                }));
+            } else {
+                output::line(t, "games-unalias-done", &[("alias", s(alias.clone()))]);
             }
         }
         Cmd::Status => {

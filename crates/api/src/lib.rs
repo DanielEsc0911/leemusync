@@ -305,6 +305,9 @@ pub struct GameInfo {
     pub path: Option<String>,
     /// Where the path came from.
     pub source: GameSource,
+    /// This device's aliases for the game (config-and-cli §Game references).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub aliases: Vec<String>,
 }
 
 /// Result of `lemusync games`.
