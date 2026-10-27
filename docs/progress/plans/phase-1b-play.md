@@ -187,7 +187,7 @@ Maintainer, Fedora + CachyOS, R2 repo from M1a, release binaries from this branc
 - [x] **B5: SC5 spot check.** During a `play` upload, pull the network cable, then `kill -9` a sync mid-restore; rerun `lemusync sync`: no corruption, BotW loads.
 - [x] **B6: Record.** Mark M1b reached in the roadmap with date and surprises; tick this plan; commit `docs(progress): record the M1b test day`.
 
-Done 2026-10-21: B0–B5 passed on both PCs (maintainer). Surprises: `play --as` opened Cemu's last active account until Cemu got `-a {account}` (fixed the same day); a network cut during `sync` printed a raw OpenDAL error. V-ACC-4 fixtures not replaced yet. Still open: SC5 at every journal step (interrupted uploads and downloads), beyond this spot check.
+Done 2026-10-21: B0–B5 passed on both PCs (maintainer). Surprises: `play --as` opened Cemu's last active account until Cemu got `-a {account}` (fixed the same day); a network cut during `sync` printed a raw OpenDAL error (done: friendly, localized storage errors, [network-resilience](network-resilience.md) Task 3). V-ACC-4 fixtures not replaced yet. SC5 at every journal step (interrupted uploads and downloads), beyond this spot check: done ([network-resilience](network-resilience.md) Task 1, [reliability §SC5 coverage](../../specs/reliability.md#sc5-coverage)). Retries cover `list`: done (unit test `a_transient_list_is_retried`, [network-resilience](network-resilience.md) Task 1).
 
 ## Verify
 

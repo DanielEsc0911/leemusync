@@ -8,5 +8,8 @@ All notable changes to this project. Format: [Keep a Changelog](https://keepacha
 - The project is renamed from LeemuSync to LemuSync (lemur + emu + sync). Binaries, app id, env vars, local folders and the remote storage prefix change with no migration ([D33](docs/decisions.md#d33-the-project-is-named-lemusync-2026-10-27)).
 
 ### Added
+- While storage requests are retried, the CLI says "Connection trouble, retrying…" and then "Connection is back." (en/es); the engine sends the same `ConnectionEvent` for the daemon and tray.
+- Storage errors are friendly and localized (`backend_offline`, `backend_quota`, `backend_auth`, `backend`), with the redacted provider text on a `Details:` line and in `--json` `error.detail`.
+- Synthetic network test suite for SC5: short and long outages and a slow link on upload and download, on top of the cut and lost-response matrices.
 - First sync between two PCs through Cloudflare R2 (CLI): both players' Cemu saves on both PCs, with live progress while syncing.
 - Project rules (`AGENTS.md`, `docs/rules.md`), documentation set, roadmap and Phase 0 plan.

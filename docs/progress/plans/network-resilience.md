@@ -72,4 +72,4 @@
 
 ### Task 4: Close out
 
-- [ ] In [phase-1b-play](phase-1b-play.md), mark the open items as done with a link to this plan: "SC5 at every journal step", "raw OpenDAL error", "retries cover list". Update the board row for phase-1b-play. CHANGELOG, then commit `docs(progress): close the M1b network follow-ups`.
+- [x] In [phase-1b-play](phase-1b-play.md), mark the open items as done with a link to this plan: "SC5 at every journal step", "raw OpenDAL error", "retries cover list". Update the board row for phase-1b-play. CHANGELOG, then commit `docs(progress): close the M1b network follow-ups`.

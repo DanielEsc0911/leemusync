@@ -15,7 +15,7 @@
 |---|---|---|---|
 | [phase-0-foundations](plans/phase-0-foundations.md) | 0 | In progress (Tasks 1–5 done; SP7 Linux done; SP6 in progress, Google Drive live done; SP1 in progress, Fedora, Android emulator and CachyOS done; SP3 skipped until an Android device is available; next M1 sync Fedora ↔ CachyOS) | 2026-10-18 |
 | [phase-1-first-sync](plans/phase-1-first-sync.md) | 1 | In progress (Tasks 1–17, 17b (S3/R2), 17c (retries) and 17d (only new blobs, live progress) done; Task 18 done: **M1a reached 2026-10-20**; Task 19 (SP8) done 2026-10-20: Cemu accepts LemuSync-written accounts, option c designed; Task 8 Step 8, Task 17b Step 6 and Task 17d Step 7 live runs are the maintainer's) | 2026-10-20 |
-| [phase-1b-play](plans/phase-1b-play.md) | 1 | Done (M1b reached 2026-10-21; full SC5 interruption checks still open) | 2026-10-21 |
-| [network-resilience](plans/network-resilience.md) | 1 | In progress | 2026-10-27 |
+| [phase-1b-play](plans/phase-1b-play.md) | 1 | Done (M1b reached 2026-10-21; SC5 network follow-ups done in network-resilience) | 2026-10-27 |
+| [network-resilience](plans/network-resilience.md) | 1 | Done (awaiting merge) | 2026-10-27 |
 
 Status values: Not started · In progress · Blocked (reason) · Done (awaiting cleanup).
