@@ -58,6 +58,7 @@ Same-user only: socket permissions plus a peer credential check ([architecture �
 
 ## File-system confinement
 - The engine reads and writes only inside **grants**: folders the user approved, which are canonicalised when stored.
+- One read-only exception: game folders listed in the emulator's granted config or in the user's `game_dirs` are read for game metadata (one listing of each listed folder, at most 5,000 entries, and one XML file under 1 MiB per game), never written or created, with no symlink followed below a listed folder; a `DOCTYPE` is rejected ([D34](../decisions.md#d34-game-names-are-found-on-each-device-never-stored-in-the-repo-2026-10-27), [emulator-profiles §Game discovery](emulator-profiles.md#game-discovery)).
 - Every path from a manifest or profile is validated in `core`: relative; no `..`; not absolute; no drive letters, UNC paths, NUL bytes, `:` (alternate data streams) or Windows reserved names (`CON`, `NUL`, …); length limits. Implemented in `crates/core/src/path.rs`.
 - Writes never follow symlinks (open with no-follow / capability-based directory handles). A symlink that resolves outside a grant is refused.
 - Per-file and per-stream size limits (profile `max_file_mb`) stop disk-filling.

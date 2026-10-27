@@ -20,7 +20,7 @@ Let users keep their repo on storage they already own. The store layer moves opa
 `list` and `stat` return `Entry { path, size, modified }`. `modified` is the server's modified time from OpenDAL `Metadata::last_modified()`, `None` when the backend doesn't report it (Drive `list`, V-SYNC-2). `list` uses the metadata the listing already carries and never adds a `stat` per entry.
 
 - `create_only` uses the backend's native conditional write where available (OpenDAL `if_not_exists`). Otherwise it's emulated with stat-then-write. That's safe because version and blob names are unique ([D5](../decisions.md#d5-append-only-content-addressed-repo-with-derived-heads-2026-10-07)).
-- All errors are classified as `transient`, `auth` (ask the user), `quota`, or `permanent`. The store retries `transient` errors itself: up to 5 tries, exponential backoff with full jitter (1 s base, 30 s cap), or the server's `Retry-After` in seconds (capped at 30 s). A retried `create_only` that finds the object already there reads it back: the same bytes mean the earlier try landed and count as success.
+- All errors are classified as `transient`, `auth` (ask the user), `quota`, or `permanent`. What the user sees for each class: [config-and-cli §Error codes](config-and-cli.md#error-codes). The store retries `transient` errors itself: up to 5 tries, exponential backoff with full jitter (1 s base, 30 s cap), or the server's `Retry-After` in seconds (capped at 30 s). A retried `create_only` that finds the object already there reads it back: the same bytes mean the earlier try landed and count as success.
 
 ## Adapters
 | Provider | Adapter | Notes |

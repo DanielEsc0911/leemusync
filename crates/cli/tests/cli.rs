@@ -184,9 +184,395 @@ fn play_commands_fail_with_the_spec_exit_codes() {
     for args in [
         &["--json", "conflicts"][..],
         &["--json", "lease", "status"],
-        &["--json", "play", "cemu", "101c9400"],
+        &["--json", "play", "101c9400"],
     ] {
         let out = run(root.path(), "en_US.UTF-8", args);
         assert_eq!(out.status.code(), Some(2), "{args:?}: no repo yet");
     }
+}
+
+fn error_code(out: &Output) -> String {
+    let json: serde_json::Value = serde_json::from_slice(&out.stdout).expect("JSON error");
+    json["error"]["code"]
+        .as_str()
+        .unwrap_or_default()
+        .to_owned()
+}
+
+#[test]
+fn every_game_argument_takes_an_alias_key_or_name() {
+    let root = tempfile::tempdir().unwrap();
+    let r = root.path();
+    cemu_with_a_game(r);
+    config_ok(r, &["set", "aliases.sg", "cemu/1fffff00"]);
+    // The game resolves, so each command gets as far as needing the repo.
+    for game in [
+        "sg",
+        "synthetic game",
+        "\"Synthetic Game (USA)\"",
+        "1FFFFF00",
+    ] {
+        for args in [
+            &["--json", "play", game, "--as", "p1"][..],
+            &["--json", "play", game, "--emu", "cemu"],
+            &["--json", "history", game],
+            &["--json", "restore", game, "v", "--yes"],
+            &["--json", "lease", "release", "--force", game],
+        ] {
+            let out = run(r, "en_US.UTF-8", args);
+            assert_eq!(out.status.code(), Some(2), "{args:?}");
+            assert_eq!(error_code(&out), "not_set_up", "{args:?}: {out:?}");
+        }
+    }
+    // Unknown: a localized not-found error that points at `lemusync games`.
+    let out = run(r, "en_US.UTF-8", &["play", "zelda breath", "--as", "p1"]);
+    assert_eq!(out.status.code(), Some(2));
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        err.contains("There's no game zelda breath") && err.contains("lemusync games"),
+        "{err}"
+    );
+    let es = run(r, "es_MX.UTF-8", &["history", "zelda breath"]);
+    assert!(
+        String::from_utf8_lossy(&es.stderr).contains("No hay ningún juego zelda breath"),
+        "{es:?}"
+    );
+    // Ambiguous: every candidate, and how to pick one.
+    add_game(r, "Twin", "000500001FFFFF01", "Synthetic Game (EUR)");
+    let out = run(r, "en_US.UTF-8", &["play", "synthetic game"]);
+    assert_eq!(out.status.code(), Some(2));
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        err.contains("cemu/1fffff00")
+            && err.contains("cemu/1fffff01")
+            && err.contains("--emu")
+            && err.contains("games alias"),
+        "{err}"
+    );
+    // The alias still picks one.
+    let out = run(r, "en_US.UTF-8", &["--json", "play", "sg"]);
+    assert_eq!(error_code(&out), "not_set_up", "{out:?}");
+    // The old `play <emulator> <game>` form is a usage error that shows the new one.
+    for (lang, text) in [
+        ("en_US.UTF-8", "The emulator now goes after --emu"),
+        ("es_MX.UTF-8", "Ahora el emulador va después de --emu"),
+    ] {
+        let out = run(r, lang, &["play", "cemu", "1fffff00", "--as", "p1"]);
+        assert_eq!(out.status.code(), Some(2));
+        let err = String::from_utf8_lossy(&out.stderr);
+        assert!(
+            err.contains(text) && err.contains("lemusync play 1fffff00 --emu cemu"),
+            "{err}"
+        );
+    }
+    let out = run(r, "en_US.UTF-8", &["play", "nope", "1fffff00"]);
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(err.contains("unexpected argument '1fffff00'"), "{err}");
+}
+
+fn config_json(root: &Path, args: &[&str]) -> serde_json::Value {
+    let mut all = vec!["--json", "config"];
+    all.extend_from_slice(args);
+    let out = run(root, "en_US.UTF-8", &all);
+    assert!(out.status.success(), "{args:?}: {out:?}");
+    serde_json::from_slice(&out.stdout).expect("config --json prints JSON")
+}
+
+fn config_ok(root: &Path, args: &[&str]) {
+    let mut all = vec!["config"];
+    all.extend_from_slice(args);
+    let out = run(root, "en_US.UTF-8", &all);
+    assert!(out.status.success(), "{args:?}: {out:?}");
+}
+
+#[test]
+fn config_set_get_unset_round_trips_every_key_family() {
+    let root = tempfile::tempdir().unwrap();
+    let r = root.path();
+    let get = |key: &str| config_json(r, &["get", key])["value"].clone();
+    assert_eq!(get("conflict_policy"), "ask");
+    config_ok(r, &["set", "conflict_policy", "newest"]);
+    assert_eq!(get("conflict_policy"), "newest");
+    config_ok(r, &["unset", "conflict_policy"]);
+    assert_eq!(get("conflict_policy"), "ask");
+
+    config_ok(r, &["set", "leases.ttl_secs", "600"]);
+    assert_eq!(get("leases.ttl_secs"), 600);
+    config_ok(r, &["unset", "leases.ttl_secs"]);
+    assert_eq!(get("leases.ttl_secs"), 300);
+
+    // Paths must be absolute on the host OS: "/opt/cemu" has no drive on
+    // Windows, so build them from the temp dir.
+    let cemu_root = r.join("opt").join("cemu");
+    let cemu_root = cemu_root.to_str().unwrap();
+    let zelda = r.join("games").join("zelda.wux");
+    let zelda = zelda.to_str().unwrap();
+    config_ok(r, &["set", "emulators.cemu.root", cemu_root]);
+    assert_eq!(get("emulators.cemu.root"), cemu_root);
+    config_ok(
+        r,
+        &[
+            "set",
+            "emulators.cemu.exe",
+            "flatpak",
+            "run",
+            "info.cemu.Cemu",
+        ],
+    );
+    assert_eq!(
+        get("emulators.cemu.exe"),
+        serde_json::json!(["flatpak", "run", "info.cemu.Cemu"])
+    );
+    config_ok(r, &["set", "emulators.cemu.games.101C9500", zelda]);
+    assert_eq!(get("emulators.cemu.games.101c9500"), zelda);
+    let dirs = [r.join("games"), r.join("more")];
+    let dirs = dirs.map(|d| d.to_str().unwrap().to_owned());
+    config_ok(r, &["set", "emulators.cemu.game_dirs", &dirs[0], &dirs[1]]);
+    assert_eq!(get("emulators.cemu.game_dirs"), serde_json::json!(dirs));
+    assert_eq!(get("emulators.cemu")["root"], cemu_root);
+    assert_eq!(get("emulators.cemu.games")["101c9500"], zelda);
+    assert_eq!(get("backend"), serde_json::Value::Null);
+    let list = config_json(r, &["list"]);
+    assert_eq!(list["api_version"], 1);
+    assert_eq!(list["values"]["emulators.cemu.exe"][0], "flatpak");
+    assert_eq!(list["values"]["conflict_policy"], "ask");
+    assert!(list["values"]["device.id"].is_string(), "{list}");
+    for key in [
+        "emulators.cemu.game_dirs",
+        "emulators.cemu.games.101c9500",
+        "emulators.cemu.exe",
+        "emulators.cemu.root",
+    ] {
+        config_ok(r, &["unset", key]);
+        assert!(get(key).is_null(), "{key}");
+    }
+    let path = config_json(r, &["path"])["path"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert!(path.ends_with("config.toml"), "{path}");
+    assert!(Path::new(&path).starts_with(r));
+}
+
+#[test]
+fn config_set_keeps_comments_and_refuses_bad_edits_untouched() {
+    let root = tempfile::tempdir().unwrap();
+    let r = root.path();
+    let path = config_json(r, &["path"])["path"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let text = std::fs::read_to_string(&path).unwrap();
+    std::fs::write(&path, format!("# my note\n{text}")).unwrap();
+    config_ok(r, &["set", "conflict_policy", "newest"]);
+    let text = std::fs::read_to_string(&path).unwrap();
+    assert!(text.starts_with("# my note\n"), "{text}");
+    assert!(text.contains("conflict_policy = \"newest\""), "{text}");
+
+    let before = std::fs::read(&path).unwrap();
+    for (args, what) in [
+        (&["set", "conflict_policy", "merge"][..], "bad enum"),
+        (&["set", "leases.ttl_secs", "5"], "ttl out of bounds"),
+        (&["set", "leases.ttl_secs", "abc"], "ttl not a number"),
+        (
+            &["set", "emulators.cemu.root", "relative/dir"],
+            "relative path",
+        ),
+        (
+            &["set", "emulators.cemu.games.101c9500", "x.wux"],
+            "relative game",
+        ),
+        (
+            &["set", "emulators.nope.root", "/opt/x"],
+            "unknown emulator",
+        ),
+        (&["set", "grants", "/"], "managed key"),
+        (&["unset", "backend.kind"], "managed key"),
+        (&["set", "device.id", "x"], "fixed key"),
+        (&["set", "no.such.key", "x"], "unknown key"),
+        (&["set", "conflict_policy", "ask", "newest"], "two values"),
+    ] {
+        let mut all = vec!["--json", "config"];
+        all.extend_from_slice(args);
+        let out = run(r, "en_US.UTF-8", &all);
+        assert_eq!(out.status.code(), Some(2), "{what}: {out:?}");
+        assert_eq!(std::fs::read(&path).unwrap(), before, "{what}");
+    }
+    let es = run(r, "es_MX.UTF-8", &["config", "set", "grants", "/"]);
+    assert!(
+        String::from_utf8_lossy(&es.stderr).contains("lemusync grant add"),
+        "{es:?}"
+    );
+}
+
+/// A native Cemu install under `root` whose granted settings.xml lists one games folder,
+/// holding one synthetic unpacked game.
+fn cemu_with_a_game(root: &Path) -> std::path::PathBuf {
+    let home = root.join("home");
+    std::fs::create_dir_all(home.join(".local/share/Cemu")).expect("fixture written");
+    let games = root.join("games");
+    let game = games.join("Synthetic");
+    std::fs::create_dir_all(game.join("meta")).expect("fixture written");
+    std::fs::create_dir_all(game.join("code")).expect("fixture written");
+    std::fs::write(
+        game.join("meta/meta.xml"),
+        "<menu><title_id>000500001FFFFF00</title_id><longname_en>Synthetic Game</longname_en></menu>",
+    )
+    .expect("fixture written");
+    std::fs::write(game.join("code/s.rpx"), b"").expect("fixture written");
+    let cfg = home.join(".config/Cemu");
+    std::fs::create_dir_all(&cfg).expect("fixture written");
+    std::fs::write(
+        cfg.join("settings.xml"),
+        format!(
+            "<content><GamePaths><Entry>{}</Entry></GamePaths></content>",
+            games.display()
+        ),
+    )
+    .expect("fixture written");
+    let out = run(
+        root,
+        "en_US.UTF-8",
+        &["grant", "add", cfg.to_str().expect("utf-8 temp path")],
+    );
+    assert!(out.status.success(), "{out:?}");
+    game
+}
+
+#[test]
+fn games_lists_detected_games_offline_in_both_languages() {
+    let root = tempfile::tempdir().unwrap();
+    let r = root.path();
+    let out = run(r, "en_US.UTF-8", &["games"]);
+    assert!(out.status.success(), "{out:?}");
+    assert!(String::from_utf8_lossy(&out.stdout).contains("No games found"));
+    let folder = cemu_with_a_game(r);
+    let out = run(r, "en_US.UTF-8", &["--json", "games"]);
+    assert!(out.status.success(), "no repo or storage needed: {out:?}");
+    let json: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(json["api_version"], 1);
+    let g = &json["games"][0];
+    assert_eq!(g["emulator"], "cemu");
+    assert_eq!(g["key"], "1fffff00");
+    assert_eq!(g["name"], "Synthetic Game");
+    assert_eq!(g["path"], folder.display().to_string());
+    assert_eq!(g["source"], "emulator");
+    let en = run(r, "en_US.UTF-8", &["games"]);
+    let en = String::from_utf8_lossy(&en.stdout);
+    assert!(
+        en.contains("cemu · Synthetic Game · 1fffff00") && en.contains("from the emulator"),
+        "{en}"
+    );
+    let es = run(r, "es_MX.UTF-8", &["games"]);
+    assert!(String::from_utf8_lossy(&es.stdout).contains("del emulador"));
+    // The user's path wins. It must be absolute on the host OS.
+    let elsewhere = r.join("elsewhere").join("game.wux");
+    let elsewhere = elsewhere.to_str().unwrap();
+    config_ok(r, &["set", "emulators.cemu.games.1FFFFF00", elsewhere]);
+    let json = run(r, "en_US.UTF-8", &["--json", "games"]);
+    let json: serde_json::Value = serde_json::from_slice(&json.stdout).unwrap();
+    assert_eq!(json["games"][0]["path"], elsewhere);
+    assert_eq!(json["games"][0]["source"], "config");
+    assert_eq!(json["games"][0]["name"], "Synthetic Game");
+}
+
+/// Another synthetic game next to the one `cemu_with_a_game` made.
+fn add_game(root: &Path, folder: &str, title: &str, name: &str) {
+    let game = root.join("games").join(folder);
+    std::fs::create_dir_all(game.join("meta")).expect("fixture written");
+    std::fs::create_dir_all(game.join("code")).expect("fixture written");
+    std::fs::write(
+        game.join("meta/meta.xml"),
+        format!("<menu><title_id>{title}</title_id><longname_en>{name}</longname_en></menu>"),
+    )
+    .expect("fixture written");
+}
+
+#[test]
+fn games_alias_resolves_once_and_stores_the_key() {
+    let root = tempfile::tempdir().unwrap();
+    let r = root.path();
+    cemu_with_a_game(r);
+    let out = run(
+        r,
+        "en_US.UTF-8",
+        &["--json", "games", "alias", "synthetic game", "sg"],
+    );
+    assert!(out.status.success(), "{out:?}");
+    let json: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(json["key"], "1fffff00");
+    assert_eq!(
+        config_json(r, &["get", "aliases.sg"])["value"],
+        "cemu/1fffff00"
+    );
+    let en = run(r, "en_US.UTF-8", &["games"]);
+    assert!(
+        String::from_utf8_lossy(&en.stdout).contains("alias: sg"),
+        "{en:?}"
+    );
+    let json = run(r, "en_US.UTF-8", &["--json", "games"]);
+    let json: serde_json::Value = serde_json::from_slice(&json.stdout).unwrap();
+    assert_eq!(json["games"][0]["aliases"][0], "sg");
+
+    // Bad aliases, unknown games and unknown emulators are refused, nothing written.
+    for args in [
+        &["games", "alias", "synthetic game", "Bad Name"][..],
+        &["games", "alias", "nothing like it", "x"],
+        &["config", "set", "aliases.x", "nope/deadbeef"],
+        &["games", "alias", "nope/deadbeef", "x"],
+        &["config", "set", "aliases.sg", "cemu/1fffff01"],
+        &["games", "unalias", "nope"],
+    ] {
+        assert_eq!(
+            run(r, "en_US.UTF-8", args).status.code(),
+            Some(2),
+            "{args:?}"
+        );
+    }
+    // Two games with the same name apart from a region tag: refused, both listed.
+    add_game(r, "Twin", "000500001FFFFF01", "Synthetic Game (EUR)");
+    let out = run(
+        r,
+        "en_US.UTF-8",
+        &["games", "alias", "synthetic game", "sg2"],
+    );
+    assert_eq!(out.status.code(), Some(2));
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        err.contains("cemu/1fffff00")
+            && err.contains("Synthetic Game (EUR) (cemu/1fffff01)")
+            && err.contains("--emu"),
+        "{err}"
+    );
+    let es = run(
+        r,
+        "es_MX.UTF-8",
+        &["games", "alias", "synthetic game", "sg2"],
+    );
+    assert!(
+        String::from_utf8_lossy(&es.stderr).contains("Hay más de un juego"),
+        "{es:?}"
+    );
+
+    let out = run(r, "en_US.UTF-8", &["games", "unalias", "sg"]);
+    assert!(out.status.success(), "{out:?}");
+    assert!(config_json(r, &["get", "aliases.sg"])["value"].is_null());
+
+    // A bad alias typed into config.toml by hand is an invalid config that names the key.
+    let path = config_json(r, &["path"])["path"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let text = std::fs::read_to_string(&path).unwrap();
+    std::fs::write(
+        &path,
+        format!("{text}\n[aliases]\n\"Bad\" = \"cemu/1fffff00\"\n"),
+    )
+    .unwrap();
+    let out = run(r, "en_US.UTF-8", &["games"]);
+    assert_eq!(out.status.code(), Some(3), "{out:?}");
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("aliases.Bad"),
+        "{out:?}"
+    );
 }

@@ -36,6 +36,11 @@ impl Live {
         }
     }
 
+    /// Whether the live line is drawn.
+    pub fn on(&self) -> bool {
+        self.enabled
+    }
+
     pub fn sink(&self) -> ProgressSink {
         let latest = self.latest.clone();
         Arc::new(move |p| *latest.lock().unwrap_or_else(PoisonError::into_inner) = Some(p.clone()))

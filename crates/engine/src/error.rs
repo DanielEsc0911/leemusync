@@ -46,8 +46,14 @@ impl EngineError {
         match self {
             Self::Usage(_) => "usage",
             Self::Config(_) => "config",
-            Self::Store(e) if e.class() == ErrorClass::Auth => "backend_auth",
-            Self::Store(_) => "backend",
+            Self::Store(e) => match e.class() {
+                ErrorClass::Auth => "backend_auth",
+                ErrorClass::Transient => "backend_offline",
+                ErrorClass::Quota => "backend_quota",
+                ErrorClass::NotFound | ErrorClass::AlreadyExists | ErrorClass::Permanent => {
+                    "backend"
+                }
+            },
             Self::Io(_) => "io",
             Self::Crypto(_) => "crypto",
             Self::Unlock => "unlock",
@@ -87,5 +93,25 @@ impl From<std::io::Error> for EngineError {
 impl From<rusqlite::Error> for EngineError {
     fn from(e: rusqlite::Error) -> Self {
         Self::Io(format!("state database: {e}"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn each_storage_class_has_its_code_and_the_exit_codes_stay() {
+        for (class, code, exit) in [
+            (ErrorClass::Transient, "backend_offline", 6),
+            (ErrorClass::Auth, "backend_auth", 6),
+            (ErrorClass::Quota, "backend_quota", 1),
+            (ErrorClass::NotFound, "backend", 1),
+            (ErrorClass::AlreadyExists, "backend", 1),
+            (ErrorClass::Permanent, "backend", 1),
+        ] {
+            let e = EngineError::Store(StoreError::new(class, "x"));
+            assert_eq!((e.code(), e.exit_code()), (code, exit), "{class:?}");
+        }
     }
 }

@@ -2,10 +2,13 @@
 //! Spec: docs/specs/architecture.md (Engine internals), docs/specs/reliability.md.
 
 mod accounts;
+mod config_keys;
 mod discover;
 mod error;
 mod failpoints;
 pub mod fsx;
+mod game_refs;
+mod games;
 mod grants;
 mod launch;
 mod lease;
@@ -37,15 +40,18 @@ use lemusync_crypto::KdfParams;
 pub use accounts::{MapChoice, MapOutcome};
 pub use error::EngineError;
 pub use failpoints::Failpoints;
+pub use game_refs::is_emulator;
+pub use games::GameEntry;
 pub use lease::{Acquire, LeaseHandle};
 pub use lemusync_core::VersionId;
+pub use lemusync_store::redact;
 pub use local_config::{
     BackendConfig, ConflictPolicy, DeviceSection, EmulatorOverride, LeaseSettings, LocalConfig,
 };
 pub use locations::Locations;
 pub use play::{LeaseChoice, PlayPrompt};
 pub use process::{Child, FakeProbe, Launcher, OsLauncher, ProcessProbe, SysinfoProbe};
-pub use progress::ProgressSink;
+pub use progress::{ConnectionSink, ProgressSink};
 pub use secrets::{KeyringSecrets, MemorySecrets, SecretStore};
 pub use setup::{GdriveLogin, JoinSecret, S3Backend};
 pub use state::{JournalEntry, State, StreamRow};
@@ -83,6 +89,9 @@ pub struct Engine {
     repo: Option<repo::Repo>,
     /// Where `TransferProgress` goes (`set_progress`); nowhere by default.
     progress: Option<ProgressSink>,
+    /// Where `ConnectionEvent`s go (`set_connection_sink`); nowhere by default. One watch for
+    /// every store this engine opens, so a recovery is heard even on a fresh store.
+    connection: Option<lemusync_store::RetryWatch>,
     /// Streams whose stale lease we took over, by previous holder; read by the next upload.
     takeovers: std::sync::Mutex<std::collections::BTreeMap<lemusync_core::StreamId, DeviceId>>,
     /// Test-only shift of the lease clock (`shift_lease_clock_ms`).
@@ -118,6 +127,7 @@ impl Engine {
             state,
             failpoints: Failpoints::default(),
             progress: None,
+            connection: None,
             repo: None,
             takeovers: std::sync::Mutex::default(),
             clock_shift_ms: 0,
@@ -141,6 +151,13 @@ impl Engine {
     /// Sends live `TransferProgress` for `sync`, `restore` and `accounts recover` to `sink`.
     pub fn set_progress(&mut self, sink: ProgressSink) {
         self.progress = Some(sink);
+    }
+
+    /// Sends a `ConnectionEvent` to `sink` whenever a storage request is retried, and when
+    /// the connection is back. Drops the open repo so its store picks the sink up.
+    pub fn set_connection_sink(&mut self, sink: ConnectionSink) {
+        self.connection = Some(lemusync_store::RetryWatch::new(progress::observer(sink)));
+        self.repo = None;
     }
 
     #[must_use]
@@ -170,6 +187,15 @@ impl Engine {
     pub fn set_store_faults(&mut self, faults: Option<lemusync_store::Faults>) {
         self.store_faults = faults;
         self.repo = None;
+    }
+
+    /// Test-only: the open journal entries (an interrupted operation not yet recovered).
+    ///
+    /// # Errors
+    /// `Io` for database errors.
+    #[cfg(feature = "failpoints")]
+    pub fn journal(&self) -> Result<Vec<JournalEntry>, EngineError> {
+        self.state.journal_all()
     }
 
     fn save_config(&self) -> Result<(), EngineError> {

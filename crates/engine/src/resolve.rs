@@ -58,6 +58,7 @@ impl Engine {
             .await?
             .config;
         let mut out = Vec::new();
+        let names = self.game_names();
         for (pid, p) in &config.players {
             for (emulator, game) in config.games_of(*pid) {
                 let stream = self.repo_ref()?.stream_id(*pid, &emulator, &game);
@@ -88,6 +89,7 @@ impl Engine {
                     .collect();
                 out.push(ConflictInfo {
                     player: p.name.clone(),
+                    name: names.get(&(emulator.clone(), game.clone())).cloned(),
                     emulator,
                     game,
                     heads,

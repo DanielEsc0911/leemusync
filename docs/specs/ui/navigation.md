@@ -11,7 +11,7 @@ Same order, names and icons everywhere:
 | # | Destination | Holds |
 |---|---|---|
 | 1 | **Home** | Status hero, active sessions, needs-attention list (conflicts, leases, errors), recent activity |
-| 2 | **Games** | Library by emulator/system; game detail → Play, history, restore, lease, save states |
+| 2 | **Games** | Library by emulator/system, from the engine's game catalog (`Engine::games`, the same list as `lemusync games`: name, key, path, where it was found); game detail → Play, history, restore, lease, save states |
 | 3 | **Activity** | Timeline of syncs, conflicts, restores, errors; filters |
 | 4 | **Devices** | Devices in the repo, last seen, sessions; this device's settings |
 | 5 | **Settings** | Players · Storage · Emulators · Notifications · Language · Advanced · About |

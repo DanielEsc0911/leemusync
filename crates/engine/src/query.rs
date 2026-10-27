@@ -34,6 +34,7 @@ impl Engine {
             let config = repo_config::load(self.repo_ref()?, &self.state)
                 .await?
                 .config;
+            let names = self.game_names();
             for (pid, p) in &config.players {
                 players.push(p.name.clone());
                 for (emu, game) in config.games_of(*pid) {
@@ -46,6 +47,7 @@ impl Engine {
                     let account = config.account_of(device, *pid, &emu).map(str::to_owned);
                     streams.push(StreamStatus {
                         player: p.name.clone(),
+                        name: names.get(&(emu.clone(), game.clone())).cloned(),
                         emulator: emu,
                         game,
                         account,
@@ -152,6 +154,9 @@ impl Engine {
         backups.reverse();
         Ok(HistoryReport {
             api_version: API_VERSION,
+            name: self
+                .game_names()
+                .remove(&(emulator.to_owned(), game.to_lowercase())),
             versions: entries,
             backups,
         })

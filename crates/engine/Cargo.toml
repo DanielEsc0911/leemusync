@@ -31,12 +31,13 @@ sysinfo = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt", "sync", "time"] }
 toml = { workspace = true }
+toml_edit = { workspace = true }
 zeroize = { workspace = true }
 
 [dev-dependencies]
 lemusync-engine = { path = ".", features = ["failpoints"] }
 tempfile = { workspace = true }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "test-util"] }
 criterion = { workspace = true }
 
 [[bench]]

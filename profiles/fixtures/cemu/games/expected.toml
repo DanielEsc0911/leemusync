@@ -1,0 +1,6 @@
+# Synthetic tree for [games].scan (SP10). Dummy files only; no real game data.
+# games/Packed/game.wua is an archive: not opened, so not found (V-GAME-2).
+[[game]]
+key = "1fffff00"
+name = "Synthetic Game"
+path = "games/Synthetic Game"

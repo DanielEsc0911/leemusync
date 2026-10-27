@@ -181,13 +181,13 @@ Maintainer, Fedora + CachyOS, R2 repo from M1a, release binaries from this branc
 
 - [x] **B0: Set up.** On each PC: `lemusync` config `[emulators.cemu] exe` (Flatpak on Fedora, `/usr/bin/cemu` on CachyOS) and `games.101c9400 = "<BotW path>"`. `lemusync sync`, `lemusync doctor`: all ok.
 - [x] **B1: Account creation.** On the PC missing a player's account: `lemusync accounts create "<player>" cemu`, confirm, open Cemu, select the account, check BotW shows that player's save. **V-ACC-4:** first, in a scratch Cemu tree, create one account in Cemu itself and keep its `account.dat` (online fields empty) to replace the hand-built fixtures in `profiles/fixtures/cemu/account-create/`. Delete the hand-made M1a accounts only if the maintainer wants to.
-- [x] **B2: SC1.** Each player runs `lemusync play cemu 101c9400 --as "<player>"` on a different PC at the same time, plays 10 min, quits. Both syncs upload; `lemusync conflicts` is empty; `lease status` empty.
+- [x] **B2: SC1.** Each player runs `lemusync play 101c9400 --as "<player>"` on a different PC at the same time, plays 10 min, quits. Both syncs upload; `lemusync conflicts` is empty; `lease status` empty.
 - [x] **B3: SC2.** Player 1 plays on Fedora, quits, then `play` on CachyOS: the game starts with the progress just made.
 - [x] **B4: SC3.** Same player starts `play` on both PCs; on the second choose "play anyway"; save on both; quit. `lemusync conflicts` shows 2 heads; `resolve` one; the other is still in `history` and `restore` brings it back.
 - [x] **B5: SC5 spot check.** During a `play` upload, pull the network cable, then `kill -9` a sync mid-restore; rerun `lemusync sync`: no corruption, BotW loads.
 - [x] **B6: Record.** Mark M1b reached in the roadmap with date and surprises; tick this plan; commit `docs(progress): record the M1b test day`.
 
-Done 2026-10-21: B0–B5 passed on both PCs (maintainer). Surprises: `play --as` opened Cemu's last active account until Cemu got `-a {account}` (fixed the same day); a network cut during `sync` printed a raw OpenDAL error. V-ACC-4 fixtures not replaced yet. Still open: SC5 at every journal step (interrupted uploads and downloads), beyond this spot check.
+Done 2026-10-21: B0–B5 passed on both PCs (maintainer). Surprises: `play --as` opened Cemu's last active account until Cemu got `-a {account}` (fixed the same day); a network cut during `sync` printed a raw OpenDAL error (done 2026-10-27: friendly, localized storage errors, [config-and-cli §Error codes](../../specs/config-and-cli.md#error-codes)). V-ACC-4 fixtures not replaced yet (deferred by the maintainer on 2026-10-27, [players-and-accounts §Verify](../../specs/players-and-accounts.md#verify)). SC5 at every journal step (interrupted uploads and downloads), beyond this spot check: done 2026-10-27 ([reliability §SC5 coverage](../../specs/reliability.md#sc5-coverage)). Retries cover `list`: done 2026-10-27 (unit test `a_transient_list_is_retried`, [reliability §SC5 coverage](../../specs/reliability.md#sc5-coverage)).
 
 ## Verify
 

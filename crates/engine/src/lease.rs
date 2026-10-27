@@ -132,6 +132,7 @@ impl Engine {
             .into_iter()
             .filter(|s| s.observed.lease.device != me)
             .collect();
+        self.failpoints.pause("lease.after_list").await;
         let repo = self.repo_ref()?;
         if let Some(live) = others.iter().find(|s| s.live) {
             return Ok((held(repo, &live.observed, false).await, warnings));

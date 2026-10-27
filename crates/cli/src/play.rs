@@ -131,6 +131,7 @@ mod tests {
             player: "P".into(),
             emulator: "cemu".into(),
             game: "101c9400".into(),
+            name: None,
             heads: vec![HeadInfo {
                 version: "v".into(),
                 device_name: "A".into(),

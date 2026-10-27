@@ -1,6 +1,8 @@
 //! Retries transient store errors with backoff (storage-backends §Interface).
 
 use std::future::Future;
+use std::sync::Arc;
+use std::sync::{Mutex, PoisonError};
 use std::time::Duration;
 
 use crate::error::{ErrorClass, StoreError};
@@ -23,21 +25,120 @@ impl Default for RetryPolicy {
     }
 }
 
+/// What the store tells its observer while it retries (reliability §Network).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RetryNotice {
+    /// A request failed with a transient error; try number `attempt` (2 or more, out of
+    /// `max_attempts`) starts after `delay`.
+    Retrying {
+        operation: &'static str,
+        attempt: u32,
+        max_attempts: u32,
+        delay: Duration,
+    },
+    /// A request succeeded after trouble, and no other request is still retrying.
+    Recovered,
+}
+
+/// Receives every `RetryNotice`. Called from the store's task; keep it cheap.
+pub type RetryObserver = Arc<dyn Fn(RetryNotice) + Send + Sync>;
+
+/// The observer, and the connection's trouble state. Clones share the state, so one watch
+/// given to every store an engine opens reports the recovery even when the request that gave
+/// up ran on another store.
+#[derive(Clone, Default)]
+pub struct Watch {
+    observer: Option<RetryObserver>,
+    trouble: Arc<Mutex<Trouble>>,
+}
+
+/// Requests retrying right now, and whether anything failed since the last recovery.
+#[derive(Default)]
+struct Trouble {
+    retrying: u32,
+    troubled: bool,
+}
+
+impl Watch {
+    #[must_use]
+    pub fn new(observer: RetryObserver) -> Self {
+        Self {
+            observer: Some(observer),
+            trouble: Arc::default(),
+        }
+    }
+
+    /// Runs `f` on the shared state; notices are sent under the lock, so they stay in order.
+    fn with<R>(&self, f: impl FnOnce(&mut Trouble) -> R) -> R {
+        f(&mut self.trouble.lock().unwrap_or_else(PoisonError::into_inner))
+    }
+
+    fn tell(&self, n: RetryNotice) {
+        if let Some(o) = &self.observer {
+            o(n);
+        }
+    }
+}
+
 /// Runs `op(attempt)` (0-based) until it succeeds, fails with a non-transient error, or runs
-/// out of attempts. The last error is returned unchanged.
-pub(crate) async fn retry<T, F, Fut>(policy: &RetryPolicy, mut op: F) -> Result<T, StoreError>
+/// out of attempts. The last error is returned unchanged. `watch` hears each retry, and
+/// `Recovered` on a success once no other request is still retrying.
+pub(crate) async fn retry<T, F, Fut>(
+    policy: &RetryPolicy,
+    watch: &Watch,
+    operation: &'static str,
+    mut op: F,
+) -> Result<T, StoreError>
 where
     F: FnMut(u32) -> Fut,
     Fut: Future<Output = Result<T, StoreError>>,
 {
     let mut attempt = 0;
+    let mut counted = false;
     loop {
         match op(attempt).await {
             Err(e) if e.class() == ErrorClass::Transient && attempt + 1 < policy.attempts => {
                 attempt += 1;
-                tokio::time::sleep(wait(policy, attempt, &e)).await;
+                let delay = wait(policy, attempt, &e);
+                let first = !counted;
+                counted = true;
+                watch.with(|t| {
+                    if first {
+                        t.retrying += 1;
+                    }
+                    t.troubled = true;
+                    watch.tell(RetryNotice::Retrying {
+                        operation,
+                        attempt: attempt + 1,
+                        max_attempts: policy.attempts,
+                        delay,
+                    });
+                });
+                tokio::time::sleep(delay).await;
             }
-            other => return other,
+            Err(e) => {
+                watch.with(|t| {
+                    if counted {
+                        t.retrying -= 1;
+                    }
+                    if e.class() == ErrorClass::Transient {
+                        t.troubled = true;
+                    }
+                });
+                return Err(e);
+            }
+            Ok(v) => {
+                watch.with(|t| {
+                    if counted {
+                        t.retrying -= 1;
+                    }
+                    if t.retrying == 0 && t.troubled {
+                        t.troubled = false;
+                        watch.tell(RetryNotice::Recovered);
+                    }
+                });
+                return Ok(v);
+            }
         }
     }
 }
@@ -73,6 +174,53 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn the_recovery_waits_for_every_retrying_request() {
+        let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let s = seen.clone();
+        let watch = Watch::new(Arc::new(move |n| s.lock().unwrap().push(n)));
+        let a_done = tokio::sync::Notify::new();
+        let recovered = || {
+            seen.lock()
+                .unwrap()
+                .iter()
+                .filter(|n| **n == RetryNotice::Recovered)
+                .count()
+        };
+        let a = async {
+            let r = retry(&fast(), &watch, "put", |n| async move {
+                if n == 0 {
+                    Err(err(ErrorClass::Transient))
+                } else {
+                    Ok(())
+                }
+            })
+            .await;
+            assert_eq!(recovered(), 0, "B is still retrying");
+            a_done.notify_one();
+            r
+        };
+        let policy = fast();
+        let b = retry(&policy, &watch, "put", |n| {
+            let a_done = &a_done;
+            async move {
+                match n {
+                    0 => Err(err(ErrorClass::Transient)),
+                    1 => {
+                        a_done.notified().await;
+                        Err(err(ErrorClass::Transient))
+                    }
+                    _ => Ok(()),
+                }
+            }
+        });
+        let (ra, rb) = tokio::join!(a, b);
+        ra.unwrap();
+        rb.unwrap();
+        assert_eq!(recovered(), 1);
+        assert_eq!(seen.lock().unwrap().last(), Some(&RetryNotice::Recovered));
+    }
+
     fn err(class: ErrorClass) -> StoreError {
         StoreError::new(class, "boom")
     }
@@ -80,7 +228,7 @@ mod tests {
     #[tokio::test]
     async fn succeeds_after_two_transient_failures() {
         let calls = AtomicU32::new(0);
-        let r = retry(&fast(), |n| {
+        let r = retry(&fast(), &Watch::default(), "test", |n| {
             calls.fetch_add(1, Ordering::SeqCst);
             async move {
                 if n < 2 {
@@ -98,7 +246,7 @@ mod tests {
     #[tokio::test]
     async fn gives_up_after_all_attempts_with_the_last_error() {
         let calls = AtomicU32::new(0);
-        let r: Result<(), _> = retry(&fast(), |n| {
+        let r: Result<(), _> = retry(&fast(), &Watch::default(), "test", |n| {
             calls.fetch_add(1, Ordering::SeqCst);
             async move { Err(StoreError::new(ErrorClass::Transient, &format!("try {n}"))) }
         })
@@ -117,7 +265,7 @@ mod tests {
             ErrorClass::Quota,
         ] {
             let calls = AtomicU32::new(0);
-            let r: Result<(), _> = retry(&fast(), |_| {
+            let r: Result<(), _> = retry(&fast(), &Watch::default(), "test", |_| {
                 calls.fetch_add(1, Ordering::SeqCst);
                 async move { Err(err(class)) }
             })
@@ -135,7 +283,7 @@ mod tests {
             cap: Duration::from_secs(30),
         };
         let start = tokio::time::Instant::now();
-        let r = retry(&policy, |n| async move {
+        let r = retry(&policy, &Watch::default(), "test", |n| async move {
             if n == 0 {
                 Err(err(ErrorClass::Transient).with_retry_after(Duration::from_secs(120)))
             } else {

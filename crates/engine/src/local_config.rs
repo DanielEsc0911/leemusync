@@ -26,6 +26,10 @@ pub struct LocalConfig {
     /// What `sync` does with a conflict (sync-model §Conflicts).
     #[serde(default)]
     pub conflict_policy: ConflictPolicy,
+    /// Short names for games, alias → `"<emulator>/<game key>"` (config-and-cli §Game
+    /// references). Local to this device.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub aliases: BTreeMap<String, String>,
 }
 
 /// `conflict_policy`: `ask` leaves conflicts for the player; `newest` resolves them to the
@@ -100,6 +104,10 @@ pub struct EmulatorOverride {
     /// Game file per title id (lowercase), for `{game_path}` in the profile's `launch.args`.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub games: BTreeMap<String, PathBuf>,
+    /// Extra folders scanned for installed games with the profile's `[games].scan` rule
+    /// (emulator-profiles §Game discovery). Read only, never created.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub game_dirs: Vec<PathBuf>,
 }
 
 /// `toml`'s `Display` quotes the offending source line, which can hold a secret pasted by
@@ -129,6 +137,7 @@ impl LocalConfig {
             emulators: BTreeMap::new(),
             leases: LeaseSettings::default(),
             conflict_policy: ConflictPolicy::Ask,
+            aliases: BTreeMap::new(),
         }
     }
 
@@ -140,7 +149,15 @@ impl LocalConfig {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
             Err(e) => return Err(e.into()),
         };
-        let config: Self = toml::from_str(&text).map_err(|e| parse_error(&text, &e))?;
+        Self::parse(&text).map(Some)
+    }
+
+    /// Parses and validates `config.toml` text.
+    ///
+    /// # Errors
+    /// `Config` for invalid TOML, an unknown `config_version` or an out-of-range value.
+    pub fn parse(text: &str) -> Result<Self, EngineError> {
+        let config: Self = toml::from_str(text).map_err(|e| parse_error(text, &e))?;
         if config.config_version != CONFIG_VERSION {
             return Err(EngineError::Config(format!(
                 "unsupported config_version {}",
@@ -155,15 +172,78 @@ impl LocalConfig {
                 LeaseSettings::MAX_TTL_SECS
             )));
         }
-        Ok(Some(config))
+        for (alias, target) in &config.aliases {
+            if !crate::game_refs::valid_alias(alias) {
+                return Err(EngineError::Config(format!(
+                    "aliases.{}: an alias is 1-32 of a-z, 0-9, - and _, starting with a letter or digit",
+                    crate::game_refs::echo(alias)
+                )));
+            }
+            if crate::game_refs::parse_target(target).is_none() {
+                return Err(EngineError::Config(format!(
+                    "aliases.{alias}: the value must be \"<emulator>/<game key>\""
+                )));
+            }
+        }
+        Ok(config)
     }
 
     /// # Errors
     /// `Config` if it can't be serialised; `Io` if the atomic write fails.
+    ///
+    /// The user's comments and key order survive: the new values are merged into the file
+    /// as it is on disk (config-and-cli §Config file).
     pub fn save(&self, path: &Path) -> Result<(), EngineError> {
-        let text = toml::to_string(self).map_err(|e| EngineError::Config(e.to_string()))?;
+        let fresh = toml::to_string(self).map_err(|e| EngineError::Config(e.to_string()))?;
+        let text = match std::fs::read_to_string(path)
+            .ok()
+            .and_then(|old| old.parse::<toml_edit::DocumentMut>().ok())
+        {
+            Some(mut doc) => {
+                let new: toml_edit::DocumentMut = fresh
+                    .parse()
+                    .map_err(|e: toml_edit::TomlError| EngineError::Config(e.to_string()))?;
+                merge(doc.as_table_mut(), new.as_table());
+                doc.to_string()
+            }
+            None => fresh,
+        };
         fsx::write_atomic(path, text.as_bytes())?;
         Ok(())
+    }
+}
+
+/// Makes `old` hold `new`'s values, keeping `old`'s comments and order where keys survive.
+fn merge(old: &mut dyn toml_edit::TableLike, new: &dyn toml_edit::TableLike) {
+    let gone: Vec<String> = old
+        .iter()
+        .map(|(k, _)| k.to_owned())
+        .filter(|k| !new.contains_key(k))
+        .collect();
+    for k in gone {
+        old.remove(&k);
+    }
+    for (k, n) in new.iter() {
+        let same = match (old.get_mut(k), n) {
+            (Some(o), n) if o.is_table_like() && n.is_table_like() => {
+                if let (Some(o), Some(n)) = (o.as_table_like_mut(), n.as_table_like()) {
+                    merge(o, n);
+                }
+                true
+            }
+            (Some(toml_edit::Item::Value(o)), toml_edit::Item::Value(n)) => {
+                if o.to_string().trim() != n.to_string().trim() {
+                    let decor = o.decor().clone();
+                    *o = n.clone();
+                    *o.decor_mut() = decor;
+                }
+                true
+            }
+            _ => false,
+        };
+        if !same {
+            old.insert(k, n.clone());
+        }
     }
 }
 
@@ -171,6 +251,23 @@ impl LocalConfig {
 mod tests {
     use super::*;
     use lemusync_core::VersionId;
+
+    #[test]
+    fn save_keeps_the_users_comments() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        let mut c = sample();
+        let text = format!("# mine\n{}", toml::to_string(&c).unwrap())
+            .replace("conflict_policy", "# policy\nconflict_policy");
+        std::fs::write(&path, &text).unwrap();
+        c.grants.push(PathBuf::from("/home/u/other"));
+        c.repo = None;
+        c.save(&path).unwrap();
+        let saved = std::fs::read_to_string(&path).unwrap();
+        assert!(saved.starts_with("# mine\n"), "{saved}");
+        assert!(saved.contains("# policy\nconflict_policy"), "{saved}");
+        assert_eq!(LocalConfig::parse(&saved).unwrap(), c);
+    }
 
     fn sample() -> LocalConfig {
         let mut c = LocalConfig::new(DeviceId(VersionId::from_parts(1, [3; 10])), "fedora-pc");
@@ -189,6 +286,7 @@ mod tests {
                     "101c9500".into(),
                     PathBuf::from("/games/Zelda BotW/game.wux"),
                 )]),
+                game_dirs: vec![PathBuf::from("/games")],
             },
         );
         c
@@ -317,6 +415,26 @@ mod tests {
                 LocalConfig::load(&path),
                 Err(EngineError::Config(_))
             ));
+        }
+    }
+
+    #[test]
+    fn aliases_are_checked_on_load() {
+        let base = toml::to_string(&sample()).unwrap();
+        let ok = format!("{base}\n[aliases]\nbotw = \"cemu/101c9400\"\n");
+        let c = LocalConfig::parse(&ok).unwrap();
+        assert_eq!(c.aliases["botw"], "cemu/101c9400");
+        for (bad, what) in [
+            ("\"Bad\" = \"cemu/101c9400\"", "aliases.Bad"),
+            ("\"-x\" = \"cemu/101c9400\"", "aliases.-x"),
+            ("x = \"101c9400\"", "aliases.x"),
+            ("x = \"cemu/../a\"", "aliases.x"),
+        ] {
+            let text = format!("{base}\n[aliases]\n{bad}\n");
+            let Err(EngineError::Config(e)) = LocalConfig::parse(&text) else {
+                panic!("{bad} accepted");
+            };
+            assert!(e.contains(what), "{e}");
         }
     }
 
