@@ -317,7 +317,7 @@ error-usage-config_one_value = { $detail } takes a single value.
 ## games
 help-games = List the games installed on this device, with their names and paths. Local, no storage needed.
 games-line = { $emulator } · { $name } · { $key } · { $path } · { $source }
-games-none = No games found. Add Cemu's game folders in Cemu, or add one with `lemusync config set emulators.<id>.game_dirs <folder>`.
+games-none = No games found. Add your game folders in the emulator, or add one with `lemusync config set emulators.<id>.game_dirs <folder>`.
 games-no-path = (no path)
 games-source-config = from config
 games-source-emulator = from the emulator
