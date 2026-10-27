@@ -289,14 +289,15 @@ impl Engine {
         })
     }
 
-    /// The name of `emulator`/`key` on this device, if any source knows it.
+    /// Names of the games this device knows, by (emulator, key). Empty when the catalog can't
+    /// be read: names are cosmetic and never fail a command.
     #[must_use]
-    pub fn game_name(&self, emulator: &str, key: &str) -> Option<String> {
+    pub fn game_names(&self) -> BTreeMap<(String, String), String> {
         self.games()
-            .ok()?
+            .unwrap_or_default()
             .into_iter()
-            .find(|g| g.emulator == emulator && g.key == key)
-            .and_then(|g| g.name)
+            .filter_map(|g| Some(((g.emulator, g.key), g.name?)))
+            .collect()
     }
 }
 
@@ -523,7 +524,12 @@ mod tests {
         );
         assert_eq!(by("101b0000").name.as_deref(), Some("Beta"));
         assert_eq!(by("101c0000").source, GameSource::Scan);
-        assert_eq!(e.game_name("cemu", "101c0000").as_deref(), Some("Gamma"));
+        assert_eq!(
+            e.game_names()
+                .get(&("cemu".to_owned(), "101c0000".to_owned()))
+                .map(String::as_str),
+            Some("Gamma")
+        );
     }
 
     #[test]

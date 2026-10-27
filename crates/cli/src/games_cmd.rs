@@ -1,8 +1,6 @@
 //! `lemusync games`, and game names for every other output (config-and-cli §Commands).
 //! Local and offline: the engine's game catalog, never the store.
 
-use std::collections::BTreeMap;
-
 use lemusync_api::{GameSource, GamesReport};
 use lemusync_engine::Engine;
 
@@ -20,30 +18,24 @@ fn clean(text: &str) -> String {
         .collect()
 }
 
-/// Names of the games this device knows, by (emulator, key).
-#[derive(Default)]
-pub struct Names(BTreeMap<(String, String), String>);
-
-impl Names {
-    /// The catalog's names; empty when it can't be read (names are cosmetic).
-    pub fn load(engine: &Engine) -> Self {
-        Self(
-            engine
-                .games()
-                .unwrap_or_default()
-                .into_iter()
-                .filter_map(|g| Some(((g.emulator, g.key), g.name?)))
-                .collect(),
-        )
+/// "Name (key)" when a name is known, else the key.
+pub fn label(name: Option<&str>, key: &str) -> String {
+    match name {
+        Some(name) => format!("{} ({})", clean(name), clean(key)),
+        None => clean(key),
     }
+}
 
-    /// "Name (key)" when a name is known, else the key.
-    pub fn label(&self, emulator: &str, key: &str) -> String {
-        match self.0.get(&(emulator.to_owned(), key.to_owned())) {
-            Some(name) => format!("{} ({})", clean(name), clean(key)),
-            None => clean(key),
-        }
-    }
+/// [`label`] with the name from the engine's catalog on this device.
+pub fn label_of(engine: &Engine, emulator: &str, key: &str) -> String {
+    let key = key.to_lowercase();
+    let names = engine.game_names();
+    label(
+        names
+            .get(&(emulator.to_owned(), key.clone()))
+            .map(String::as_str),
+        &key,
+    )
 }
 
 fn source_key(source: GameSource) -> &'static str {
@@ -83,12 +75,10 @@ mod tests {
 
     #[test]
     fn labels_show_the_name_and_key_or_just_the_key() {
-        let mut n = Names::default();
-        n.0.insert(
-            ("cemu".into(), "101c9400".into()),
-            "Some\u{1b}[2J Game".into(),
+        assert_eq!(
+            label(Some("Some\u{1b}[2J Game"), "101c9400"),
+            "Some [2J Game (101c9400)"
         );
-        assert_eq!(n.label("cemu", "101c9400"), "Some [2J Game (101c9400)");
-        assert_eq!(n.label("cemu", "101c9500"), "101c9500");
+        assert_eq!(label(None, "101c9500"), "101c9500");
     }
 }

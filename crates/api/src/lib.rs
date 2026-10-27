@@ -271,6 +271,9 @@ pub struct StreamStatus {
     pub emulator: String,
     /// Game id.
     pub game: String,
+    /// The game's name on this device, when known (emulator-profiles §Game discovery). Not synced.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
     /// Account id, when the stream is tied to one.
     pub account: Option<String>,
     /// Base folder of the local saves, when known.
@@ -318,6 +321,9 @@ pub struct GamesReport {
 pub struct HistoryReport {
     /// Shape version, always `API_VERSION`.
     pub api_version: u32,
+    /// The game's name on this device, when known (emulator-profiles §Game discovery). Not synced.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
     /// Versions of the stream, newest first.
     pub versions: Vec<HistoryEntry>,
     /// Local backups available for restore.
@@ -374,6 +380,9 @@ pub struct ConflictInfo {
     pub emulator: String,
     /// Game id.
     pub game: String,
+    /// The game's name on this device, when known (emulator-profiles §Game discovery). Not synced.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
     /// Every head, oldest first.
     pub heads: Vec<HeadInfo>,
 }
