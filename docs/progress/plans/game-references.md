@@ -36,13 +36,13 @@
 
   More than one match in the winning tier is `Ambiguous`, which lists every candidate (name, emulator, key) so region variants are visible. Optional emulator filter.
 
-- [ ] **Step 1: failing table tests:**
+- [x] **Step 1: failing table tests:**
   - `botw` (alias) and `101c9400` (key);
   - `the legend of zelda breath of the wild` and `The Legend of Zelda: Breath of the Wild (USA)` against a name without tags; `zelda breath` is NotFound (no fuzzy tier, P1);
   - USA and EUR variants that differ only by tag → `Ambiguous`;
   - `pokemon` vs `Pokémon`, plus `é`, `ñ`, `ü`, `ß` and `œ` folds;
   - extra spaces, quotes, and an empty query.
-- [ ] **Step 2: implement**, then the spec, `just check`, and commit `feat(core): resolve games by alias, key or loose name`.
+- [x] **Step 2: implement**, then the spec, `just check`, and commit `feat(core): resolve games by alias, key or loose name`.
 
 ### Task 2: Aliases in the local config
 
