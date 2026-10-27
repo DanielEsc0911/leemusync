@@ -50,7 +50,10 @@ enum Cmd {
         cmd: PlayersCmd,
     },
     Scan,
-    Games,
+    Games {
+        #[command(subcommand)]
+        cmd: Option<GamesCmd>,
+    },
     Accounts {
         #[command(subcommand)]
         cmd: AccountsCmd,
@@ -63,22 +66,27 @@ enum Cmd {
     },
     Status,
     History {
-        player: String,
-        emulator: String,
         game: String,
+        #[arg(long)]
+        emu: Option<String>,
+        #[arg(long = "as")]
+        player: Option<String>,
     },
     Restore {
-        player: String,
-        emulator: String,
         game: String,
         what: String,
+        #[arg(long)]
+        emu: Option<String>,
+        #[arg(long = "as")]
+        player: Option<String>,
         #[arg(long)]
         yes: bool,
     },
     Doctor,
     Play {
-        emulator: String,
         game: String,
+        #[arg(long)]
+        emu: Option<String>,
         #[arg(long = "as")]
         player: Option<String>,
         #[arg(last = true)]
@@ -98,6 +106,19 @@ enum Cmd {
     Config {
         #[command(subcommand)]
         cmd: config_cmd::ConfigCmd,
+    },
+}
+
+#[derive(Subcommand)]
+enum GamesCmd {
+    Alias {
+        game: String,
+        alias: String,
+        #[arg(long)]
+        emu: Option<String>,
+    },
+    Unalias {
+        alias: String,
     },
 }
 
@@ -224,9 +245,54 @@ fn env() -> Result<EngineEnv, EngineError> {
     Ok(env)
 }
 
+/// `play <emulator> <game>`, the shape before game references: `play_old_shape` with the
+/// new command, or `None`. Only a hint, never run (config-and-cli §Commands).
+fn old_play_hint(args: &[String]) -> Option<String> {
+    let mut words = args.iter().take_while(|a| *a != "--");
+    words
+        .find(|a| !a.starts_with('-'))?
+        .eq("play")
+        .then_some(())?;
+    let mut positional = Vec::new();
+    let mut skip = false;
+    for a in words {
+        if std::mem::take(&mut skip) {
+            continue;
+        }
+        if a == "--as" || a == "--emu" {
+            skip = true;
+        } else if !a.starts_with('-') {
+            positional.push(a.as_str());
+        }
+    }
+    let [emu, game, ..] = positional[..] else {
+        return None;
+    };
+    let plain = |w: &str| {
+        (1..=64).contains(&w.len())
+            && w.bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'))
+    };
+    (lemusync_engine::is_emulator(emu) && plain(game))
+        .then(|| format!("play_old_shape:lemusync play {game} --emu {emu}"))
+}
+
 fn main() -> ExitCode {
     let t = I18n::from_env();
-    let matches = localize(Cli::command(), "", &t).get_matches();
+    let matches = match localize(Cli::command(), "", &t).try_get_matches() {
+        Ok(m) => m,
+        Err(e) => {
+            let args: Vec<String> = std::env::args().skip(1).collect();
+            if e.kind() == clap::error::ErrorKind::UnknownArgument
+                && let Some(hint) = old_play_hint(&args)
+            {
+                let json = args.iter().any(|a| a == "--json");
+                output::error(&t, json, &EngineError::Usage(hint));
+                return ExitCode::from(2);
+            }
+            e.exit()
+        }
+    };
     let cli = Cli::from_arg_matches(&matches).unwrap_or_else(|e| e.exit());
     let runtime = match tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -262,7 +328,11 @@ async fn player_of(engine: &mut Engine, given: Option<&String>) -> Result<String
     if let Some(p) = given {
         return Ok(p.clone());
     }
-    let mut players = engine.players_list().await?;
+    pick_player(engine.players_list().await?)
+}
+
+/// The only player in the repo; "which player?" otherwise.
+fn pick_player(mut players: Vec<String>) -> Result<String, EngineError> {
     if players.len() == 1 {
         Ok(players.remove(0))
     } else {
@@ -281,11 +351,12 @@ fn now_ms() -> i64 {
 async fn run_play(engine: &mut Engine, cmd: &Cmd, t: &I18n, json: bool) -> Result<u8, EngineError> {
     match cmd {
         Cmd::Play {
-            emulator,
             game,
+            emu,
             player,
             args,
         } => {
+            let (emulator, game) = &engine.resolve_game(game, emu.as_deref()).await?;
             let player = player_of(engine, player.as_ref()).await?;
             let p = play::TermPrompt {
                 lang: I18n::env_lang(),
@@ -343,11 +414,15 @@ async fn run_play(engine: &mut Engine, cmd: &Cmd, t: &I18n, json: bool) -> Resul
             let keep: VersionId = version
                 .parse()
                 .map_err(|_| EngineError::Usage(format!("version_invalid:{version}")))?;
-            let game = game.to_lowercase();
+            let (emulator, game) = engine.resolve_game(game, None).await?;
             let (list, _) = engine.conflicts().await?;
             let mut found: Vec<_> = list
                 .iter()
-                .filter(|c| c.game == game && player.as_ref().is_none_or(|p| *p == c.player))
+                .filter(|c| {
+                    c.game == game
+                        && c.emulator == emulator
+                        && player.as_ref().is_none_or(|p| *p == c.player)
+                })
                 .collect();
             let c = match found.len() {
                 0 => return Err(EngineError::Usage(format!("no_conflict:{game}"))),
@@ -388,6 +463,7 @@ async fn run_play(engine: &mut Engine, cmd: &Cmd, t: &I18n, json: bool) -> Resul
         Cmd::Lease {
             cmd: LeaseCmd::Release { game, .. },
         } => {
+            let (_, game) = &engine.resolve_game(game, None).await?;
             let released = engine.lease_release_game(game).await?;
             if json {
                 output::json(&serde_json::json!({
@@ -753,12 +829,47 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
                 return Ok(4);
             }
         }
-        Cmd::Games => {
+        Cmd::Games { cmd: None } => {
             let report = engine.games_report()?;
             if json {
                 output::json(&report);
             } else {
                 games_cmd::print(t, &report);
+            }
+        }
+        Cmd::Games {
+            cmd: Some(GamesCmd::Alias { game, alias, emu }),
+        } => {
+            let (emulator, key) = engine.alias_add(game, emu.as_deref(), alias).await?;
+            if json {
+                output::json(&serde_json::json!({
+                    "api_version": lemusync_api::API_VERSION,
+                    "alias": alias,
+                    "emulator": emulator,
+                    "key": key,
+                }));
+            } else {
+                output::line(
+                    t,
+                    "games-alias-done",
+                    &[
+                        ("alias", s(alias.clone())),
+                        ("game", s(games_cmd::label_of(&engine, &emulator, &key))),
+                    ],
+                );
+            }
+        }
+        Cmd::Games {
+            cmd: Some(GamesCmd::Unalias { alias }),
+        } => {
+            engine.alias_remove(alias)?;
+            if json {
+                output::json(&serde_json::json!({
+                    "api_version": lemusync_api::API_VERSION,
+                    "removed": alias,
+                }));
+            } else {
+                output::line(t, "games-unalias-done", &[("alias", s(alias.clone()))]);
             }
         }
         Cmd::Status => {
@@ -769,11 +880,9 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
                 output::status(t, &report);
             }
         }
-        Cmd::History {
-            player,
-            emulator,
-            game,
-        } => {
+        Cmd::History { game, emu, player } => {
+            let (emulator, game) = &engine.resolve_game(game, emu.as_deref()).await?;
+            let player = &player_of(&mut engine, player.as_ref()).await?;
             let report = engine.history(player, emulator, game).await?;
             if json {
                 output::json(&report);
@@ -782,12 +891,14 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
             }
         }
         Cmd::Restore {
-            player,
-            emulator,
             game,
             what,
+            emu,
+            player,
             yes,
         } => {
+            let (emulator, game) = &engine.resolve_game(game, emu.as_deref()).await?;
+            let player = &player_of(&mut engine, player.as_ref()).await?;
             if !*yes {
                 let question = t.t(
                     "prompt-restore",
@@ -825,4 +936,19 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
         }
     }
     Ok(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_default_player_is_the_only_one_else_which_player() {
+        assert_eq!(pick_player(vec!["Ana".into()]).unwrap(), "Ana");
+        for players in [vec![], vec!["Ana".to_owned(), "Bea".to_owned()]] {
+            assert!(
+                matches!(pick_player(players), Err(EngineError::Usage(k)) if k == "player_needed")
+            );
+        }
+    }
 }

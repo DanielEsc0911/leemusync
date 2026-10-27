@@ -416,3 +416,51 @@ async fn a_network_fault_at_any_request_of_a_play_never_corrupts_or_conflicts() 
     eprintln!("play network cases: {cases}");
     assert!(lock_files(&t.remote) <= 1, "at most B's own stale lease");
 }
+
+/// `play` by alias and by loosely typed name launches the same installed game.
+#[tokio::test]
+async fn play_by_alias_or_name_launches_the_same_game() {
+    let mut t = two().await;
+    let dir = t.a.root.join("unpacked");
+    std::fs::create_dir_all(dir.join("botw/meta")).unwrap();
+    std::fs::create_dir_all(dir.join("botw/code")).unwrap();
+    std::fs::write(
+        dir.join("botw/meta/meta.xml"),
+        "<menu><title_id>00050000101C9400</title_id>\
+         <longname_en>The Legend of Zelda: Breath of the Wild</longname_en></menu>",
+    )
+    .unwrap();
+    let path = Locations::under(&t.a.root).config_dir.join("config.toml");
+    let mut cfg = t.a.engine.local_config().clone();
+    let cemu = cfg.emulators.get_mut("cemu").unwrap();
+    cemu.games.clear();
+    cemu.game_dirs = vec![dir.clone()];
+    cfg.save(&path).unwrap();
+    let mut a = t.a.reopen();
+    a.engine.set_play_timings(
+        Duration::from_millis(50),
+        Duration::from_millis(20),
+        Duration::from_millis(20),
+    );
+    a.engine
+        .config_set("aliases.botw", &["cemu/101c9400".into()])
+        .unwrap();
+    let prompt = Prompt::new(LeaseChoice::Wait);
+    let mut seen = Vec::new();
+    for q in ["botw", "The Legend of Zelda - Breath of the Wild (EUR)"] {
+        let (emu, key) = a.engine.resolve_game(q, None).await.unwrap();
+        let launcher = FakeLauncher::new(&a, None, 1);
+        a.engine
+            .play("P", &emu, &key, &[], &prompt, &launcher)
+            .await
+            .unwrap();
+        seen.push(launcher.argv.lock().unwrap().clone());
+    }
+    assert_eq!(seen[0], seen[1]);
+    assert!(
+        seen[0].contains(&dir.join("botw").into_os_string()),
+        "{:?}",
+        seen[0]
+    );
+    t.a = a;
+}

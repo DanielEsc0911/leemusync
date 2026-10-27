@@ -4,6 +4,7 @@
 pub mod account;
 pub mod account_template;
 pub mod config;
+pub mod game_ref;
 pub mod heads;
 pub mod id;
 pub mod lease;

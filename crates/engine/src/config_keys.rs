@@ -24,6 +24,7 @@ enum Key {
     Exe(String),
     GameDirs(String),
     Game(String, String),
+    Alias(String),
 }
 
 impl Key {
@@ -36,6 +37,7 @@ impl Key {
             Self::Exe(id) => (vec!["emulators", id], "exe"),
             Self::GameDirs(id) => (vec!["emulators", id], "game_dirs"),
             Self::Game(id, game) => (vec!["emulators", id, "games"], game),
+            Self::Alias(alias) => (vec!["aliases"], alias),
         }
     }
 
@@ -89,6 +91,13 @@ fn parse_key(key: &str) -> Result<Key, EngineError> {
         "leases.ttl_secs" => return Ok(Key::LeaseTtl),
         _ => {}
     }
+    if let Some(alias) = key.strip_prefix("aliases.") {
+        return if crate::game_refs::valid_alias(alias) {
+            Ok(Key::Alias(alias.to_owned()))
+        } else {
+            Err(EngineError::Usage(format!("alias_invalid:{}", echo(alias))))
+        };
+    }
     let parts: Vec<&str> = key.splitn(4, '.').collect();
     let (["emulators", id, _] | ["emulators", id, _, _]) = parts.as_slice() else {
         return Err(unknown());
@@ -135,7 +144,7 @@ fn absolute_path(key: &str, value: &str) -> Result<Item, EngineError> {
 fn is_table(key: &str) -> Result<bool, EngineError> {
     let parts: Vec<&str> = key.split('.').collect();
     Ok(match parts.as_slice() {
-        ["leases" | "emulators"] => true,
+        ["leases" | "emulators" | "aliases"] => true,
         ["emulators", id] | ["emulators", id, "games"] => {
             profiles::bundled()?.iter().any(|p| p.id == *id)
         }
@@ -164,6 +173,11 @@ fn typed_value(key: &Key, raw_key: &str, values: &[String]) -> Result<Item, Engi
             Ok(toml_edit::value(ttl))
         }
         Key::Root(_) | Key::Game(..) => absolute_path(raw_key, one()?),
+        Key::Alias(_) => {
+            let v = one()?;
+            crate::game_refs::parse_target(v).ok_or_else(|| bad_value(raw_key))?;
+            Ok(toml_edit::value(v))
+        }
         Key::GameDirs(_) => {
             if values.is_empty() {
                 return Err(bad_value(raw_key));
@@ -295,8 +309,12 @@ impl Engine {
     /// `Usage` for a managed, fixed or unknown key or a bad value (the file is untouched);
     /// `Config`/`Io` if the file can't be read or written.
     pub fn config_set(&mut self, key: &str, values: &[String]) -> Result<(), EngineError> {
-        let parsed = parse_key(key)?;
+        let parsed = self.with_game_alias(parse_key(key)?);
         let item = typed_value(&parsed, key, values)?;
+        if let (Key::Alias(alias), Some(target)) = (&parsed, item.as_str()) {
+            let known = self.local_candidates();
+            return self.write_alias(alias, target, &known);
+        }
         let (path, leaf) = parsed.location();
         self.edit_config(key, |doc| {
             set_in(doc.as_table_mut(), &path, leaf, item).is_some()
@@ -308,11 +326,48 @@ impl Engine {
     /// # Errors
     /// As [`Engine::config_set`].
     pub fn config_unset(&mut self, key: &str) -> Result<(), EngineError> {
-        let parsed = parse_key(key)?;
+        let parsed = self.with_game_alias(parse_key(key)?);
         let (path, leaf) = parsed.location();
         self.edit_config(key, |doc| {
             unset_in(doc.as_table_mut(), &path, leaf);
             true
+        })
+    }
+
+    /// `emulators.<id>.games.<alias>` means that alias's game key when the alias is one of
+    /// `<id>`'s games (config-and-cli §Game references).
+    fn with_game_alias(&self, key: Key) -> Key {
+        if let Key::Game(id, game) = &key
+            && let Some((emu, k)) = self
+                .config
+                .aliases
+                .get(game)
+                .and_then(|t| crate::game_refs::parse_target(t))
+            && emu == id
+        {
+            return Key::Game(id.clone(), k.to_owned());
+        }
+        key
+    }
+
+    /// Checks `alias` → `target` against `known` games, then writes it (`config set
+    /// aliases.<alias>` and `games alias`).
+    pub(crate) fn write_alias(
+        &mut self,
+        alias: &str,
+        target: &str,
+        known: &[lemusync_core::game_ref::Candidate],
+    ) -> Result<(), EngineError> {
+        self.check_alias(alias, target, known)?;
+        let key = format!("aliases.{alias}");
+        self.edit_config(&key, |doc| {
+            set_in(
+                doc.as_table_mut(),
+                &["aliases"],
+                alias,
+                toml_edit::value(target),
+            )
+            .is_some()
         })
     }
 
@@ -386,6 +441,13 @@ mod tests {
             "config_bad_value:emulators.cemu.games.a/b"
         );
         assert_eq!(usage("x\u{1b}[31m"), "config_unknown_key:x[31m");
+        assert_eq!(
+            parse_key("aliases.botw").unwrap(),
+            Key::Alias("botw".into())
+        );
+        assert_eq!(usage("aliases.BotW"), "alias_invalid:BotW");
+        assert!(typed_value(&Key::Alias("a".into()), "k", &["cemu/101c9400".into()]).is_ok());
+        assert!(typed_value(&Key::Alias("a".into()), "k", &["101c9400".into()]).is_err());
     }
 
     #[test]

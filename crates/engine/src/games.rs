@@ -256,12 +256,22 @@ impl Engine {
             games: self
                 .games()?
                 .into_iter()
-                .map(|g| GameInfo {
-                    emulator: g.emulator,
-                    key: g.key,
-                    name: g.name,
-                    path: g.path.map(|p| p.display().to_string()),
-                    source: g.source,
+                .map(|g| {
+                    let target = format!("{}/{}", g.emulator, g.key);
+                    GameInfo {
+                        aliases: self
+                            .config
+                            .aliases
+                            .iter()
+                            .filter(|(_, t)| **t == target)
+                            .map(|(a, _)| a.clone())
+                            .collect(),
+                        emulator: g.emulator,
+                        key: g.key,
+                        name: g.name,
+                        path: g.path.map(|p| p.display().to_string()),
+                        source: g.source,
+                    }
                 })
                 .collect(),
         })

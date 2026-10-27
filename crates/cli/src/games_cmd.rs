@@ -52,8 +52,7 @@ pub fn print(t: &I18n, r: &GamesReport) {
     }
     let no_path = t.t("games-no-path", &[]);
     for g in &r.games {
-        output::line(
-            t,
+        let line = t.t(
             "games-line",
             &[
                 ("emulator", s(g.emulator.clone())),
@@ -66,6 +65,18 @@ pub fn print(t: &I18n, r: &GamesReport) {
                 ("source", s(t.t(source_key(g.source), &[]))),
             ],
         );
+        if g.aliases.is_empty() {
+            println!("{line}");
+        } else {
+            output::line(
+                t,
+                "games-line-aliases",
+                &[
+                    ("line", s(line)),
+                    ("aliases", s(clean(&g.aliases.join(", ")))),
+                ],
+            );
+        }
     }
 }
 

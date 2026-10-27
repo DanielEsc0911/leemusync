@@ -26,6 +26,10 @@ pub struct LocalConfig {
     /// What `sync` does with a conflict (sync-model §Conflicts).
     #[serde(default)]
     pub conflict_policy: ConflictPolicy,
+    /// Short names for games, alias → `"<emulator>/<game key>"` (config-and-cli §Game
+    /// references). Local to this device.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub aliases: BTreeMap<String, String>,
 }
 
 /// `conflict_policy`: `ask` leaves conflicts for the player; `newest` resolves them to the
@@ -133,6 +137,7 @@ impl LocalConfig {
             emulators: BTreeMap::new(),
             leases: LeaseSettings::default(),
             conflict_policy: ConflictPolicy::Ask,
+            aliases: BTreeMap::new(),
         }
     }
 
@@ -166,6 +171,19 @@ impl LocalConfig {
                 LeaseSettings::MIN_TTL_SECS,
                 LeaseSettings::MAX_TTL_SECS
             )));
+        }
+        for (alias, target) in &config.aliases {
+            if !crate::game_refs::valid_alias(alias) {
+                return Err(EngineError::Config(format!(
+                    "aliases.{}: an alias is 1-32 of a-z, 0-9, - and _, starting with a letter or digit",
+                    crate::game_refs::echo(alias)
+                )));
+            }
+            if crate::game_refs::parse_target(target).is_none() {
+                return Err(EngineError::Config(format!(
+                    "aliases.{alias}: the value must be \"<emulator>/<game key>\""
+                )));
+            }
         }
         Ok(config)
     }
@@ -397,6 +415,26 @@ mod tests {
                 LocalConfig::load(&path),
                 Err(EngineError::Config(_))
             ));
+        }
+    }
+
+    #[test]
+    fn aliases_are_checked_on_load() {
+        let base = toml::to_string(&sample()).unwrap();
+        let ok = format!("{base}\n[aliases]\nbotw = \"cemu/101c9400\"\n");
+        let c = LocalConfig::parse(&ok).unwrap();
+        assert_eq!(c.aliases["botw"], "cemu/101c9400");
+        for (bad, what) in [
+            ("\"Bad\" = \"cemu/101c9400\"", "aliases.Bad"),
+            ("\"-x\" = \"cemu/101c9400\"", "aliases.-x"),
+            ("x = \"101c9400\"", "aliases.x"),
+            ("x = \"cemu/../a\"", "aliases.x"),
+        ] {
+            let text = format!("{base}\n[aliases]\n{bad}\n");
+            let Err(EngineError::Config(e)) = LocalConfig::parse(&text) else {
+                panic!("{bad} accepted");
+            };
+            assert!(e.contains(what), "{e}");
         }
     }
 
