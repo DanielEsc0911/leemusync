@@ -54,6 +54,8 @@ The Phase 1 first slice ships `init`, `join`, `backend add/login`, `grant add/li
 
 **Progress and results.** While `sync`, `restore` and `accounts recover` run, one line on stderr shows the stream being worked on: a spinner, player · game, the phase, a bar, files, MB and MB/s. It's redrawn every 100 ms and cleared before anything else prints. It only appears when stderr is a terminal, `TERM` isn't `dumb` and `--json` is off. `sync` then prints one aligned line per stream (with "N files, X MB" when something moved) and the elapsed time. The action is colored (green done, yellow waiting on the user, red conflict) only when stdout is a terminal and `NO_COLOR` is unset.
 
+**Connection notice.** While a storage request is retried (reliability §Network), the engine sends `ConnectionEvent`s (architecture §Engine API). Any command that talks to the backend shows them on stderr: nothing for one quick retry; from the second retry of an outage on, one line, en "Connection trouble, retrying…" / es "Problemas de conexión, reintentando…"; then "Connection is back." / "La conexión volvió." once a request succeeds. At most those two lines per outage; the live progress line is cleared first. Nothing with `--json`, which doesn't stream events. Code: `crates/cli/src/connection.rs`.
+
 Secrets (passphrase, recovery key, OAuth client secret, S3 secret key) are only typed at no-echo prompts, never taken from arguments or environment variables; without a terminal the command fails with a usage error. The recovery key is printed once by `init`, to stderr, even with `--json`. `LEMUSYNC_TEST_ROOT=<dir>` puts the config, data and emulator search under `<dir>`: it's for tests only (the OS keystore is still used).
 
 ## Exit codes
@@ -66,6 +68,18 @@ Secrets (passphrase, recovery key, OAuth client secret, S3 secret key) are only 
 | 4 | Conflict needs a decision (`sync` found one; `play` without a terminal or with `--json`) |
 | 5 | Locked by another device (`play` found a held lease without a terminal or with `--json`; never a silent "play anyway") |
 | 6 | Backend unreachable or auth failed |
+
+## Error codes
+Every error has a stable `code` (the `--json` `error.code`, and the key of its localized message `error-<code>` in `locales/`). Storage errors map by class ([storage-backends §Interface](storage-backends.md#interface)):
+
+| Class | Code | Exit | Message says |
+|---|---|---|---|
+| `transient` (after the store's retries) | `backend_offline` | 6 | Can't reach the storage; check the connection and try again; saves on this device are safe |
+| `auth` | `backend_auth` | 6 | The login failed; run `lemusync backend login` |
+| `quota` | `backend_quota` | 1 | The storage is full; free up space; saves on this device are safe |
+| `not_found`, `already_exists`, `permanent` | `backend` | 1 | The storage returned an error; try again, then `lemusync doctor` |
+
+"Saves on this device are safe" holds because a sync or restore downloads and verifies everything into staging before it touches a save folder, and an upload only reads local files ([reliability §Restore procedure](reliability.md#restore-procedure)). The message never contains provider text. That goes on a second, dim line, `Details: …` / `Detalles: …`, and in `--json` as `error.detail` next to `code` and `message` (the English message for storage errors). It always passes through `crates/store/src/redact.rs` first (B2: `StoreError` redacts its text when it is built, so no path sees it raw), with control characters replaced and at most 500 characters. `redact` removes tokens, keys and signatures; it keeps endpoints and bucket names on purpose, because the line is shown only to this device's own user, who configured them and needs them to fix the problem. Other errors have no `detail`. Code: `crates/engine/src/error.rs`, `crates/cli/src/output.rs`.
 
 ## Parity rule
 Any feature added to the UI gets its CLI command (desktop/headless) in the same plan, and the other way round. Mobile has no CLI. Its Settings → Advanced exposes the same options.

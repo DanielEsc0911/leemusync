@@ -62,8 +62,11 @@ help-doctor = Revisa el llavero del sistema, el almacenamiento y las carpetas de
 ## Errores ($detail nunca se traduce: rutas, ids, texto del proveedor)
 error-usage = { $detail }
 error-config = El archivo de configuración no es válido: { $detail }
-error-backend = Problema con el almacenamiento: { $detail }
-error-backend_auth = Falló el inicio de sesión del almacenamiento ({ $detail }). Ejecuta `lemusync backend login`.
+error-backend = El almacenamiento devolvió un error. Vuelve a intentarlo; si sigue pasando, ejecuta `lemusync doctor`.
+error-backend_auth = Falló el inicio de sesión del almacenamiento. Ejecuta `lemusync backend login`.
+error-backend_offline = No se puede conectar con tu almacenamiento. Revisa tu conexión a internet y vuelve a intentarlo. Tus partidas guardadas en este dispositivo están seguras.
+error-backend_quota = Tu almacenamiento está lleno. Libera espacio o consigue más y vuelve a intentarlo. Tus partidas guardadas en este dispositivo están seguras.
+error-details = Detalles: { $detail }
 error-io = Problema con un archivo: { $detail }
 error-crypto = Problema de cifrado: { $detail }
 error-unlock = La frase de contraseña o la clave de recuperación no es correcta.
@@ -169,6 +172,8 @@ sync-elapsed = Listo en { $secs } s.
 progress-checking = { $player } · { $game } · revisando…
 progress-uploading = { $player } · { $game } · subiendo { $bar } { $done }/{ $total } · { $size_done }/{ $size_total } MB · { $rate } MB/s
 progress-downloading = { $player } · { $game } · descargando { $bar } { $done }/{ $total } · { $size_done }/{ $size_total } MB · { $rate } MB/s
+connection-trouble = Problemas de conexión, reintentando…
+connection-back = La conexión volvió.
 dry-run = Prueba: no se cambió nada.
 sync-conflicts = { $count ->
     [one] Una partida guardada tiene un conflicto. Se conservan ambas versiones. Ejecuta `lemusync conflicts`.

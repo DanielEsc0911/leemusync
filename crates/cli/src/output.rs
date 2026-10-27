@@ -1,6 +1,7 @@
 //! Human (Fluent) or `--json` output. JSON goes to stdout; human results to stdout, problems to stderr.
 
 use fluent_bundle::FluentValue;
+use std::io::IsTerminal;
 use std::time::Duration;
 
 use lemusync_api::{
@@ -40,25 +41,74 @@ fn detail(e: &EngineError) -> String {
         | EngineError::Busy(d)
         | EngineError::NeedsDecision(d)
         | EngineError::LeaseHeld(d) => d.clone(),
-        EngineError::Store(s) => s.message().to_owned(),
         EngineError::Crypto(c) => c.to_string(),
         EngineError::NotSetUp(d) | EngineError::Injected(d) => (*d).to_owned(),
-        EngineError::Unlock | EngineError::NeedsConfirmation => String::new(),
+        // Storage text goes on its own `Details` line (`store_detail`), never in the message.
+        EngineError::Store(_) | EngineError::Unlock | EngineError::NeedsConfirmation => {
+            String::new()
+        }
     }
 }
 
 pub fn error(t: &I18n, as_json: bool, e: &EngineError) {
     if as_json {
-        json(&ErrorReport {
-            api_version: API_VERSION,
-            error: ErrorBody {
-                code: e.code().to_owned(),
-                message: e.to_string(),
-            },
-        });
+        json(&error_report(e));
     } else {
-        eprintln!("{}", error_text(t, e));
+        let (text, detail) = error_lines(t, e);
+        eprintln!("{text}");
+        if let Some(d) = detail {
+            let dim = color_allowed(
+                std::env::var_os("NO_COLOR"),
+                std::io::stderr().is_terminal(),
+            );
+            if dim {
+                eprintln!("\x1b[2m{d}\x1b[0m");
+            } else {
+                eprintln!("{d}");
+            }
+        }
     }
+}
+
+/// The provider's raw text behind a storage error: redacted (B2), control characters
+/// stripped, capped. `None` for other errors.
+fn store_detail(e: &EngineError) -> Option<String> {
+    let EngineError::Store(s) = e else {
+        return None;
+    };
+    let clean: String = lemusync_engine::redact(s.message())
+        .chars()
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .take(DETAIL_MAX)
+        .collect();
+    Some(clean)
+}
+
+/// Characters of provider text shown at most.
+const DETAIL_MAX: usize = 500;
+
+/// `--json` errors: storage errors get the English message and a `detail` field.
+fn error_report(e: &EngineError) -> ErrorReport {
+    let detail = store_detail(e);
+    let message = if detail.is_some() {
+        error_text(&I18n::new("en"), e)
+    } else {
+        e.to_string()
+    };
+    ErrorReport {
+        api_version: API_VERSION,
+        error: ErrorBody {
+            code: e.code().to_owned(),
+            message,
+            detail,
+        },
+    }
+}
+
+/// The human message, and for storage errors a second `Details: …` line.
+fn error_lines(t: &I18n, e: &EngineError) -> (String, Option<String>) {
+    let detail = store_detail(e).map(|d| t.t("error-details", &[("detail", s(d))]));
+    (error_text(t, e), detail)
 }
 
 /// Engine payloads are keys (`key` or `key:data`, Task 11/13): each key has its own message
@@ -414,6 +464,67 @@ mod tests {
     fn pad_counts_characters_not_bytes() {
         assert_eq!(pad("Ana", 5), "Ana  ");
         assert_eq!(pad("Íñigo", 5), "Íñigo");
+    }
+
+    fn store_error(class: lemusync_store::ErrorClass) -> EngineError {
+        EngineError::Store(lemusync_store::StoreError::new(
+            class,
+            "Unexpected (temporary) at read, context: { url: https://acct.r2.example/bucket/x?X-Amz-Signature=FAKESIG123&token=FAKE-TOKEN\u{1b}[31m }",
+        ))
+    }
+
+    #[test]
+    fn storage_errors_are_friendly_with_a_redacted_detail_line() {
+        use lemusync_store::ErrorClass;
+        for lang in ["en", "es"] {
+            let t = I18n::new(lang);
+            for class in [
+                ErrorClass::Transient,
+                ErrorClass::Quota,
+                ErrorClass::Auth,
+                ErrorClass::Permanent,
+            ] {
+                let (text, detail) = error_lines(&t, &store_error(class));
+                assert!(
+                    !text.contains("Unexpected") && !text.contains("http"),
+                    "{text}"
+                );
+                let detail = detail.unwrap();
+                let prefix = if lang == "en" {
+                    "Details: "
+                } else {
+                    "Detalles: "
+                };
+                assert!(detail.starts_with(prefix), "{detail}");
+                assert!(detail.contains("Unexpected"), "{detail}");
+                assert!(
+                    !detail.contains("FAKESIG123") && !detail.contains("FAKE-TOKEN"),
+                    "{detail}"
+                );
+                assert!(!detail.contains('\u{1b}'), "control characters stripped");
+            }
+            let offline = error_lines(&t, &store_error(ErrorClass::Transient)).0;
+            let safe = if lang == "en" { "safe" } else { "seguras" };
+            assert!(offline.contains(safe), "{offline}");
+        }
+        let other = error_lines(&I18n::new("en"), &EngineError::Io("disk full".into()));
+        assert_eq!(other.1, None);
+    }
+
+    #[test]
+    fn storage_errors_in_json_carry_code_message_and_detail() {
+        use lemusync_store::ErrorClass;
+        let v = serde_json::to_value(error_report(&store_error(ErrorClass::Transient))).unwrap();
+        assert_eq!(v["error"]["code"], "backend_offline");
+        let message = v["error"]["message"].as_str().unwrap();
+        assert!(message.starts_with("Can't reach your storage"), "{message}");
+        let detail = v["error"]["detail"].as_str().unwrap();
+        assert!(
+            detail.contains("REDACTED") && !detail.contains("FAKESIG123"),
+            "{detail}"
+        );
+        let v = serde_json::to_value(error_report(&EngineError::Unlock)).unwrap();
+        assert!(v["error"].get("detail").is_none());
     }
 
     #[test]

@@ -66,7 +66,21 @@ Implemented in `crates/engine/src/{snapshot,upload}.rs`. Local history pruning i
 - **On shutdown or logout:** finish the current atomic step, journal the rest, and release leases if the network allows.
 
 ## Network
-Offline → queue locally and keep working. Transient errors → exponential backoff with jitter (1 s → 5 min). Auth errors → stop that backend and notify. Uploads are idempotent (content-addressed). Inside one sync the store retries each request (storage-backends §Interface); the daemon's 1 s → 5 min backoff is for whole syncs that still fail (Phase 2). Blobs upload 4 at a time.
+Offline → queue locally and keep working. Transient errors → exponential backoff with jitter (1 s → 5 min). Auth errors → stop that backend and notify. Uploads are idempotent (content-addressed). Inside one sync the store retries each request (storage-backends §Interface); the daemon's 1 s → 5 min backoff is for whole syncs that still fail (Phase 2). While it retries, the store tells an observer (`RetryNotice`: operation, attempt, max attempts, delay; then `Recovered` once, on a success when no parallel request is still retrying, so a partial outage never flaps), and the engine forwards each one as a `ConnectionEvent`. That event is the contract: the CLI shows it ([config-and-cli §Commands](config-and-cli.md#commands), Connection notice) and the daemon and tray will too (P4). Blobs upload 4 at a time.
+
+## SC5 coverage
+What the tests prove for [SC5](product.md) (crash, power loss or network drop mid-sync). All network cases run on `Store::fs` through `Store::faulty` (3 tries, millisecond backoff). Each scenario runs every request index N when the round makes 12 requests or fewer (today: 5 for an upload sync, 6 for a download sync), otherwise a fixed-seed sample of 12 that keeps the first and the last. Checks: no mixed file (the old or the new version only), a rerun converges both devices, one head, no conflict.
+
+| Scenario | Upload sync | Download sync | `play` (lease → download → emulator → upload → release) |
+|---|---|---|---|
+| `kill -9` at every journal step | `kill.rs` `a_kill_around_the_manifest_never_makes_a_conflict` | `kill.rs` `a_kill_during_a_fast_forward_leaves_the_old_or_new_files_and_a_backup` | `kill.rs` `a_kill_after_writing_a_lease_lets_this_device_take_it_again` |
+| In-process error at a journal step | `faults.rs` `a_crash_around_the_manifest_never_makes_a_conflict` | `faults.rs` `a_crash_during_a_fast_forward_rolls_back_then_retries` | covered by the sync steps it runs |
+| Cut from request N (until healed) | `faults.rs` `a_network_fault_at_any_request_of_a_sync_never_corrupts_or_conflicts` | same test | `play.rs` `a_network_fault_at_any_request_of_a_play_never_corrupts_or_conflicts` (at most B's own stale lease left, which expires) |
+| Lost response at request N | same test | same test | same test |
+| Outage shorter than the retry budget: completes, no error | `network.rs` `a_short_outage_at_any_request_completes_without_error` | same test | not separate: each request is retried the same way |
+| Outage longer than the retry budget: exit code 6, next run converges | `network.rs` `a_long_outage_at_any_request_fails_transient_then_converges` | same test | covered by the cut case |
+| Slow link (3 ms per request): same result as a fast run | `network.rs` `a_slow_link_gives_the_same_result_as_a_fast_one` | same test | not separate |
+| `list` is retried | `store` unit test `a_transient_list_is_retried` | | |
 
 ## Budgets
 Targets for the daemon on desktop. Measured in Phase 1/2 benchmarks and enforced in CI on regression (not yet: Phase 2, with the daemon).

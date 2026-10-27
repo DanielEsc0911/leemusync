@@ -1958,6 +1958,7 @@ dependencies = [
  "fluent-bundle",
  "lemusync-api",
  "lemusync-engine",
+ "lemusync-store",
  "rpassword",
  "serde",
  "serde_json",

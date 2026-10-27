@@ -1,9 +1,11 @@
 //! Test-only request faults (feature `faults`, never in release builds): fail queued attempts,
-//! the Nth request once, or every request from the Nth on (a network cut) (testing §Layers).
+//! the Nth request once, every request from the Nth on (a network cut), K requests from the Nth
+//! on (an outage that heals by itself), or slow every request down (testing §Layers).
 
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use crate::{ErrorClass, StoreError};
 
@@ -20,6 +22,9 @@ struct Plan {
     queue: VecDeque<Fault>,
     nth: Option<(u32, Fault)>,
     cut_from: Option<u32>,
+    /// Requests `start..end` fail, then the network is back.
+    outage: Option<(u32, u32)>,
+    delay: Duration,
 }
 
 /// A shared handle: every clone of a store built with it sees the same plan and counters.
@@ -49,6 +54,17 @@ impl Faults {
     pub fn cut_from(&self, n: u32) {
         let base = self.requests();
         self.lock().cut_from = Some(base + n);
+    }
+
+    /// Fails `k` attempts from number `n` (1-based, counted from now), then heals by itself.
+    pub fn outage(&self, n: u32, k: u32) {
+        let start = self.requests() + n;
+        self.lock().outage = Some((start, start + k));
+    }
+
+    /// Waits `d` before every attempt (a slow link), until `heal`.
+    pub fn delay(&self, d: Duration) {
+        self.lock().delay = d;
     }
 
     /// Clears every planned fault.
@@ -82,12 +98,21 @@ impl Faults {
         match fault {
             Some(Fault::Transient) => Err(StoreError::new(ErrorClass::Transient, "injected")),
             Some(Fault::TransientAfterWrite) => Ok(true),
-            None if plan.cut_from.is_some_and(|at| n >= at) => Err(StoreError::new(
-                ErrorClass::Transient,
-                "injected: network down",
-            )),
+            None if plan.cut_from.is_some_and(|at| n >= at)
+                || plan.outage.is_some_and(|(a, b)| (a..b).contains(&n)) =>
+            {
+                Err(StoreError::new(
+                    ErrorClass::Transient,
+                    "injected: network down",
+                ))
+            }
             None => Ok(false),
         }
+    }
+
+    /// The wait before each attempt (zero unless `delay` was set).
+    pub(crate) fn wait(&self) -> Duration {
+        self.lock().delay
     }
 
     pub(crate) fn count_read(&self) {

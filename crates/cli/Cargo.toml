@@ -25,6 +25,7 @@ unic-langid = { workspace = true }
 zeroize = { workspace = true }
 
 [dev-dependencies]
+lemusync-store = { path = "../store" }
 serde_json = { workspace = true }
 tempfile = { workspace = true }
 

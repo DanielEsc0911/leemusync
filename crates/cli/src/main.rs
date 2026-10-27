@@ -1,5 +1,6 @@
 //! `lemusync`: command-line interface. Spec: docs/specs/config-and-cli.md.
 
+mod connection;
 mod i18n;
 mod output;
 mod play;
@@ -398,6 +399,9 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
     let json = cli.json;
     let mut live = progress::Live::new(json);
     engine.set_progress(live.sink());
+    if !json {
+        engine.set_connection_sink(connection::sink(I18n::env_lang(), live.on()));
+    }
     match &cli.command {
         cmd @ (Cmd::Play { .. } | Cmd::Conflicts | Cmd::Resolve { .. } | Cmd::Lease { .. }) => {
             return run_play(&mut engine, cmd, t, json).await;

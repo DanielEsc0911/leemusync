@@ -179,6 +179,8 @@ async fn a_network_fault_at_any_request_of_a_sync_never_corrupts_or_conflicts() 
                 assert_eq!(other.save(theirs), content, "{case}");
                 assert_eq!(heads(faulty).await, 1, "{case}: no extra heads");
                 assert_eq!(faulty.engine.conflicts().await.unwrap().0, vec![], "{case}");
+                assert_eq!(faulty.engine.journal().unwrap(), vec![], "{case}: journal");
+                assert_eq!(other.engine.journal().unwrap(), vec![], "{case}: journal");
                 prev = content;
                 if !reached {
                     break;
