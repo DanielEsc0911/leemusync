@@ -43,14 +43,24 @@ pub enum RetryNotice {
 /// Receives every `RetryNotice`. Called from the store's task; keep it cheap.
 pub type RetryObserver = Arc<dyn Fn(RetryNotice) + Send + Sync>;
 
-/// The observer, and whether the connection is in trouble. Shared by every clone of a store.
+/// The observer, and whether the connection is in trouble. Clones share the trouble flag, so
+/// one watch given to every store an engine opens reports the recovery even when the request
+/// that gave up ran on another store.
 #[derive(Clone, Default)]
-pub(crate) struct Watch {
-    pub observer: Option<RetryObserver>,
+pub struct Watch {
+    observer: Option<RetryObserver>,
     troubled: Arc<AtomicBool>,
 }
 
 impl Watch {
+    #[must_use]
+    pub fn new(observer: RetryObserver) -> Self {
+        Self {
+            observer: Some(observer),
+            troubled: Arc::default(),
+        }
+    }
+
     fn tell(&self, n: RetryNotice) {
         if let Some(o) = &self.observer {
             o(n);

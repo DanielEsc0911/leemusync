@@ -191,8 +191,8 @@ impl Engine {
     /// The configured storage. Drive credentials come from the keystore.
     pub(crate) fn store(&self) -> Result<Store, EngineError> {
         let mut store = self.plain_store()?;
-        if let Some(sink) = &self.connection {
-            store = store.with_retry_observer(crate::progress::observer(sink.clone()));
+        if let Some(watch) = &self.connection {
+            store = store.with_retry_watch(watch.clone());
         }
         #[cfg(feature = "failpoints")]
         if let Some(f) = &self.store_faults {

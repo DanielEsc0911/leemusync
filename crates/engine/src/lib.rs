@@ -84,8 +84,9 @@ pub struct Engine {
     repo: Option<repo::Repo>,
     /// Where `TransferProgress` goes (`set_progress`); nowhere by default.
     progress: Option<ProgressSink>,
-    /// Where `ConnectionEvent`s go (`set_connection_sink`); nowhere by default.
-    connection: Option<ConnectionSink>,
+    /// Where `ConnectionEvent`s go (`set_connection_sink`); nowhere by default. One watch for
+    /// every store this engine opens, so a recovery is heard even on a fresh store.
+    connection: Option<lemusync_store::RetryWatch>,
     /// Streams whose stale lease we took over, by previous holder; read by the next upload.
     takeovers: std::sync::Mutex<std::collections::BTreeMap<lemusync_core::StreamId, DeviceId>>,
     /// Test-only shift of the lease clock (`shift_lease_clock_ms`).
@@ -150,7 +151,7 @@ impl Engine {
     /// Sends a `ConnectionEvent` to `sink` whenever a storage request is retried, and when
     /// the connection is back. Drops the open repo so its store picks the sink up.
     pub fn set_connection_sink(&mut self, sink: ConnectionSink) {
-        self.connection = Some(sink);
+        self.connection = Some(lemusync_store::RetryWatch::new(progress::observer(sink)));
         self.repo = None;
     }
 

@@ -273,3 +273,35 @@ async fn retries_reach_the_connection_sink_then_the_recovery() {
     assert_eq!(seen[2], ConnectionEvent::Recovered);
     w.converge(&content, "events").await;
 }
+
+/// A request that gave up, then a clean run on a fresh store: the sink still hears the
+/// recovery, so a "trouble" notice is never left open (and the next outage is announced).
+#[tokio::test]
+async fn a_recovery_after_giving_up_reaches_the_sink() {
+    use lemusync_api::ConnectionEvent;
+    use std::sync::{Arc, Mutex};
+    let mut w = World::new().await;
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let s = seen.clone();
+    w.a.engine
+        .set_connection_sink(Arc::new(move |e: &ConnectionEvent| {
+            s.lock().unwrap().push(e.clone());
+        }));
+    let f = Faults::default();
+    f.outage(1, 10_000);
+    let (content, r) = w.round(true, &f).await;
+    assert!(r.is_err());
+    assert_ne!(
+        seen.lock().unwrap().last(),
+        Some(&ConnectionEvent::Recovered)
+    );
+    w.converge(&content, "after giving up").await;
+    let seen = seen.lock().unwrap().clone();
+    assert_eq!(
+        seen.iter()
+            .filter(|e| **e == ConnectionEvent::Recovered)
+            .count(),
+        1,
+        "{seen:?}"
+    );
+}

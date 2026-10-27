@@ -24,7 +24,7 @@ pub use gdrive::GdriveConfig;
 pub use redact::redact;
 pub use s3::S3Config;
 
-pub use retry::{RetryNotice, RetryObserver};
+pub use retry::{RetryNotice, RetryObserver, Watch as RetryWatch};
 use retry::{RetryPolicy, Watch, retry};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -90,10 +90,10 @@ impl Store {
         }
     }
 
-    /// Tells `observer` about each retry and the recovery after it (reliability §Network).
+    /// Tells `watch` about each retry and the recovery after it (reliability §Network).
     #[must_use]
-    pub fn with_retry_observer(mut self, observer: RetryObserver) -> Self {
-        self.watch.observer = Some(observer);
+    pub fn with_retry_watch(mut self, watch: RetryWatch) -> Self {
+        self.watch = watch;
         self
     }
 
@@ -505,8 +505,9 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let seen = Arc::new(Mutex::new(Vec::new()));
         let s = seen.clone();
-        let store = fast_store(dir.path())
-            .with_retry_observer(Arc::new(move |n| s.lock().unwrap().push(n)));
+        let store = fast_store(dir.path()).with_retry_watch(RetryWatch::new(Arc::new(move |n| {
+            s.lock().unwrap().push(n);
+        })));
         store.faults.push(Fault::Transient, 2);
         store
             .put("a/b", b"hi".to_vec(), PutMode::Overwrite)
@@ -543,8 +544,9 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let seen = Arc::new(Mutex::new(Vec::new()));
         let s = seen.clone();
-        let store = fast_store(dir.path())
-            .with_retry_observer(Arc::new(move |n| s.lock().unwrap().push(n)));
+        let store = fast_store(dir.path()).with_retry_watch(RetryWatch::new(Arc::new(move |n| {
+            s.lock().unwrap().push(n);
+        })));
         store.faults.push(Fault::Transient, 5);
         assert!(store.stat("a").await.is_err());
         assert_eq!(seen.lock().unwrap().len(), 4);
