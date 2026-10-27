@@ -47,7 +47,7 @@
 ```toml
 [games]
 dirs = { file = "settings.xml", key = "content/GamePaths/Entry" }   # folders the emulator knows
-scan = { marker = "meta/meta.xml", key = "menu/title_id", key_last = 8, name = "menu/longname_en", launch_dir = "code", launch_ext = "rpx" }
+scan = { marker = "meta/meta.xml", key = "menu/title_id", key_last = 8, name = "menu/longname_en" }
 ```
 Reuse the XML reader the profile `config_keys` already use for settings.xml. The section is additive and optional, so profiles without it still load.
 

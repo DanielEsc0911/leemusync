@@ -144,30 +144,8 @@ fn game_in(scan: &GameScan, dir: &Path) -> Option<Found> {
     Some(Found {
         key,
         name,
-        path: launch_file(scan, dir).unwrap_or_else(|| dir.to_path_buf()),
+        path: dir.to_path_buf(),
     })
-}
-
-/// The only `*.<launch_ext>` file in `<dir>/<launch_dir>`, when the profile names one.
-fn launch_file(scan: &GameScan, dir: &Path) -> Option<PathBuf> {
-    let (sub, ext) = (scan.launch_dir.as_deref()?, scan.launch_ext.as_deref()?);
-    let folder = dir.join(sub);
-    if !std::fs::symlink_metadata(&folder).ok()?.is_dir() {
-        return None;
-    }
-    let mut hits = std::fs::read_dir(&folder)
-        .ok()?
-        .take(MAX_ENTRIES)
-        .flatten()
-        .filter(|e| e.file_type().is_ok_and(|t| t.is_file()))
-        .map(|e| e.path())
-        .filter(|p| {
-            p.extension()
-                .and_then(|e| e.to_str())
-                .is_some_and(|e| e.eq_ignore_ascii_case(ext))
-        });
-    let first = hits.next()?;
-    hits.next().is_none().then_some(first)
 }
 
 /// Games in `dir` and in its direct subfolders (exactly one level), at most `MAX_ENTRIES`
@@ -312,8 +290,6 @@ mod tests {
             key: "menu/title_id".into(),
             key_last: Some(8),
             name: "menu/longname_en".into(),
-            launch_dir: Some("code".into()),
-            launch_ext: Some("rpx".into()),
         }
     }
 
@@ -390,7 +366,7 @@ mod tests {
     }
 
     #[test]
-    fn scan_finds_unpacked_games_one_level_deep_with_name_and_launch_file() {
+    fn scan_finds_unpacked_games_one_level_deep_with_name_and_folder() {
         let dir = tempfile::tempdir().unwrap();
         let a = dir.path().join("Game A");
         game(&a, "0005000010101C00", "  Game\tA\r\n ");
@@ -407,7 +383,7 @@ mod tests {
                 Found {
                     key: "10101c00".into(),
                     name: Some("Game A".into()),
-                    path: a.join("code/game.rpx"),
+                    path: a.clone(),
                 },
                 Found {
                     key: "101ddd00".into(),
@@ -470,7 +446,7 @@ mod tests {
             vec![Found {
                 key: "1fffff00".into(),
                 name: Some("Synthetic Game".into()),
-                path: root.join("games/Synthetic Game/code/synthetic.rpx"),
+                path: root.join("games/Synthetic Game"),
             }]
         );
     }

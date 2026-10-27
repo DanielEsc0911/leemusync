@@ -77,7 +77,8 @@ pub struct GameDirs {
     pub key: String,
 }
 
-/// `games.scan`: a folder holding `marker` is one game; `key` and `name` are element paths in it.
+/// `games.scan`: a folder holding `marker` is one game, and that folder is its `{game_path}`;
+/// `key` and `name` are element paths in the marker.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct GameScan {
@@ -87,9 +88,6 @@ pub struct GameScan {
     /// Keep only the last N characters of the key (Cemu: the low 8 hex digits of the title id).
     pub key_last: Option<usize>,
     pub name: String,
-    /// The file to launch is the only `*.<launch_ext>` in `<launch_dir>`; else the folder itself.
-    pub launch_dir: Option<String>,
-    pub launch_ext: Option<String>,
 }
 
 /// `a/b/c`: non-empty components of ASCII letters, digits, `_`, `-`, `.`, never `.` or `..`.
@@ -119,12 +117,7 @@ impl Games {
             let ok = check_rel(&s.marker)
                 && check_rel(&s.key)
                 && check_rel(&s.name)
-                && s.key_last.is_none_or(|n| (1..=64).contains(&n))
-                && s.launch_dir.as_deref().is_none_or(check_rel)
-                && s.launch_ext
-                    .as_deref()
-                    .is_none_or(|e| check_rel(e) && !e.contains(['/', '.']))
-                && s.launch_dir.is_some() == s.launch_ext.is_some();
+                && s.key_last.is_none_or(|n| (1..=64).contains(&n));
             if !ok {
                 return Err(bad());
             }
@@ -620,8 +613,7 @@ mod tests {
             ("marker = \"meta/meta.xml\"", "marker = \"../meta.xml\""),
             ("marker = \"meta/meta.xml\"", "marker = \"/etc/passwd\""),
             ("key_last = 8", "key_last = 0"),
-            ("launch_ext = \"rpx\"", "launch_ext = \"r/x\""),
-            (", launch_ext = \"rpx\"", ""),
+            ("name = \"menu/longname_en\"", "name = \"menu/../x\""),
         ] {
             let text = CEMU.replace(from, to);
             assert_ne!(text, CEMU, "{from}");

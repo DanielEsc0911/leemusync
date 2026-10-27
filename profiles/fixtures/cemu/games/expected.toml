@@ -3,4 +3,4 @@
 [[game]]
 key = "1fffff00"
 name = "Synthetic Game"
-path = "games/Synthetic Game/code/synthetic.rpx"
+path = "games/Synthetic Game"

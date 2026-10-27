@@ -355,7 +355,7 @@ fn cemu_with_a_game(root: &Path) -> std::path::PathBuf {
         &["grant", "add", cfg.to_str().expect("utf-8 temp path")],
     );
     assert!(out.status.success(), "{out:?}");
-    game.join("code/s.rpx")
+    game
 }
 
 #[test]
@@ -365,7 +365,7 @@ fn games_lists_detected_games_offline_in_both_languages() {
     let out = run(r, "en_US.UTF-8", &["games"]);
     assert!(out.status.success(), "{out:?}");
     assert!(String::from_utf8_lossy(&out.stdout).contains("No games found"));
-    let rpx = cemu_with_a_game(r);
+    let folder = cemu_with_a_game(r);
     let out = run(r, "en_US.UTF-8", &["--json", "games"]);
     assert!(out.status.success(), "no repo or storage needed: {out:?}");
     let json: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
@@ -374,7 +374,7 @@ fn games_lists_detected_games_offline_in_both_languages() {
     assert_eq!(g["emulator"], "cemu");
     assert_eq!(g["key"], "1fffff00");
     assert_eq!(g["name"], "Synthetic Game");
-    assert_eq!(g["path"], rpx.display().to_string());
+    assert_eq!(g["path"], folder.display().to_string());
     assert_eq!(g["source"], "emulator");
     let en = run(r, "en_US.UTF-8", &["games"]);
     let en = String::from_utf8_lossy(&en.stdout);

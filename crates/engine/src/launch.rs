@@ -161,9 +161,8 @@ mod tests {
             Err(EngineError::Usage(_))
         ));
         e.config.emulators.get_mut("cemu").unwrap().game_dirs = vec![mine.clone()];
-        let rpx = mine.join("G/code/g.rpx");
         let argv = e.launch_argv("cemu", "1010AA00", "80000001").unwrap();
-        assert_eq!(argv[2], rpx.as_os_str());
+        assert_eq!(argv[2], mine.join("G").as_os_str());
         let other = dir.path().join("other.wux");
         e.config
             .emulators
