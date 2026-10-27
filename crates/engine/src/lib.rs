@@ -45,7 +45,7 @@ pub use local_config::{
 pub use locations::Locations;
 pub use play::{LeaseChoice, PlayPrompt};
 pub use process::{Child, FakeProbe, Launcher, OsLauncher, ProcessProbe, SysinfoProbe};
-pub use progress::ProgressSink;
+pub use progress::{ConnectionSink, ProgressSink};
 pub use secrets::{KeyringSecrets, MemorySecrets, SecretStore};
 pub use setup::{GdriveLogin, JoinSecret, S3Backend};
 pub use state::{JournalEntry, State, StreamRow};
@@ -83,6 +83,8 @@ pub struct Engine {
     repo: Option<repo::Repo>,
     /// Where `TransferProgress` goes (`set_progress`); nowhere by default.
     progress: Option<ProgressSink>,
+    /// Where `ConnectionEvent`s go (`set_connection_sink`); nowhere by default.
+    connection: Option<ConnectionSink>,
     /// Streams whose stale lease we took over, by previous holder; read by the next upload.
     takeovers: std::sync::Mutex<std::collections::BTreeMap<lemusync_core::StreamId, DeviceId>>,
     /// Test-only shift of the lease clock (`shift_lease_clock_ms`).
@@ -118,6 +120,7 @@ impl Engine {
             state,
             failpoints: Failpoints::default(),
             progress: None,
+            connection: None,
             repo: None,
             takeovers: std::sync::Mutex::default(),
             clock_shift_ms: 0,
@@ -141,6 +144,13 @@ impl Engine {
     /// Sends live `TransferProgress` for `sync`, `restore` and `accounts recover` to `sink`.
     pub fn set_progress(&mut self, sink: ProgressSink) {
         self.progress = Some(sink);
+    }
+
+    /// Sends a `ConnectionEvent` to `sink` whenever a storage request is retried, and when
+    /// the connection is back. Drops the open repo so its store picks the sink up.
+    pub fn set_connection_sink(&mut self, sink: ConnectionSink) {
+        self.connection = Some(sink);
+        self.repo = None;
     }
 
     #[must_use]

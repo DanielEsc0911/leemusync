@@ -24,7 +24,8 @@ pub use gdrive::GdriveConfig;
 pub use redact::redact;
 pub use s3::S3Config;
 
-use retry::{RetryPolicy, retry};
+pub use retry::{RetryNotice, RetryObserver};
+use retry::{RetryPolicy, Watch, retry};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PutMode {
@@ -51,6 +52,7 @@ pub struct Store {
     inner: Inner,
     caps: Capabilities,
     policy: RetryPolicy,
+    watch: Watch,
     #[cfg(any(test, feature = "faults"))]
     faults: faults::Faults,
 }
@@ -82,9 +84,17 @@ impl Store {
             inner,
             caps: Capabilities { native_create_only },
             policy: RetryPolicy::default(),
+            watch: Watch::default(),
             #[cfg(any(test, feature = "faults"))]
             faults: faults::Faults::default(),
         }
+    }
+
+    /// Tells `observer` about each retry and the recovery after it (reliability §Network).
+    #[must_use]
+    pub fn with_retry_observer(mut self, observer: RetryObserver) -> Self {
+        self.watch.observer = Some(observer);
+        self
     }
 
     #[must_use]
@@ -139,7 +149,7 @@ impl Store {
     /// `NotFound`, or any classified backend error.
     pub async fn get(&self, path: &str) -> Result<Vec<u8>, StoreError> {
         check_path(path)?;
-        retry(&self.policy, |_| async move {
+        retry(&self.policy, &self.watch, "get", |_| async move {
             let after = self.fault().await?;
             let bytes = self.op().await?.read(path).await?.to_vec();
             self.fault_after(after)?;
@@ -157,7 +167,7 @@ impl Store {
     pub async fn put(&self, path: &str, bytes: Vec<u8>, mode: PutMode) -> Result<(), StoreError> {
         check_path(path)?;
         let bytes = Buffer::from(bytes);
-        retry(&self.policy, |attempt| {
+        retry(&self.policy, &self.watch, "put", |attempt| {
             let bytes = bytes.clone();
             async move {
                 match self.put_once(path, bytes.clone(), mode).await {
@@ -221,7 +231,7 @@ impl Store {
                 "list prefix must end with /",
             ));
         }
-        retry(&self.policy, |_| async move {
+        retry(&self.policy, &self.watch, "list", |_| async move {
             let after = self.fault().await?;
             let listed = self.op().await?.list(prefix).await;
             self.fault_after(after)?;
@@ -246,7 +256,7 @@ impl Store {
     /// Any classified backend error except `NotFound`, which gives `None`.
     pub async fn stat(&self, path: &str) -> Result<Option<Entry>, StoreError> {
         check_path(path)?;
-        retry(&self.policy, |_| async move {
+        retry(&self.policy, &self.watch, "stat", |_| async move {
             let after = self.fault().await?;
             let found = self.op().await?.stat(path).await;
             self.fault_after(after)?;
@@ -275,7 +285,7 @@ impl Store {
                 "delete takes an object, not a folder",
             ));
         }
-        retry(&self.policy, |_| async move {
+        retry(&self.policy, &self.watch, "delete", |_| async move {
             let after = self.fault().await?;
             self.op().await?.delete(path).await?;
             self.fault_after(after)
@@ -487,6 +497,59 @@ mod tests {
         let start = tokio::time::Instant::now();
         store.get("a/b").await.unwrap();
         assert!(start.elapsed() < Duration::from_secs(1));
+    }
+
+    #[tokio::test]
+    async fn the_observer_hears_each_retry_then_the_recovery() {
+        use std::sync::Mutex;
+        let dir = tempfile::tempdir().unwrap();
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let s = seen.clone();
+        let store = fast_store(dir.path())
+            .with_retry_observer(Arc::new(move |n| s.lock().unwrap().push(n)));
+        store.faults.push(Fault::Transient, 2);
+        store
+            .put("a/b", b"hi".to_vec(), PutMode::Overwrite)
+            .await
+            .unwrap();
+        store.get("a/b").await.unwrap();
+        let seen = seen.lock().unwrap().clone();
+        assert_eq!(seen.len(), 3, "{seen:?}");
+        for (i, n) in seen[..2].iter().enumerate() {
+            let RetryNotice::Retrying {
+                operation,
+                attempt,
+                max_attempts,
+                delay,
+            } = n
+            else {
+                panic!("{n:?}")
+            };
+            assert_eq!(*operation, "put");
+            assert_eq!(*attempt, u32::try_from(i).unwrap() + 2);
+            assert_eq!(*max_attempts, 5);
+            assert!(*delay <= Duration::from_millis(4));
+        }
+        assert_eq!(
+            seen[2],
+            RetryNotice::Recovered,
+            "once, not again on the get"
+        );
+    }
+
+    #[tokio::test]
+    async fn after_giving_up_the_next_success_is_a_recovery() {
+        use std::sync::Mutex;
+        let dir = tempfile::tempdir().unwrap();
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let s = seen.clone();
+        let store = fast_store(dir.path())
+            .with_retry_observer(Arc::new(move |n| s.lock().unwrap().push(n)));
+        store.faults.push(Fault::Transient, 5);
+        assert!(store.stat("a").await.is_err());
+        assert_eq!(seen.lock().unwrap().len(), 4);
+        store.stat("a").await.unwrap();
+        assert_eq!(seen.lock().unwrap().last(), Some(&RetryNotice::Recovered));
     }
 
     #[test]

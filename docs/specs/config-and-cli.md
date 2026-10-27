@@ -54,6 +54,8 @@ The Phase 1 first slice ships `init`, `join`, `backend add/login`, `grant add/li
 
 **Progress and results.** While `sync`, `restore` and `accounts recover` run, one line on stderr shows the stream being worked on: a spinner, player · game, the phase, a bar, files, MB and MB/s. It's redrawn every 100 ms and cleared before anything else prints. It only appears when stderr is a terminal, `TERM` isn't `dumb` and `--json` is off. `sync` then prints one aligned line per stream (with "N files, X MB" when something moved) and the elapsed time. The action is colored (green done, yellow waiting on the user, red conflict) only when stdout is a terminal and `NO_COLOR` is unset.
 
+**Connection notice.** While a storage request is retried (reliability §Network), the engine sends `ConnectionEvent`s (architecture §Engine API). Any command that talks to the backend shows them on stderr: nothing for one quick retry; from the second retry of an outage on, one line, en "Connection trouble, retrying…" / es "Problemas de conexión, reintentando…"; then "Connection is back." / "La conexión volvió." once a request succeeds. At most those two lines per outage; the live progress line is cleared first. Nothing with `--json`, which doesn't stream events. Code: `crates/cli/src/connection.rs`.
+
 Secrets (passphrase, recovery key, OAuth client secret, S3 secret key) are only typed at no-echo prompts, never taken from arguments or environment variables; without a terminal the command fails with a usage error. The recovery key is printed once by `init`, to stderr, even with `--json`. `LEMUSYNC_TEST_ROOT=<dir>` puts the config, data and emulator search under `<dir>`: it's for tests only (the OS keystore is still used).
 
 ## Exit codes

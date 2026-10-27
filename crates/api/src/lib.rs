@@ -68,6 +68,24 @@ pub struct TransferProgress {
     pub bytes_total: u64,
 }
 
+/// The storage connection while a request is retried: the `ConnectionEvent` event
+/// (architecture §Engine API). Every app shows it its own way; none is part of a report.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ConnectionEvent {
+    /// A request failed with a transient error; try `attempt` of `max_attempts` starts after
+    /// `delay_ms`.
+    Retrying {
+        /// The store operation: `get`, `put`, `list`, `stat` or `delete`.
+        operation: String,
+        attempt: u32,
+        max_attempts: u32,
+        delay_ms: u64,
+    },
+    /// A request succeeded after trouble.
+    Recovered,
+}
+
 /// The step a stream is in while it syncs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

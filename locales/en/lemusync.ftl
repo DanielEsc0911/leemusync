@@ -170,6 +170,8 @@ sync-elapsed = Done in { $secs } s.
 progress-checking = { $player } · { $game } · checking…
 progress-uploading = { $player } · { $game } · uploading { $bar } { $done }/{ $total } · { $size_done }/{ $size_total } MB · { $rate } MB/s
 progress-downloading = { $player } · { $game } · downloading { $bar } { $done }/{ $total } · { $size_done }/{ $size_total } MB · { $rate } MB/s
+connection-trouble = Connection trouble, retrying…
+connection-back = Connection is back.
 dry-run = Dry run: nothing was changed.
 sync-conflicts = { $count ->
     [one] One save has a conflict. Both versions are kept. Run `lemusync conflicts`.

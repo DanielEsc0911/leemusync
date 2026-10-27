@@ -169,6 +169,8 @@ sync-elapsed = Listo en { $secs } s.
 progress-checking = { $player } · { $game } · revisando…
 progress-uploading = { $player } · { $game } · subiendo { $bar } { $done }/{ $total } · { $size_done }/{ $size_total } MB · { $rate } MB/s
 progress-downloading = { $player } · { $game } · descargando { $bar } { $done }/{ $total } · { $size_done }/{ $size_total } MB · { $rate } MB/s
+connection-trouble = Problemas de conexión, reintentando…
+connection-back = La conexión volvió.
 dry-run = Prueba: no se cambió nada.
 sync-conflicts = { $count ->
     [one] Una partida guardada tiene un conflicto. Se conservan ambas versiones. Ejecuta `lemusync conflicts`.

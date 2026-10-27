@@ -54,9 +54,10 @@
 
 **Files:** `crates/store/src/retry.rs` and `lib.rs` (an observer hook), the engine progress plumbing that the CLI already reads (`crates/cli/src/progress.rs`), `locales/{en,es}/lemusync.ftl`, specs `reliability.md` and `config-and-cli.md`.
 
-- [ ] **Step 1: failing test.** A store with a scripted transient fault reports one notice (operation, attempt, max attempts, delay) to an observer set on the `Store`, and a recovery notice when a later request succeeds.
-- [ ] **Step 2: implement.** The observer is a plain `Arc<dyn Fn(RetryNotice) + Send + Sync>` on `Store` (no new crate). The engine forwards notices as progress events. **That event is the contract**: the CLI is one consumer, and the daemon/tray (P4) will be another. The CLI shows nothing for a single quick retry. It prints one line to stderr from the second retry of an outage on (en "Connection trouble, retrying…" / es "Problemas de conexión, reintentando…"), then "Connection is back." once a request succeeds. That's at most those two lines per outage. In `--json` mode the CLI prints nothing extra, because it doesn't stream JSON events today.
-- [ ] **Step 3:** a CLI test using faults, specs, `just check`, commit `feat(cli): tell the user when the connection is being retried`.
+- [x] **Step 1: failing test.** A store with a scripted transient fault reports one notice (operation, attempt, max attempts, delay) to an observer set on the `Store`, and a recovery notice when a later request succeeds.
+- [x] **Step 2: implement.** The observer is a plain `Arc<dyn Fn(RetryNotice) + Send + Sync>` on `Store` (no new crate). The engine forwards notices as progress events. **That event is the contract**: the CLI is one consumer, and the daemon/tray (P4) will be another. The CLI shows nothing for a single quick retry. It prints one line to stderr from the second retry of an outage on (en "Connection trouble, retrying…" / es "Problemas de conexión, reintentando…"), then "Connection is back." once a request succeeds. That's at most those two lines per outage. In `--json` mode the CLI prints nothing extra, because it doesn't stream JSON events today.
+- [x] **Step 2 outcome:** the engine side is `Engine::set_connection_sink` with a new additive `ConnectionEvent` in `api` (a separate sink beside `set_progress`, so `ProgressSink` keeps its signature).
+- [x] **Step 3:** a CLI test (the notice state machine fed the events a fault makes; the fault → event path is tested in `crates/engine/tests/network.rs`), specs, `just check`, commit `feat(cli): tell the user when the connection is being retried`.
 
 ### Task 3: Friendly, localized storage errors
 

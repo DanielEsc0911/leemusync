@@ -219,3 +219,42 @@ async fn a_slow_link_gives_the_same_result_as_a_fast_one() {
         w.converge(&content, "slow").await;
     }
 }
+
+/// A short outage sends `Retrying` events then one `Recovered` to the connection sink: the
+/// contract the CLI, the daemon and the tray read (reliability §Network).
+#[tokio::test]
+async fn retries_reach_the_connection_sink_then_the_recovery() {
+    use lemusync_api::ConnectionEvent;
+    use std::sync::{Arc, Mutex};
+    let mut w = World::new().await;
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let s = seen.clone();
+    w.a.engine
+        .set_connection_sink(Arc::new(move |e: &ConnectionEvent| {
+            s.lock().unwrap().push(e.clone());
+        }));
+    let f = Faults::default();
+    f.outage(1, ATTEMPTS - 1);
+    let (content, r) = w.round(true, &f).await;
+    r.unwrap();
+    let seen = seen.lock().unwrap().clone();
+    assert_eq!(seen.len(), 3, "{seen:?}");
+    assert!(matches!(
+        &seen[0],
+        ConnectionEvent::Retrying {
+            attempt: 2,
+            max_attempts: 3,
+            ..
+        }
+    ));
+    assert!(matches!(
+        &seen[1],
+        ConnectionEvent::Retrying {
+            attempt: 3,
+            max_attempts: 3,
+            ..
+        }
+    ));
+    assert_eq!(seen[2], ConnectionEvent::Recovered);
+    w.converge(&content, "events").await;
+}
