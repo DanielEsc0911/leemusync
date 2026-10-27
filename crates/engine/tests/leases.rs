@@ -127,10 +127,14 @@ async fn a_held_lease_is_reported_with_the_holder_and_released_by_it_only() {
 #[tokio::test]
 async fn when_both_write_at_once_exactly_one_keeps_the_lease() {
     let mut t = two().await;
-    // Both pause after writing their lease, so each lists again with both leases present.
-    let barrier = Arc::new(tokio::sync::Barrier::new(2));
-    t.a.engine.arm_pause("lease.after_write", barrier.clone());
-    t.b.engine.arm_pause("lease.after_write", barrier);
+    // Both pause after the first listing, so neither sees the other's lease before writing
+    // (else one returns `HeldElsewhere` early and the race isn't exercised), and again after
+    // writing, so each lists again with both leases present.
+    for point in ["lease.after_list", "lease.after_write"] {
+        let barrier = Arc::new(tokio::sync::Barrier::new(2));
+        t.a.engine.arm_pause(point, barrier.clone());
+        t.b.engine.arm_pause(point, barrier);
+    }
     let (ra, rb) = tokio::join!(
         t.a.engine.lease_acquire(t.stream, t.player, false),
         t.b.engine.lease_acquire(t.stream, t.player, false),

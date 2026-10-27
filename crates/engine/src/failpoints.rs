@@ -2,16 +2,23 @@
 //! process there, feature `failpoints` only), `pause` waits once at an armed barrier so two
 //! engines can interleave deterministically (testing §Layers).
 //!
-//! Names: `init.*`, `upload.*`, `restore.*`, `resolve.after_commit`, and `lease.after_write`
-//! (a hit, and a pause between writing our lease and listing again, used to force the
-//! both-write-at-once race). `tests/kill.rs` fails when a hit name has no crash case.
+//! Names: `init.*`, `upload.*`, `restore.*`, `resolve.after_commit`, `lease.after_list` (a
+//! pause after the first listing, so both engines list before either writes) and
+//! `lease.after_write` (a hit, and a pause between writing our lease and listing again); the
+//! two pauses together force the both-write-at-once race. `tests/kill.rs` fails when a hit name
+//! has no crash case. A pause whose barrier never fills panics after `PAUSE_TIMEOUT` instead of
+//! hanging.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use tokio::sync::Barrier;
 
 use crate::EngineError;
+
+/// How long `pause` waits for the other side before failing the test.
+const PAUSE_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Default)]
 pub struct Failpoints {
@@ -45,10 +52,16 @@ impl Failpoints {
     }
 
     /// Waits once at `name`'s barrier, if one was armed.
+    ///
+    /// # Panics
+    /// If the barrier doesn't fill within `PAUSE_TIMEOUT`: a test bug, never a hang.
+    #[allow(clippy::panic)] // test-only: barriers are only armed by tests
     pub async fn pause(&self, name: &'static str) {
         let barrier = self.barriers.lock().ok().and_then(|mut b| b.remove(name));
-        if let Some(b) = barrier {
-            b.wait().await;
+        if let Some(b) = barrier
+            && tokio::time::timeout(PAUSE_TIMEOUT, b.wait()).await.is_err()
+        {
+            panic!("failpoint pause `{name}`: barrier not filled within {PAUSE_TIMEOUT:?}");
         }
     }
 
@@ -80,5 +93,13 @@ mod tests {
         assert!(matches!(f.hit("b"), Ok(())));
         assert!(matches!(f.hit("a"), Err(EngineError::Injected("a"))));
         assert!(f.hit("a").is_ok());
+    }
+
+    #[tokio::test(start_paused = true)]
+    #[should_panic(expected = "barrier not filled")]
+    async fn a_pause_that_never_fills_fails_instead_of_hanging() {
+        let f = Failpoints::default();
+        f.arm_pause("p", Arc::new(Barrier::new(2)));
+        f.pause("p").await;
     }
 }
