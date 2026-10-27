@@ -16,7 +16,7 @@ Resolved with the `directories` crate:
 | Android / iOS | App-private storage | App-private storage |
 
 ## Config file
-- `config.toml`, versioned (`config_version = 1`), per device: device id and name, repo id, backend reference (`kind = "gdrive"` with `root` and `client_id`, or `kind = "fs"` with `path`), grants, per-emulator settings `[emulators.<id>]` (`root` override; `exe`, the argv prefix that starts the emulator, e.g. `["/usr/bin/cemu"]` or `["flatpak", "run", "info.cemu.Cemu"]`, never run through a shell; `games."<title id>" = "<absolute path>"`, the file passed as `{game_path}` to the profile's [`launch.args`](emulator-profiles.md#schema-v1)), `[leases] ttl_secs` (lease lifetime, default 300, 120–86400; [sync-model §Leases](sync-model.md#leases)), `conflict_policy = "ask" | "newest"` (default `ask`; [sync-model §Conflicts](sync-model.md#conflicts)). Later phases add schedule, UI language and notification preferences.
+- `config.toml`, versioned (`config_version = 1`), per device: device id and name, repo id, backend reference (`kind = "gdrive"` with `root` and `client_id`, or `kind = "fs"` with `path`), grants, per-emulator settings `[emulators.<id>]` (`root` override; `exe`, the argv prefix that starts the emulator, e.g. `["/usr/bin/cemu"]` or `["flatpak", "run", "info.cemu.Cemu"]`, never run through a shell; `games."<title id>" = "<absolute path>"`, the file passed as `{game_path}` to the profile's [`launch.args`](emulator-profiles.md#schema-v1), which overrides the detected one; `game_dirs = ["<absolute folder>", …]`, extra folders scanned for installed games with the profile's rule, read only and never created ([Game discovery](emulator-profiles.md#game-discovery))), `[leases] ttl_secs` (lease lifetime, default 300, 120–86400; [sync-model §Leases](sync-model.md#leases)), `conflict_policy = "ask" | "newest"` (default `ask`; [sync-model §Conflicts](sync-model.md#conflicts)). Later phases add schedule, UI language and notification preferences.
 - Shared settings (players, mappings, aliases) live in [repo config](sync-model.md#repo-config), not in this file.
 - The engine validates on load and hot-reloads on change. If the file is invalid, the engine keeps the last good config and reports the error (status `Error`, CLI exit code 3).
 - Secrets are **never** stored here ([security §Credentials](security.md#credentials)).
@@ -33,7 +33,8 @@ Every command supports `--json` (stable English keys, versioned) and `--help`. H
 | `lemusync status` | Engine state, pending transfers, conflicts, leases |
 | `lemusync sync [--dry-run]` | Sync now |
 | `lemusync play <emulator> <game> [--as <player>] [-- <args>]` | Launcher mode |
-| `lemusync games` / `history <game>` / `restore <game> <version>` | Browse and restore |
+| `lemusync games [--json]` | Installed games on this device: emulator, key, name (the key when none is known), path and where it was found (`config`, `emulator`, `scan`). Local and offline, no storage access ([Game discovery](emulator-profiles.md#game-discovery)). Code: `crates/cli/src/games_cmd.rs` |
+| `lemusync history <game>` / `restore <game> <version>` | Browse and restore |
 | `lemusync conflicts` / `resolve <game> <version>` | Conflict handling |
 | `lemusync lease status` / `lease release --force` | Lease handling |
 | `lemusync players add/list` / `accounts map <player> <emulator> <id> [--keep\|--replace]` | Players and account mappings |
@@ -59,6 +60,7 @@ The Phase 1 first slice ships `init`, `join`, `backend add/login`, `grant add/li
 | `leases.ttl_secs` | integer, 120–86400 | `config set` |
 | `emulators.<id>.root` | absolute path, no `..` (`scan` still needs it inside a grant, B2) | `config set` |
 | `emulators.<id>.exe` | list of words (`set` takes several) | `config set` |
+| `emulators.<id>.game_dirs` | list of absolute paths, no `..` (`set` takes several) | `config set` |
 | `emulators.<id>.games.<game>` | absolute path, no `..`; the game key is lowercased like `play` | `config set` |
 | `repo` | repo id | `init` / `join` |
 | `backend.*` | backend reference | `backend add` |
@@ -68,6 +70,8 @@ The Phase 1 first slice ships `init`, `join`, `backend add/login`, `grant add/li
 `<id>` must be a loaded profile id.
 
 **`play` in the terminal.** One line on stderr per step (getting the newest save, waiting for another device, the emulator running, uploading), then the emulator's exit code and the upload result on stdout. Lease renewals are silent unless one fails. On Unix the emulator runs in its own process group: Ctrl-C reaches only LemuSync, which prints a hint and keeps waiting, then uploads and releases the lease when the emulator closes. A held lease or a conflict is asked about only with a terminal and without `--json`; otherwise `play` stops before launch with exit 5 or 4.
+
+**Game names.** `status`, `history`, `conflicts` and `play` show a game as "Name (key)" when this device's catalog knows its name, else the bare key; `play` starts with "Starting <name>…". Names come from the game's metadata on this device, so a game found only by detection (no `games.<key>` entry) is named too, and a device without the game shows the key ([D34](../decisions.md#d34-game-names-are-found-on-each-device-never-stored-in-the-repo-2026-10-27)). `--json` carries the same: `status` streams, `conflicts` entries and `history` have an optional `name`, absent when unknown (P5); `games --json` lists every game. Code: `Engine::game_names` (`crates/engine/src/games.rs`), test `crates/engine/tests/games.rs`.
 
 **Progress and results.** While `sync`, `restore` and `accounts recover` run, one line on stderr shows the stream being worked on: a spinner, player · game, the phase, a bar, files, MB and MB/s. It's redrawn every 100 ms and cleared before anything else prints. It only appears when stderr is a terminal, `TERM` isn't `dumb` and `--json` is off. `sync` then prints one aligned line per stream (with "N files, X MB" when something moved) and the elapsed time. The action is colored (green done, yellow waiting on the user, red conflict) only when stdout is a terminal and `NO_COLOR` is unset.
 

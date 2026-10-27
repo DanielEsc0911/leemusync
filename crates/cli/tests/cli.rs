@@ -246,6 +246,10 @@ fn config_set_get_unset_round_trips_every_key_family() {
     );
     config_ok(r, &["set", "emulators.cemu.games.101C9500", zelda]);
     assert_eq!(get("emulators.cemu.games.101c9500"), zelda);
+    let dirs = [r.join("games"), r.join("more")];
+    let dirs = dirs.map(|d| d.to_str().unwrap().to_owned());
+    config_ok(r, &["set", "emulators.cemu.game_dirs", &dirs[0], &dirs[1]]);
+    assert_eq!(get("emulators.cemu.game_dirs"), serde_json::json!(dirs));
     assert_eq!(get("emulators.cemu")["root"], cemu_root);
     assert_eq!(get("emulators.cemu.games")["101c9500"], zelda);
     assert_eq!(get("backend"), serde_json::Value::Null);
@@ -255,6 +259,7 @@ fn config_set_get_unset_round_trips_every_key_family() {
     assert_eq!(list["values"]["conflict_policy"], "ask");
     assert!(list["values"]["device.id"].is_string(), "{list}");
     for key in [
+        "emulators.cemu.game_dirs",
         "emulators.cemu.games.101c9500",
         "emulators.cemu.exe",
         "emulators.cemu.root",
@@ -319,4 +324,75 @@ fn config_set_keeps_comments_and_refuses_bad_edits_untouched() {
         String::from_utf8_lossy(&es.stderr).contains("lemusync grant add"),
         "{es:?}"
     );
+}
+
+/// A native Cemu install under `root` whose granted settings.xml lists one games folder,
+/// holding one synthetic unpacked game.
+fn cemu_with_a_game(root: &Path) -> std::path::PathBuf {
+    let home = root.join("home");
+    std::fs::create_dir_all(home.join(".local/share/Cemu")).expect("fixture written");
+    let games = root.join("games");
+    let game = games.join("Synthetic");
+    std::fs::create_dir_all(game.join("meta")).expect("fixture written");
+    std::fs::create_dir_all(game.join("code")).expect("fixture written");
+    std::fs::write(
+        game.join("meta/meta.xml"),
+        "<menu><title_id>000500001FFFFF00</title_id><longname_en>Synthetic Game</longname_en></menu>",
+    )
+    .expect("fixture written");
+    std::fs::write(game.join("code/s.rpx"), b"").expect("fixture written");
+    let cfg = home.join(".config/Cemu");
+    std::fs::create_dir_all(&cfg).expect("fixture written");
+    std::fs::write(
+        cfg.join("settings.xml"),
+        format!(
+            "<content><GamePaths><Entry>{}</Entry></GamePaths></content>",
+            games.display()
+        ),
+    )
+    .expect("fixture written");
+    let out = run(
+        root,
+        "en_US.UTF-8",
+        &["grant", "add", cfg.to_str().expect("utf-8 temp path")],
+    );
+    assert!(out.status.success(), "{out:?}");
+    game
+}
+
+#[test]
+fn games_lists_detected_games_offline_in_both_languages() {
+    let root = tempfile::tempdir().unwrap();
+    let r = root.path();
+    let out = run(r, "en_US.UTF-8", &["games"]);
+    assert!(out.status.success(), "{out:?}");
+    assert!(String::from_utf8_lossy(&out.stdout).contains("No games found"));
+    let folder = cemu_with_a_game(r);
+    let out = run(r, "en_US.UTF-8", &["--json", "games"]);
+    assert!(out.status.success(), "no repo or storage needed: {out:?}");
+    let json: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(json["api_version"], 1);
+    let g = &json["games"][0];
+    assert_eq!(g["emulator"], "cemu");
+    assert_eq!(g["key"], "1fffff00");
+    assert_eq!(g["name"], "Synthetic Game");
+    assert_eq!(g["path"], folder.display().to_string());
+    assert_eq!(g["source"], "emulator");
+    let en = run(r, "en_US.UTF-8", &["games"]);
+    let en = String::from_utf8_lossy(&en.stdout);
+    assert!(
+        en.contains("cemu · Synthetic Game · 1fffff00") && en.contains("from the emulator"),
+        "{en}"
+    );
+    let es = run(r, "es_MX.UTF-8", &["games"]);
+    assert!(String::from_utf8_lossy(&es.stdout).contains("del emulador"));
+    // The user's path wins. It must be absolute on the host OS.
+    let elsewhere = r.join("elsewhere").join("game.wux");
+    let elsewhere = elsewhere.to_str().unwrap();
+    config_ok(r, &["set", "emulators.cemu.games.1FFFFF00", elsewhere]);
+    let json = run(r, "en_US.UTF-8", &["--json", "games"]);
+    let json: serde_json::Value = serde_json::from_slice(&json.stdout).unwrap();
+    assert_eq!(json["games"][0]["path"], elsewhere);
+    assert_eq!(json["games"][0]["source"], "config");
+    assert_eq!(json["games"][0]["name"], "Synthetic Game");
 }

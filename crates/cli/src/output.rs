@@ -11,6 +11,7 @@ use lemusync_api::{
 use lemusync_engine::EngineError;
 use serde::Serialize;
 
+use crate::games_cmd::label;
 use crate::i18n::{I18n, s};
 
 pub fn json<T: Serialize>(value: &T) {
@@ -229,7 +230,8 @@ pub fn sync(t: &I18n, r: &SyncReport, color: bool, elapsed: Option<Duration>) {
 }
 
 /// After `play`: how the emulator exited, then the upload's stream line and warnings.
-pub fn play(t: &I18n, emulator: &str, r: &PlayReport, color: bool) {
+/// `game` is the game as [`label`] shows it.
+pub fn play(t: &I18n, emulator: &str, r: &PlayReport, game: &str, color: bool) {
     line(
         t,
         "play-done",
@@ -246,7 +248,7 @@ pub fn play(t: &I18n, emulator: &str, r: &PlayReport, color: bool) {
     );
     let mut args = vec![
         ("player", s(st.player.clone())),
-        ("game", s(st.game.clone())),
+        ("game", s(game.to_owned())),
         ("action", s(action)),
     ];
     let key = if st.files > 0 {
@@ -272,7 +274,7 @@ pub fn conflicts(t: &I18n, list: &[ConflictInfo]) {
             &[
                 ("player", s(c.player.clone())),
                 ("emulator", s(c.emulator.clone())),
-                ("game", s(c.game.clone())),
+                ("game", s(label(c.name.as_deref(), &c.game))),
             ],
         );
         for (i, h) in c.heads.iter().enumerate() {
@@ -393,7 +395,7 @@ pub fn status(t: &I18n, r: &StatusReport) {
             &[
                 ("player", s(st.player.clone())),
                 ("emulator", s(st.emulator.clone())),
-                ("game", s(st.game.clone())),
+                ("game", s(label(st.name.as_deref(), &st.game))),
                 (
                     "account",
                     s(st.account.clone().unwrap_or_else(|| none.clone())),
@@ -403,7 +405,13 @@ pub fn status(t: &I18n, r: &StatusReport) {
     }
 }
 
-pub fn history(t: &I18n, r: &HistoryReport) {
+/// `key` is the game key the user asked for.
+pub fn history(t: &I18n, r: &HistoryReport, key: &str) {
+    line(
+        t,
+        "history-game",
+        &[("game", s(label(r.name.as_deref(), key)))],
+    );
     let head = t.t("history-head", &[]);
     for v in &r.versions {
         let marker = if v.head { head.clone() } else { String::new() };
@@ -545,6 +553,15 @@ mod tests {
             assert!(repo.contains("lemusync init"), "{repo}");
             let other = error_text(&t, &EngineError::Io("disk full".into()));
             assert!(other.contains("disk full"), "{other}");
+            let game = error_text(
+                &t,
+                &EngineError::Usage("game_not_found:emulators.cemu.games.101c9500".into()),
+            );
+            assert!(
+                game.contains("lemusync games")
+                    && game.contains("lemusync config set emulators.cemu.games.101c9500"),
+                "{game}"
+            );
         }
     }
 }

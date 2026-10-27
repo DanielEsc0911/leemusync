@@ -109,6 +109,7 @@ error-usage-not_orphaned = { $detail } no es una partida huérfana en este dispo
 error-usage-already_has_save = El jugador ya tiene una partida guardada de { $detail }. Mejor recupérala para un jugador nuevo.
 error-usage-folder_empty = Esa carpeta de guardado está vacía.
 error-usage-not_mapped = El jugador no tiene una cuenta de { $detail } en este dispositivo. Ejecuta `lemusync accounts map`.
+error-usage-game_not_found = Ese juego no se encontró en este dispositivo. Ejecuta `lemusync games` para ver los juegos encontrados, o indica su ruta con `lemusync config set { $detail } <ruta>`.
 error-usage-unknown_restore_point = { $detail } no es una versión ni una copia. Consulta `lemusync history`.
 error-usage-cannot_create = LemuSync no puede crear cuentas de { $detail }. Créala en el emulador y luego ejecuta `lemusync accounts map`.
 error-usage-too_many_accounts = El emulador ya tiene su máximo de { $detail } cuentas.
@@ -311,3 +312,14 @@ error-usage-config_unknown_key = No existe el ajuste { $detail }. Ejecuta `lemus
 error-usage-config_unknown_emulator = No existe el emulador { $detail }.
 error-usage-config_bad_value = Ese no es un valor válido para { $detail }. No se cambió nada.
 error-usage-config_one_value = { $detail } acepta un solo valor.
+
+## games
+help-games = Muestra los juegos instalados en este dispositivo, con sus nombres y rutas. Es local, no usa el almacenamiento.
+games-line = { $emulator } · { $name } · { $key } · { $path } · { $source }
+games-none = No se encontraron juegos. Agrega tus carpetas de juegos en el emulador, o agrega una con `lemusync config set emulators.<id>.game_dirs <carpeta>`.
+games-no-path = (sin ruta)
+games-source-config = de la configuración
+games-source-emulator = del emulador
+games-source-scan = de game_dirs
+history-game = { $game }
+play-starting = Iniciando { $game }…

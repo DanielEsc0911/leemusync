@@ -2,7 +2,7 @@
 
 > **Status:** Decided · **Related:** [product](../specs/product.md) (scenarios SC1–SC7), [progress](README.md), [architecture](../specs/architecture.md), [rules](../rules.md) · **Code:** —
 
-Each phase ends with a demo of its exit criteria on real devices. Scenario IDs (SC1–SC7) are defined in [product](../specs/product.md#core-scenarios). Spike IDs (SP1–SP7) are defined in the [Phase 0 plan](plans/phase-0-foundations.md).
+Each phase ends with a demo of its exit criteria on real devices. Scenario IDs (SC1–SC7) are defined in [product](../specs/product.md#core-scenarios). Spike IDs: SP1–SP7 are defined in the [Phase 0 plan](plans/phase-0-foundations.md), SP8 in [phase-1-first-sync](plans/phase-1-first-sync.md), SP9 in [phase-1b-play](plans/phase-1b-play.md) (results under V-SYNC-1 and V-PLAY-1 in [sync-model](../specs/sync-model.md#verify)), SP10 in [emulator-profiles §Game discovery](../specs/emulator-profiles.md#game-discovery).
 
 ## Phase 0: Foundations and spikes
 - **Goal:** a CI-checked skeleton, plus answers to every platform risk before any feature code is written.

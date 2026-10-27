@@ -22,6 +22,7 @@ enum Key {
     LeaseTtl,
     Root(String),
     Exe(String),
+    GameDirs(String),
     Game(String, String),
 }
 
@@ -33,6 +34,7 @@ impl Key {
             Self::LeaseTtl => (vec!["leases"], "ttl_secs"),
             Self::Root(id) => (vec!["emulators", id], "root"),
             Self::Exe(id) => (vec!["emulators", id], "exe"),
+            Self::GameDirs(id) => (vec!["emulators", id], "game_dirs"),
             Self::Game(id, game) => (vec!["emulators", id, "games"], game),
         }
     }
@@ -101,6 +103,7 @@ fn parse_key(key: &str) -> Result<Key, EngineError> {
     match parts.as_slice() {
         [_, _, "root"] => Ok(Key::Root(id)),
         [_, _, "exe"] => Ok(Key::Exe(id)),
+        [_, _, "game_dirs"] => Ok(Key::GameDirs(id)),
         [_, _, "games", game] => {
             // Lowercased like `play` does (sync-model §Launcher mode).
             let game = game.to_lowercase();
@@ -161,6 +164,20 @@ fn typed_value(key: &Key, raw_key: &str, values: &[String]) -> Result<Item, Engi
             Ok(toml_edit::value(ttl))
         }
         Key::Root(_) | Key::Game(..) => absolute_path(raw_key, one()?),
+        Key::GameDirs(_) => {
+            if values.is_empty() {
+                return Err(bad_value(raw_key));
+            }
+            for v in values {
+                absolute_path(raw_key, v)?;
+            }
+            Ok(toml_edit::value(
+                values
+                    .iter()
+                    .map(String::as_str)
+                    .collect::<toml_edit::Array>(),
+            ))
+        }
         Key::Exe(_) => {
             if values.is_empty() || values.iter().any(String::is_empty) {
                 return Err(bad_value(raw_key));
@@ -271,7 +288,8 @@ impl Engine {
         })
     }
 
-    /// Sets a settable key. `values` has one word, or several for `emulators.<id>.exe`.
+    /// Sets a settable key. `values` has one word, or several for `emulators.<id>.exe` and
+    /// `emulators.<id>.game_dirs`.
     ///
     /// # Errors
     /// `Usage` for a managed, fixed or unknown key or a bad value (the file is untouched);
@@ -345,6 +363,16 @@ mod tests {
             Err(EngineError::Usage(s)) => s,
             other => panic!("{k}: {other:?}"),
         };
+        assert_eq!(
+            parse_key("emulators.cemu.game_dirs").unwrap(),
+            Key::GameDirs("cemu".into())
+        );
+        // Host-absolute: "/g1" has no drive on Windows.
+        let g1 = std::env::temp_dir().join("g1").to_str().unwrap().to_owned();
+        let dirs = [g1, "relative".to_owned()];
+        assert!(typed_value(&Key::GameDirs("cemu".into()), "k", &dirs[..1]).is_ok());
+        assert!(typed_value(&Key::GameDirs("cemu".into()), "k", &dirs).is_err());
+        assert!(typed_value(&Key::GameDirs("cemu".into()), "k", &[]).is_err());
         assert_eq!(usage("grants"), "config_managed:lemusync grant add");
         assert_eq!(usage("backend.root"), "config_managed:lemusync backend add");
         assert_eq!(usage("device.name"), "config_fixed:device.name");

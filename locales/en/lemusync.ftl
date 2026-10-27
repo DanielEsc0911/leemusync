@@ -110,6 +110,7 @@ error-usage-not_orphaned = { $detail } isn't an orphaned save on this device.
 error-usage-already_has_save = The player already has a save for { $detail }. Recover it to a new player instead.
 error-usage-folder_empty = That save folder is empty.
 error-usage-not_mapped = The player has no { $detail } account on this device. Run `lemusync accounts map`.
+error-usage-game_not_found = That game wasn't found on this device. Run `lemusync games` to see the games found, or set its path with `lemusync config set { $detail } <path>`.
 error-usage-unknown_restore_point = { $detail } is neither a version nor a backup. See `lemusync history`.
 error-usage-cannot_create = LemuSync can't create { $detail } accounts. Create it in the emulator, then run `lemusync accounts map`.
 error-usage-too_many_accounts = The emulator already has its maximum of { $detail } accounts.
@@ -312,3 +313,14 @@ error-usage-config_unknown_key = There's no setting { $detail }. Run `lemusync c
 error-usage-config_unknown_emulator = There's no emulator { $detail }.
 error-usage-config_bad_value = That isn't a valid value for { $detail }. Nothing was changed.
 error-usage-config_one_value = { $detail } takes a single value.
+
+## games
+help-games = List the games installed on this device, with their names and paths. Local, no storage needed.
+games-line = { $emulator } · { $name } · { $key } · { $path } · { $source }
+games-none = No games found. Add your game folders in the emulator, or add one with `lemusync config set emulators.<id>.game_dirs <folder>`.
+games-no-path = (no path)
+games-source-config = from config
+games-source-emulator = from the emulator
+games-source-scan = from game_dirs
+history-game = { $game }
+play-starting = Starting { $game }…

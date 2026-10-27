@@ -100,6 +100,10 @@ pub struct EmulatorOverride {
     /// Game file per title id (lowercase), for `{game_path}` in the profile's `launch.args`.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub games: BTreeMap<String, PathBuf>,
+    /// Extra folders scanned for installed games with the profile's `[games].scan` rule
+    /// (emulator-profiles §Game discovery). Read only, never created.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub game_dirs: Vec<PathBuf>,
 }
 
 /// `toml`'s `Display` quotes the offending source line, which can hold a secret pasted by
@@ -264,6 +268,7 @@ mod tests {
                     "101c9500".into(),
                     PathBuf::from("/games/Zelda BotW/game.wux"),
                 )]),
+                game_dirs: vec![PathBuf::from("/games")],
             },
         );
         c

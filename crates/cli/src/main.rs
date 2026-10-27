@@ -2,6 +2,7 @@
 
 mod config_cmd;
 mod connection;
+mod games_cmd;
 mod i18n;
 mod output;
 mod play;
@@ -49,6 +50,7 @@ enum Cmd {
         cmd: PlayersCmd,
     },
     Scan,
+    Games,
     Accounts {
         #[command(subcommand)]
         cmd: AccountsCmd,
@@ -291,6 +293,15 @@ async fn run_play(engine: &mut Engine, cmd: &Cmd, t: &I18n, json: bool) -> Resul
                 events: !json,
                 emulator: emulator.clone(),
             };
+            if !json {
+                eprintln!(
+                    "{}",
+                    t.t(
+                        "play-starting",
+                        &[("game", s(games_cmd::label_of(engine, emulator, game)))]
+                    )
+                );
+            }
             let guard = play::hold_ctrl_c(t, !json);
             let report = engine
                 .play(
@@ -307,7 +318,8 @@ async fn run_play(engine: &mut Engine, cmd: &Cmd, t: &I18n, json: bool) -> Resul
             if json {
                 output::json(&report);
             } else {
-                output::play(t, emulator, &report, output::color_on());
+                let label = games_cmd::label_of(engine, emulator, game);
+                output::play(t, emulator, &report, &label, output::color_on());
             }
         }
         Cmd::Conflicts => {
@@ -741,6 +753,14 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
                 return Ok(4);
             }
         }
+        Cmd::Games => {
+            let report = engine.games_report()?;
+            if json {
+                output::json(&report);
+            } else {
+                games_cmd::print(t, &report);
+            }
+        }
         Cmd::Status => {
             let report = engine.status().await?;
             if json {
@@ -758,7 +778,7 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
             if json {
                 output::json(&report);
             } else {
-                output::history(t, &report);
+                output::history(t, &report, &game.to_lowercase());
             }
         }
         Cmd::Restore {

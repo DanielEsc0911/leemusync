@@ -119,6 +119,7 @@ fn launchable(pc: Pc) -> Pc {
             root: None,
             exe: vec!["/usr/bin/cemu".into()],
             games: [(GAME.to_owned(), game_path(&pc.root))].into(),
+            game_dirs: Vec::new(),
         },
     );
     c.save(&path).unwrap();
