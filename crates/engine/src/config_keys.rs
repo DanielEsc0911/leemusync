@@ -367,7 +367,9 @@ mod tests {
             parse_key("emulators.cemu.game_dirs").unwrap(),
             Key::GameDirs("cemu".into())
         );
-        let dirs = ["/g1".to_owned(), "relative".to_owned()];
+        // Host-absolute: "/g1" has no drive on Windows.
+        let g1 = std::env::temp_dir().join("g1").to_str().unwrap().to_owned();
+        let dirs = [g1, "relative".to_owned()];
         assert!(typed_value(&Key::GameDirs("cemu".into()), "k", &dirs[..1]).is_ok());
         assert!(typed_value(&Key::GameDirs("cemu".into()), "k", &dirs).is_err());
         assert!(typed_value(&Key::GameDirs("cemu".into()), "k", &[]).is_err());
