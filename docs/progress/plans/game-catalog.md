@@ -75,5 +75,5 @@ Reuse the XML reader the profile `config_keys` already use for settings.xml. The
 
 **Files:** `crates/cli/src/main.rs` plus a new `crates/cli/src/games_cmd.rs`, the outputs of `status`, `history`, `conflicts` and `play`, `locales/{en,es}/lemusync.ftl`, `crates/cli/tests/cli.rs`, spec `config-and-cli.md` §Commands. Also add a "Games" mention in `docs/specs/ui/navigation.md` only if a games screen is already planned there; otherwise note the future UI parity under the spec's open questions.
 
-- [ ] **Step 1: failing CLI tests.** `lemusync games [--json]` lists emulator, key, name (or the key when no name is known), path and source. It's local and offline: no store access. `status`, `history` and `conflicts` show "Name (key)" when a name is known. `play` prints "Starting <name>…". A game found only by detection (no config entry) shows its name in `status`.
-- [ ] **Step 2: implement**, then specs. Last task: CHANGELOG, set the board row, `just check`, commit `feat(cli): games command and game names in every output`.
+- [x] **Step 1: failing CLI tests.** `lemusync games [--json]` lists emulator, key, name (or the key when no name is known), path and source. It's local and offline: no store access. `status`, `history` and `conflicts` show "Name (key)" when a name is known. `play` prints "Starting <name>…". A game found only by detection (no config entry) shows its name in `status`.
+- [x] **Step 2: implement**, then specs. Last task: CHANGELOG, set the board row, `just check`, commit `feat(cli): games command and game names in every output`.

@@ -2,6 +2,7 @@
 
 mod config_cmd;
 mod connection;
+mod games_cmd;
 mod i18n;
 mod output;
 mod play;
@@ -49,6 +50,7 @@ enum Cmd {
         cmd: PlayersCmd,
     },
     Scan,
+    Games,
     Accounts {
         #[command(subcommand)]
         cmd: AccountsCmd,
@@ -291,6 +293,10 @@ async fn run_play(engine: &mut Engine, cmd: &Cmd, t: &I18n, json: bool) -> Resul
                 events: !json,
                 emulator: emulator.clone(),
             };
+            if !json {
+                let label = games_cmd::Names::load(engine).label(emulator, &game.to_lowercase());
+                eprintln!("{}", t.t("play-starting", &[("game", s(label))]));
+            }
             let guard = play::hold_ctrl_c(t, !json);
             let report = engine
                 .play(
@@ -307,7 +313,8 @@ async fn run_play(engine: &mut Engine, cmd: &Cmd, t: &I18n, json: bool) -> Resul
             if json {
                 output::json(&report);
             } else {
-                output::play(t, emulator, &report, output::color_on());
+                let names = games_cmd::Names::load(engine);
+                output::play(t, emulator, &report, &names, output::color_on());
             }
         }
         Cmd::Conflicts => {
@@ -319,7 +326,7 @@ async fn run_play(engine: &mut Engine, cmd: &Cmd, t: &I18n, json: bool) -> Resul
                     "warnings": warnings,
                 }));
             } else {
-                output::conflicts(t, &list);
+                output::conflicts(t, &list, &games_cmd::Names::load(engine));
                 output::warnings(t, &warnings);
             }
         }
@@ -741,12 +748,20 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
                 return Ok(4);
             }
         }
+        Cmd::Games => {
+            let report = engine.games_report()?;
+            if json {
+                output::json(&report);
+            } else {
+                games_cmd::print(t, &report);
+            }
+        }
         Cmd::Status => {
             let report = engine.status().await?;
             if json {
                 output::json(&report);
             } else {
-                output::status(t, &report);
+                output::status(t, &report, &games_cmd::Names::load(&engine));
             }
         }
         Cmd::History {
@@ -758,7 +773,8 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
             if json {
                 output::json(&report);
             } else {
-                output::history(t, &report);
+                let label = games_cmd::Names::load(&engine).label(emulator, &game.to_lowercase());
+                output::history(t, &report, &label);
             }
         }
         Cmd::Restore {

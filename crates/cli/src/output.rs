@@ -11,6 +11,7 @@ use lemusync_api::{
 use lemusync_engine::EngineError;
 use serde::Serialize;
 
+use crate::games_cmd::Names;
 use crate::i18n::{I18n, s};
 
 pub fn json<T: Serialize>(value: &T) {
@@ -229,7 +230,7 @@ pub fn sync(t: &I18n, r: &SyncReport, color: bool, elapsed: Option<Duration>) {
 }
 
 /// After `play`: how the emulator exited, then the upload's stream line and warnings.
-pub fn play(t: &I18n, emulator: &str, r: &PlayReport, color: bool) {
+pub fn play(t: &I18n, emulator: &str, r: &PlayReport, names: &Names, color: bool) {
     line(
         t,
         "play-done",
@@ -246,7 +247,7 @@ pub fn play(t: &I18n, emulator: &str, r: &PlayReport, color: bool) {
     );
     let mut args = vec![
         ("player", s(st.player.clone())),
-        ("game", s(st.game.clone())),
+        ("game", s(names.label(emulator, &st.game))),
         ("action", s(action)),
     ];
     let key = if st.files > 0 {
@@ -261,7 +262,7 @@ pub fn play(t: &I18n, emulator: &str, r: &PlayReport, color: bool) {
 }
 
 /// Every conflict with its heads, numbered as `play` asks.
-pub fn conflicts(t: &I18n, list: &[ConflictInfo]) {
+pub fn conflicts(t: &I18n, list: &[ConflictInfo], names: &Names) {
     if list.is_empty() {
         line(t, "conflicts-none", &[]);
     }
@@ -272,7 +273,7 @@ pub fn conflicts(t: &I18n, list: &[ConflictInfo]) {
             &[
                 ("player", s(c.player.clone())),
                 ("emulator", s(c.emulator.clone())),
-                ("game", s(c.game.clone())),
+                ("game", s(names.label(&c.emulator, &c.game))),
             ],
         );
         for (i, h) in c.heads.iter().enumerate() {
@@ -365,7 +366,7 @@ pub fn scan(t: &I18n, r: &ScanReport) {
     warnings(t, &r.warnings);
 }
 
-pub fn status(t: &I18n, r: &StatusReport) {
+pub fn status(t: &I18n, r: &StatusReport, names: &Names) {
     line(
         t,
         "status-device",
@@ -393,7 +394,7 @@ pub fn status(t: &I18n, r: &StatusReport) {
             &[
                 ("player", s(st.player.clone())),
                 ("emulator", s(st.emulator.clone())),
-                ("game", s(st.game.clone())),
+                ("game", s(names.label(&st.emulator, &st.game))),
                 (
                     "account",
                     s(st.account.clone().unwrap_or_else(|| none.clone())),
@@ -403,7 +404,9 @@ pub fn status(t: &I18n, r: &StatusReport) {
     }
 }
 
-pub fn history(t: &I18n, r: &HistoryReport) {
+/// `label` is the game as `Names::label` shows it.
+pub fn history(t: &I18n, r: &HistoryReport, label: &str) {
+    line(t, "history-game", &[("game", s(label.to_owned()))]);
     let head = t.t("history-head", &[]);
     for v in &r.versions {
         let marker = if v.head { head.clone() } else { String::new() };

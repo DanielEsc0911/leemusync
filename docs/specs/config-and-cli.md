@@ -33,7 +33,8 @@ Every command supports `--json` (stable English keys, versioned) and `--help`. H
 | `lemusync status` | Engine state, pending transfers, conflicts, leases |
 | `lemusync sync [--dry-run]` | Sync now |
 | `lemusync play <emulator> <game> [--as <player>] [-- <args>]` | Launcher mode |
-| `lemusync games` / `history <game>` / `restore <game> <version>` | Browse and restore |
+| `lemusync games [--json]` | Installed games on this device: emulator, key, name (the key when none is known), path and where it was found (`config`, `emulator`, `scan`). Local and offline, no storage access ([Game discovery](emulator-profiles.md#game-discovery)). Code: `crates/cli/src/games_cmd.rs` |
+| `lemusync history <game>` / `restore <game> <version>` | Browse and restore |
 | `lemusync conflicts` / `resolve <game> <version>` | Conflict handling |
 | `lemusync lease status` / `lease release --force` | Lease handling |
 | `lemusync players add/list` / `accounts map <player> <emulator> <id> [--keep\|--replace]` | Players and account mappings |
@@ -69,6 +70,8 @@ The Phase 1 first slice ships `init`, `join`, `backend add/login`, `grant add/li
 `<id>` must be a loaded profile id.
 
 **`play` in the terminal.** One line on stderr per step (getting the newest save, waiting for another device, the emulator running, uploading), then the emulator's exit code and the upload result on stdout. Lease renewals are silent unless one fails. On Unix the emulator runs in its own process group: Ctrl-C reaches only LemuSync, which prints a hint and keeps waiting, then uploads and releases the lease when the emulator closes. A held lease or a conflict is asked about only with a terminal and without `--json`; otherwise `play` stops before launch with exit 5 or 4.
+
+**Game names.** `status`, `history`, `conflicts` and `play` show a game as "Name (key)" when this device's catalog knows its name, else the bare key; `play` starts with "Starting <name>…". Names come from the game's metadata on this device, so a game found only by detection (no `games.<key>` entry) is named too, and a device without the game shows the key ([D34](../decisions.md#d34-game-names-are-found-on-each-device-never-stored-in-the-repo-2026-10-27)). `--json` outputs keep keys only; `games --json` carries the names.
 
 **Progress and results.** While `sync`, `restore` and `accounts recover` run, one line on stderr shows the stream being worked on: a spinner, player · game, the phase, a bar, files, MB and MB/s. It's redrawn every 100 ms and cleared before anything else prints. It only appears when stderr is a terminal, `TERM` isn't `dumb` and `--json` is off. `sync` then prints one aligned line per stream (with "N files, X MB" when something moved) and the elapsed time. The action is colored (green done, yellow waiting on the user, red conflict) only when stdout is a terminal and `NO_COLOR` is unset.
 

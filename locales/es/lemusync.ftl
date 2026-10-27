@@ -312,3 +312,14 @@ error-usage-config_unknown_key = No existe el ajuste { $detail }. Ejecuta `lemus
 error-usage-config_unknown_emulator = No existe el emulador { $detail }.
 error-usage-config_bad_value = Ese no es un valor válido para { $detail }. No se cambió nada.
 error-usage-config_one_value = { $detail } acepta un solo valor.
+
+## games
+help-games = Muestra los juegos instalados en este dispositivo, con sus nombres y rutas. Es local, no usa el almacenamiento.
+games-line = { $emulator } · { $name } · { $key } · { $path } · { $source }
+games-none = No se encontraron juegos. Agrega las carpetas de juegos en Cemu, o agrega una con `lemusync config set emulators.<id>.game_dirs <carpeta>`.
+games-no-path = (sin ruta)
+games-source-config = de la configuración
+games-source-emulator = del emulador
+games-source-scan = de game_dirs
+history-game = { $game }
+play-starting = Iniciando { $game }…
