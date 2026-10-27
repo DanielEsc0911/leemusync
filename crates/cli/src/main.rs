@@ -245,9 +245,54 @@ fn env() -> Result<EngineEnv, EngineError> {
     Ok(env)
 }
 
+/// `play <emulator> <game>`, the shape before game references: `play_old_shape` with the
+/// new command, or `None`. Only a hint, never run (config-and-cli §Commands).
+fn old_play_hint(args: &[String]) -> Option<String> {
+    let mut words = args.iter().take_while(|a| *a != "--");
+    words
+        .find(|a| !a.starts_with('-'))?
+        .eq("play")
+        .then_some(())?;
+    let mut positional = Vec::new();
+    let mut skip = false;
+    for a in words {
+        if std::mem::take(&mut skip) {
+            continue;
+        }
+        if a == "--as" || a == "--emu" {
+            skip = true;
+        } else if !a.starts_with('-') {
+            positional.push(a.as_str());
+        }
+    }
+    let [emu, game, ..] = positional[..] else {
+        return None;
+    };
+    let plain = |w: &str| {
+        (1..=64).contains(&w.len())
+            && w.bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'))
+    };
+    (lemusync_engine::is_emulator(emu) && plain(game))
+        .then(|| format!("play_old_shape:lemusync play {game} --emu {emu}"))
+}
+
 fn main() -> ExitCode {
     let t = I18n::from_env();
-    let matches = localize(Cli::command(), "", &t).get_matches();
+    let matches = match localize(Cli::command(), "", &t).try_get_matches() {
+        Ok(m) => m,
+        Err(e) => {
+            let args: Vec<String> = std::env::args().skip(1).collect();
+            if e.kind() == clap::error::ErrorKind::UnknownArgument
+                && let Some(hint) = old_play_hint(&args)
+            {
+                let json = args.iter().any(|a| a == "--json");
+                output::error(&t, json, &EngineError::Usage(hint));
+                return ExitCode::from(2);
+            }
+            e.exit()
+        }
+    };
     let cli = Cli::from_arg_matches(&matches).unwrap_or_else(|e| e.exit());
     let runtime = match tokio::runtime::Builder::new_multi_thread()
         .enable_all()

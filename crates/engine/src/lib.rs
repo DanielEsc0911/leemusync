@@ -40,6 +40,7 @@ use lemusync_crypto::KdfParams;
 pub use accounts::{MapChoice, MapOutcome};
 pub use error::EngineError;
 pub use failpoints::Failpoints;
+pub use game_refs::is_emulator;
 pub use games::GameEntry;
 pub use lease::{Acquire, LeaseHandle};
 pub use lemusync_core::VersionId;

@@ -337,5 +337,6 @@ error-usage-alias_invalid = { $detail } can't be an alias: use 1 to 32 of a-z, 0
 error-usage-alias_is_key = { $detail } is another game's key, so it can't be an alias.
 error-usage-alias_taken = The alias { $detail } is already used by another game. Remove it first with `lemusync games unalias { $detail }`.
 error-usage-alias_unknown = There's no alias { $detail }. Run `lemusync games` to see them.
+error-usage-play_old_shape = The emulator now goes after --emu: { $detail }
 history-game = { $game }
 play-starting = Starting { $game }…

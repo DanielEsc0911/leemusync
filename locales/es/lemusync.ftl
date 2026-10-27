@@ -336,5 +336,6 @@ error-usage-alias_invalid = { $detail } no puede ser un alias: usa de 1 a 32 car
 error-usage-alias_is_key = { $detail } es la clave de otro juego, así que no puede ser un alias.
 error-usage-alias_taken = El alias { $detail } ya lo usa otro juego. Quítalo primero con `lemusync games unalias { $detail }`.
 error-usage-alias_unknown = No hay ningún alias { $detail }. Ejecuta `lemusync games` para verlos.
+error-usage-play_old_shape = Ahora el emulador va después de --emu: { $detail }
 history-game = { $game }
 play-starting = Iniciando { $game }…

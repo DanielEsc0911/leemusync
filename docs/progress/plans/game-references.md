@@ -82,6 +82,6 @@ When `--as` is omitted, `play` keeps its current default-player behaviour. `hist
 ### Deviations (found while implementing)
 - `resolve` takes the emulator filter as a parameter: `resolve(query, emulator: Option<&str>, candidates)`.
 - The engine's `play`, `history`, `restore`, `resolve` and `lease_release_game` keep taking a resolved emulator and key. The CLI resolves first with `Engine::resolve_game` (`crates/engine/src/game_refs.rs`), which gathers the candidates (catalog, aliases, repo streams).
-- `config set aliases.<alias>` works offline, so it checks the game against this device's catalog only; `games alias` also accepts a game known only from the repo.
+- `config set aliases.<alias>` and `games alias` accept the same targets: a bundled emulator and a valid key, installed or not (`games alias` takes `<emulator>/<key>` or `--emu <id> <key>` for a game no candidate knows). An alias equal to another game's key is ignored by the resolver (keys win).
 - `emulators.<id>.games.<game>` accepts an alias of one of `<id>`'s games in place of the key.
-- The old `play <emulator> <game>` form fails with clap's own usage error (`unexpected argument`, exit 2).
+- The old `play <emulator> <game>` form fails with the localized usage error `play_old_shape` showing the new command (exit 2); no shim.

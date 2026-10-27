@@ -38,6 +38,12 @@ pub fn parse_target(target: &str) -> Option<(&str, &str)> {
     (valid_key(emu) && valid_key(key)).then_some((emu, key))
 }
 
+/// `id` is one of the bundled emulator profiles.
+#[must_use]
+pub fn is_emulator(id: &str) -> bool {
+    crate::profiles::bundled().is_ok_and(|all| all.iter().any(|p| p.id == id))
+}
+
 fn label(c: &Candidate) -> String {
     let id = format!("{}/{}", c.emulator, c.key);
     match &c.name {
@@ -155,8 +161,9 @@ impl Engine {
             .map_err(|e| usage(query, &e))
     }
 
-    /// Checks that `alias` may point at `target` given the games in `known`: valid syntax, a
-    /// known game, not another game's key, not taken by another game.
+    /// Checks that `alias` may point at `target`: valid syntax, a bundled emulator and a key in
+    /// the game-key alphabet (the game needn't be installed or synced yet), not the key of
+    /// another game in `known`, not taken by another game.
     pub(crate) fn check_alias(
         &self,
         alias: &str,
@@ -171,8 +178,11 @@ impl Engine {
                 "config_bad_value:aliases.{alias}"
             )));
         };
-        if !known.iter().any(|c| c.emulator == emu && c.key == key) {
-            return Err(EngineError::Usage(format!("game_unknown:{}", echo(target))));
+        if !is_emulator(emu) {
+            return Err(EngineError::Usage(format!(
+                "config_unknown_emulator:{}",
+                echo(emu)
+            )));
         }
         if known
             .iter()
@@ -187,7 +197,8 @@ impl Engine {
     }
 
     /// `games alias <game> <alias>`: resolves `query` and stores the resolved
-    /// `<emulator>/<key>`, never the query. Refuses an ambiguous game.
+    /// `<emulator>/<key>`, never the query. Refuses an ambiguous game. A game no candidate
+    /// knows may be given as `<emulator>/<key>` or `--emu <id> <key>`.
     ///
     /// # Errors
     /// As [`Engine::resolve_game`] and [`Engine::config_set`].
@@ -198,9 +209,25 @@ impl Engine {
         alias: &str,
     ) -> Result<(String, String), EngineError> {
         let candidates = self.game_candidates().await?;
-        let (emu, key) = game_ref::resolve(query, emulator, &candidates)
-            .map(|c| (c.emulator.clone(), c.key.clone()))
-            .map_err(|e| usage(query, &e))?;
+        let (emu, key) = match game_ref::resolve(query, emulator, &candidates) {
+            Ok(c) => (c.emulator.clone(), c.key.clone()),
+            // A game nobody has installed or synced yet: `<emulator>/<key>`, or `--emu` + key,
+            // the same targets `config set aliases.<alias>` takes.
+            Err(RefError::NotFound) => {
+                let lower = query.trim().to_ascii_lowercase();
+                let target = match emulator {
+                    Some(e) if !lower.contains('/') => format!("{e}/{lower}"),
+                    _ => lower,
+                };
+                match parse_target(&target) {
+                    Some((e, k)) if emulator.is_none_or(|want| want == e) => {
+                        (e.to_owned(), k.to_owned())
+                    }
+                    _ => return Err(usage(query, &RefError::NotFound)),
+                }
+            }
+            Err(e) => return Err(usage(query, &e)),
+        };
         self.write_alias(alias, &format!("{emu}/{key}"), &candidates)?;
         Ok((emu, key))
     }

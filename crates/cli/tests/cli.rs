@@ -252,14 +252,22 @@ fn every_game_argument_takes_an_alias_key_or_name() {
     // The alias still picks one.
     let out = run(r, "en_US.UTF-8", &["--json", "play", "sg"]);
     assert_eq!(error_code(&out), "not_set_up", "{out:?}");
-    // The old `play <emulator> <game>` form is a usage error.
-    let out = run(r, "en_US.UTF-8", &["play", "cemu", "1fffff00"]);
-    assert_eq!(out.status.code(), Some(2));
+    // The old `play <emulator> <game>` form is a usage error that shows the new one.
+    for (lang, text) in [
+        ("en_US.UTF-8", "The emulator now goes after --emu"),
+        ("es_MX.UTF-8", "Ahora el emulador va después de --emu"),
+    ] {
+        let out = run(r, lang, &["play", "cemu", "1fffff00", "--as", "p1"]);
+        assert_eq!(out.status.code(), Some(2));
+        let err = String::from_utf8_lossy(&out.stderr);
+        assert!(
+            err.contains(text) && err.contains("lemusync play 1fffff00 --emu cemu"),
+            "{err}"
+        );
+    }
+    let out = run(r, "en_US.UTF-8", &["play", "nope", "1fffff00"]);
     let err = String::from_utf8_lossy(&out.stderr);
-    assert!(
-        err.contains("unexpected argument '1fffff00'") && err.contains("Usage: lemusync play"),
-        "{err}"
-    );
+    assert!(err.contains("unexpected argument '1fffff00'"), "{err}");
 }
 
 fn config_json(root: &Path, args: &[&str]) -> serde_json::Value {
@@ -509,11 +517,12 @@ fn games_alias_resolves_once_and_stores_the_key() {
     let json: serde_json::Value = serde_json::from_slice(&json.stdout).unwrap();
     assert_eq!(json["games"][0]["aliases"][0], "sg");
 
-    // Bad aliases and unknown games are refused, nothing written.
+    // Bad aliases, unknown games and unknown emulators are refused, nothing written.
     for args in [
         &["games", "alias", "synthetic game", "Bad Name"][..],
         &["games", "alias", "nothing like it", "x"],
-        &["config", "set", "aliases.x", "cemu/deadbeef"],
+        &["config", "set", "aliases.x", "nope/deadbeef"],
+        &["games", "alias", "nope/deadbeef", "x"],
         &["config", "set", "aliases.sg", "cemu/1fffff01"],
         &["games", "unalias", "nope"],
     ] {

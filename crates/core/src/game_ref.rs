@@ -94,7 +94,8 @@ fn fold(c: char) -> std::borrow::Cow<'static, str> {
 
 /// Resolves `query` against `candidates`, optionally only those of `emulator`.
 /// Tiers, first with any match wins: exact alias, key (case-insensitive),
-/// normalized name. No fuzzy tier (P1).
+/// normalized name. No fuzzy tier (P1). An alias equal to another candidate's key (a
+/// hand-edited file) is ignored, so a key always means its own game.
 ///
 /// # Errors
 /// `NotFound` when no tier matches; `Ambiguous` when the winning tier has
@@ -114,7 +115,12 @@ pub fn resolve<'a>(
         .collect();
     let normalized = normalize(query);
     let tiers: [&dyn Fn(&Candidate) -> bool; 3] = [
-        &|c| c.aliases.iter().any(|a| a == query),
+        &|c| {
+            c.aliases.iter().any(|a| a == query)
+                && !candidates
+                    .iter()
+                    .any(|o| o.key.eq_ignore_ascii_case(query) && o != c)
+        },
         &|c| c.key.eq_ignore_ascii_case(query),
         &|c| {
             !normalized.is_empty()
@@ -227,12 +233,52 @@ mod tests {
     }
 
     #[test]
-    fn alias_beats_key_and_name() {
+    fn alias_beats_name_but_never_another_game_s_key() {
         let c = vec![
             cand("a", "x1", Some("Other"), &[]),
             cand("b", "x2", Some("x1"), &["x1"]),
+            cand("b", "x3", Some("Melee"), &[]),
+            cand("b", "x4", None, &["melee"]),
         ];
-        assert_eq!(resolve("x1", None, &c).unwrap().key, "x2");
+        assert_eq!(resolve("x1", None, &c).unwrap().key, "x1", "the key wins");
+        assert_eq!(
+            resolve("melee", None, &c).unwrap().key,
+            "x4",
+            "the alias shadows a name"
+        );
+        assert_eq!(
+            resolve("Melee", None, &c).unwrap().key,
+            "x3",
+            "aliases are exact"
+        );
+    }
+
+    #[test]
+    fn edge_cases() {
+        // A name made only of tags normalizes to nothing and matches nothing.
+        let c = vec![
+            cand("a", "k1", Some("(USA)"), &[]),
+            cand("a", "k2", Some("[v1]"), &[]),
+            cand("b", "k1", Some("Same Key"), &[]),
+        ];
+        assert_eq!(normalize("(USA)"), "");
+        for q in ["(USA)", "usa", "()", "[]", "-"] {
+            assert_eq!(resolve(q, None, &c), Err(RefError::NotFound), "{q}");
+        }
+        // The same key under two emulators is ambiguous until `--emu` picks one.
+        assert!(matches!(resolve("K1", None, &c), Err(RefError::Ambiguous(v)) if v.len() == 2));
+        assert_eq!(resolve("k1", Some("b"), &c).unwrap().emulator, "b");
+        // Letters outside the fold table are dropped like punctuation, never a panic.
+        assert_eq!(normalize("ポケモン Ω x ٣"), "x");
+        assert_eq!(normalize("Ωmega 🎮 Ünïcode"), "mega unicode");
+        let jp = vec![cand("a", "k9", Some("ゼルダの伝説"), &[])];
+        assert_eq!(resolve("ゼルダの伝説", None, &jp), Err(RefError::NotFound));
+        // Huge or deeply bracketed queries finish and match nothing.
+        let long = "a".repeat(1 << 20);
+        assert_eq!(resolve(&long, None, &c), Err(RefError::NotFound));
+        let deep = "(".repeat(1 << 16);
+        assert_eq!(normalize(&deep), "");
+        assert_eq!(normalize(&")".repeat(1 << 16)), "");
     }
 
     #[test]

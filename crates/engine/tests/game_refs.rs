@@ -92,10 +92,50 @@ async fn aliases_keys_and_names_find_the_same_game() {
         .config_set("aliases.botw", &["cemu/101c9400".into()])
         .unwrap();
     assert_eq!(a.engine.resolve_game("botw", None).await.unwrap(), want);
+    // Both ways accept any game key of a bundled emulator, installed or not.
+    a.engine
+        .config_set("aliases.x", &["cemu/deadbeef".into()])
+        .unwrap();
     assert_eq!(
-        usage(a.engine.config_set("aliases.x", &["cemu/deadbeef".into()])),
-        "game_unknown:cemu/deadbeef"
+        a.engine
+            .alias_add("cemu/0badf00d", None, "y")
+            .await
+            .unwrap(),
+        ("cemu".into(), "0badf00d".into())
     );
+    assert_eq!(
+        a.engine
+            .alias_add("0BADF00E", Some("cemu"), "w")
+            .await
+            .unwrap(),
+        ("cemu".into(), "0badf00e".into())
+    );
+    assert_eq!(
+        usage(a.engine.alias_add("nope/0badf00d", None, "v").await),
+        "config_unknown_emulator:nope"
+    );
+    assert_eq!(
+        usage(a.engine.alias_add("0badf00f", None, "v").await),
+        "game_unknown:0badf00f"
+    );
+    a.engine.alias_remove("y").unwrap();
+    a.engine.alias_remove("w").unwrap();
+    assert_eq!(
+        a.engine.alias_add("x", None, "y").await.unwrap(),
+        ("cemu".into(), "deadbeef".into())
+    );
+    for bad in ["nope/deadbeef", "Cemu/deadbeef"] {
+        assert!(
+            a.engine.config_set("aliases.z", &[bad.into()]).is_err(),
+            "{bad}"
+        );
+    }
+    assert_eq!(
+        usage(a.engine.config_set("aliases.z", &["nope/deadbeef".into()])),
+        "config_unknown_emulator:nope"
+    );
+    a.engine.alias_remove("x").unwrap();
+    a.engine.alias_remove("y").unwrap();
     assert_eq!(
         usage(
             a.engine
@@ -136,6 +176,17 @@ async fn aliases_keys_and_names_find_the_same_game() {
             .games
             .contains_key(GAME)
     );
+    // The file keeps the key: dropping or retargeting the alias doesn't change that entry.
+    a.engine.alias_remove("botw").unwrap();
+    a.engine
+        .config_set("aliases.botw", &["cemu/1fffff01".into()])
+        .unwrap();
+    let games = &a.engine.local_config().emulators["cemu"].games;
+    assert!(games.contains_key(GAME) && !games.contains_key("botw"));
+    a.engine.alias_remove("botw").unwrap();
+    a.engine
+        .config_set("aliases.botw", &["cemu/101c9400".into()])
+        .unwrap();
     let report = a.engine.games_report().unwrap();
     let g = report.games.iter().find(|g| g.key == GAME).unwrap();
     assert_eq!(g.aliases, vec!["botw".to_owned()]);
