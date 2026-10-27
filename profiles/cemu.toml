@@ -41,6 +41,14 @@ name_key = "MiiName"               # 44 hex chars = 11 UTF-16 code units, 4 hex 
 from = "title_id"
 normalize = ["lowercase"]
 
+# Installed games (SP10, emulator-profiles §Game discovery): the folders listed in Cemu's
+# Options > General > Game paths, and in each, unpacked titles one level down. The key is the
+# low half of meta.xml's 16-digit title_id; the launch file is the title's only code/*.rpx.
+# .wua/.wux/.wud are not opened (V-GAME-2). Verified: Cemu 2.6 source + Linux Flatpak, 2026-10-27.
+[games]
+dirs = { file = "settings.xml", key = "content/GamePaths/Entry" }
+scan = { marker = "meta/meta.xml", key = "menu/title_id", key_last = 8, name = "menu/longname_en", launch_dir = "code", launch_ext = "rpx" }
+
 # Arguments only: the executable is the user's (config.toml `[emulators.cemu] exe`). Verify V-PLAY-1.
 [launch]
 args = ["-g", "{game_path}", "-a", "{account}"]

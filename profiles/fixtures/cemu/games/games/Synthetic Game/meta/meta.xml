@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Synthetic fixture: the structure of a Cemu 2.6 meta/meta.xml (SP10), invented values. -->
+<menu type="complex" access="777">
+  <title_id type="hexBinary" length="8">000500001FFFFF00</title_id>
+  <longname_en type="string" length="512">Synthetic
+Game</longname_en>
+  <longname_es type="string" length="512">Juego sintético</longname_es>
+</menu>

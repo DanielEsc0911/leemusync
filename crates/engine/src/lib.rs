@@ -7,6 +7,9 @@ mod discover;
 mod error;
 mod failpoints;
 pub mod fsx;
+// Read by `Engine::games` (game-catalog Task 3).
+#[allow(dead_code)]
+mod games;
 mod grants;
 mod launch;
 mod lease;

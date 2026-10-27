@@ -55,6 +55,82 @@ pub struct Profile {
     pub game_key: GameKey,
     /// How to start a game. Arguments only: the executable is always the user's (config).
     pub launch: Option<Launch>,
+    /// How the emulator lists its installed games (`[games]`, emulator-profiles §Game discovery).
+    pub games: Option<Games>,
+}
+
+/// `[games]`: where the emulator keeps its game folders and how to read one game.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Games {
+    pub dirs: Option<GameDirs>,
+    pub scan: Option<GameScan>,
+}
+
+/// `games.dirs`: a repeated XML element whose text is one game folder.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GameDirs {
+    /// File name in the config root, like `config_keys.file`.
+    pub file: String,
+    /// Element path from the root element, `content/GamePaths/Entry`.
+    pub key: String,
+}
+
+/// `games.scan`: a folder holding `marker` is one game; `key` and `name` are element paths in it.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GameScan {
+    /// Relative file path, `meta/meta.xml`.
+    pub marker: String,
+    pub key: String,
+    /// Keep only the last N characters of the key (Cemu: the low 8 hex digits of the title id).
+    pub key_last: Option<usize>,
+    pub name: String,
+    /// The file to launch is the only `*.<launch_ext>` in `<launch_dir>`; else the folder itself.
+    pub launch_dir: Option<String>,
+    pub launch_ext: Option<String>,
+}
+
+/// `a/b/c`: non-empty components of ASCII letters, digits, `_`, `-`, `.`, never `.` or `..`.
+fn check_rel(path: &str) -> bool {
+    path.len() <= 200
+        && path.split('/').all(|c| {
+            !c.is_empty()
+                && c != "."
+                && c != ".."
+                && c.bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.'))
+        })
+}
+
+impl Games {
+    fn validate(&self) -> Result<(), ProfileError> {
+        let bad = || ProfileError::Field("games");
+        if let Some(d) = &self.dirs
+            && (!check_rel(&d.file)
+                || d.file.contains('/')
+                || d.file.starts_with('.')
+                || !check_rel(&d.key))
+        {
+            return Err(bad());
+        }
+        if let Some(s) = &self.scan {
+            let ok = check_rel(&s.marker)
+                && check_rel(&s.key)
+                && check_rel(&s.name)
+                && s.key_last.is_none_or(|n| (1..=64).contains(&n))
+                && s.launch_dir.as_deref().is_none_or(check_rel)
+                && s.launch_ext
+                    .as_deref()
+                    .is_none_or(|e| check_rel(e) && !e.contains(['/', '.']))
+                && s.launch_dir.is_some() == s.launch_ext.is_some();
+            if !ok {
+                return Err(bad());
+            }
+        }
+        Ok(())
+    }
 }
 
 /// `[launch]`. `deny_unknown_fields` keeps a profile from naming an executable or a shell.
@@ -211,6 +287,9 @@ impl Profile {
         }
         if let Some(launch) = &self.launch {
             check_launch(&launch.args)?;
+        }
+        if let Some(games) = &self.games {
+            games.validate()?;
         }
         Ok(())
     }
@@ -523,6 +602,40 @@ mod tests {
             parse_pattern("a{account}").is_err(),
             "a variable must be a whole component"
         );
+    }
+
+    #[test]
+    fn games_section_is_optional_and_checked() {
+        let p = Profile::from_toml(CEMU).unwrap();
+        let g = p.games.unwrap();
+        assert_eq!(g.dirs.unwrap().key, "content/GamePaths/Entry");
+        assert_eq!(g.scan.unwrap().key_last, Some(8));
+        let start = CEMU.find("[games]").unwrap();
+        let end = start + CEMU[start..].find("\n\n").unwrap();
+        let without = format!("{}{}", &CEMU[..start], &CEMU[end..]);
+        assert!(Profile::from_toml(&without).unwrap().games.is_none());
+        for (from, to) in [
+            ("{ file = \"settings.xml\"", "{ file = \"../settings.xml\""),
+            ("{ file = \"settings.xml\"", "{ file = \"a/settings.xml\""),
+            ("marker = \"meta/meta.xml\"", "marker = \"../meta.xml\""),
+            ("marker = \"meta/meta.xml\"", "marker = \"/etc/passwd\""),
+            ("key_last = 8", "key_last = 0"),
+            ("launch_ext = \"rpx\"", "launch_ext = \"r/x\""),
+            (", launch_ext = \"rpx\"", ""),
+        ] {
+            let text = CEMU.replace(from, to);
+            assert_ne!(text, CEMU, "{from}");
+            assert_eq!(
+                Profile::from_toml(&text).unwrap_err(),
+                ProfileError::Field("games"),
+                "{to}"
+            );
+        }
+        let exe = CEMU.replace("[games]\n", "[games]\nexe = \"/bin/sh\"\n");
+        assert!(matches!(
+            Profile::from_toml(&exe),
+            Err(ProfileError::Toml(_))
+        ));
     }
 
     #[test]

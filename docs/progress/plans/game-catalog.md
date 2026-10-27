@@ -43,21 +43,20 @@
 
 **Files:** `crates/core/src/profile.rs` (pure schema), new `crates/engine/src/games.rs` (I/O: reading emulator files, scanning folders), `profiles/cemu.toml`, synthetic fixtures under `profiles/fixtures/cemu/games/`, spec `emulator-profiles.md`.
 
-**Interfaces (the shape follows SP10's findings; the default sketch is below):**
+**Interfaces (the shape SP10 proved; the earlier sketch also had a `cache` part, dropped because no title list cache exists on the Linux Flatpak, V-GAME-2):**
 ```toml
 [games]
-dirs  = { file = "{config}/settings.xml", xpath = "<from SP10>" }           # folders the emulator knows
-cache = { file = "{config}/<from SP10>", entry = "…", key = "…", name = "…", path = "…" }  # optional
-scan  = { marker = "meta/meta.xml", key = "<xpath>", name = "<xpath>" }      # per-folder rule for unpacked games
+dirs = { file = "settings.xml", key = "content/GamePaths/Entry" }   # folders the emulator knows
+scan = { marker = "meta/meta.xml", key = "menu/title_id", key_last = 8, name = "menu/longname_en", launch_dir = "code", launch_ext = "rpx" }
 ```
-Use only the parts SP10 proves are needed. Reuse the XML reader the profile `config_keys` already use for settings.xml. The section is additive and optional, so profiles without it still load.
+Reuse the XML reader the profile `config_keys` already use for settings.xml. The section is additive and optional, so profiles without it still load.
 
-- [ ] **Step 1: failing tests** on synthetic fixtures. First check which XML crate the existing reader uses and whether it can expand DTDs. Then:
-  - dirs listed by the emulator are found, and cache entries map to (key, name, path);
+- [x] **Step 1: failing tests** on synthetic fixtures. First check which XML crate the existing reader uses and whether it can expand DTDs. Then:
+  - dirs listed by the emulator are found, and each scanned game maps to (key, name, path);
   - a scan goes exactly one folder deep, stops at 5,000 entries, and never follows a symlink out of the dir;
   - hostile input is refused or handled: an oversized file, a `DOCTYPE` (rejected; plus entity expansion if the crate could do it), a `..` path, control characters, and a 1 MB name;
   - names are trimmed and capped at 200 characters.
-- [ ] **Step 2: implement**, then specs, `just check`, and commit `feat(profiles): describe how an emulator lists its games`.
+- [x] **Step 2: implement**, then specs, `just check`, and commit `feat(profiles): describe how an emulator lists its games`.
 
 ### Task 3: Catalog, user game folders, and `play` without manual paths
 

@@ -161,18 +161,21 @@ pub fn resolve(
     }))
 }
 
-/// `content/mlc_path`-style element path in a small XML file; `None` when missing, empty or
-/// unreadable. The file is untrusted: the read is bounded, not just the metadata.
-fn read_xml_key(file: &Path, key: &str) -> Option<String> {
+/// A small text file (at most 1 MiB), read with a bounded read: the size isn't trusted.
+pub(crate) fn read_bounded(file: &Path) -> Option<String> {
     let mut text = String::new();
     std::fs::File::open(file)
         .ok()?
         .take(MAX_CONFIG_FILE + 1)
         .read_to_string(&mut text)
         .ok()?;
-    if text.len() as u64 > MAX_CONFIG_FILE {
-        return None;
-    }
+    (text.len() as u64 <= MAX_CONFIG_FILE).then_some(text)
+}
+
+/// `content/mlc_path`-style element path in a small XML file; `None` when missing, empty or
+/// unreadable. The file is untrusted: the read is bounded, not just the metadata.
+fn read_xml_key(file: &Path, key: &str) -> Option<String> {
+    let text = read_bounded(file)?;
     let doc = roxmltree::Document::parse(&text).ok()?;
     let mut node = doc.root_element();
     let mut parts = key.split('/');
