@@ -222,8 +222,14 @@ fn config_set_get_unset_round_trips_every_key_family() {
     config_ok(r, &["unset", "leases.ttl_secs"]);
     assert_eq!(get("leases.ttl_secs"), 300);
 
-    config_ok(r, &["set", "emulators.cemu.root", "/opt/cemu"]);
-    assert_eq!(get("emulators.cemu.root"), "/opt/cemu");
+    // Paths must be absolute on the host OS: "/opt/cemu" has no drive on
+    // Windows, so build them from the temp dir.
+    let cemu_root = r.join("opt").join("cemu");
+    let cemu_root = cemu_root.to_str().unwrap();
+    let zelda = r.join("games").join("zelda.wux");
+    let zelda = zelda.to_str().unwrap();
+    config_ok(r, &["set", "emulators.cemu.root", cemu_root]);
+    assert_eq!(get("emulators.cemu.root"), cemu_root);
     config_ok(
         r,
         &[
@@ -238,13 +244,10 @@ fn config_set_get_unset_round_trips_every_key_family() {
         get("emulators.cemu.exe"),
         serde_json::json!(["flatpak", "run", "info.cemu.Cemu"])
     );
-    config_ok(
-        r,
-        &["set", "emulators.cemu.games.101C9500", "/games/zelda.wux"],
-    );
-    assert_eq!(get("emulators.cemu.games.101c9500"), "/games/zelda.wux");
-    assert_eq!(get("emulators.cemu")["root"], "/opt/cemu");
-    assert_eq!(get("emulators.cemu.games")["101c9500"], "/games/zelda.wux");
+    config_ok(r, &["set", "emulators.cemu.games.101C9500", zelda]);
+    assert_eq!(get("emulators.cemu.games.101c9500"), zelda);
+    assert_eq!(get("emulators.cemu")["root"], cemu_root);
+    assert_eq!(get("emulators.cemu.games")["101c9500"], zelda);
     assert_eq!(get("backend"), serde_json::Value::Null);
     let list = config_json(r, &["list"]);
     assert_eq!(list["api_version"], 1);
