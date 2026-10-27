@@ -169,7 +169,16 @@ async fn aliases_keys_and_names_find_the_same_game() {
     assert_eq!(usage(a.engine.alias_remove("tw")), "alias_unknown:tw");
     // An alias works as the game key of `emulators.<id>.games`.
     a.engine
-        .config_set("emulators.cemu.games.botw", &["/g/botw.wux".into()])
+        .config_set(
+            "emulators.cemu.games.botw",
+            // Host-absolute: "/g/botw.wux" has no drive on Windows.
+            &[std::env::temp_dir()
+                .join("g")
+                .join("botw.wux")
+                .to_str()
+                .unwrap()
+                .to_owned()],
+        )
         .unwrap();
     assert!(
         a.engine.local_config().emulators["cemu"]
