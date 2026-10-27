@@ -19,5 +19,6 @@
 | [network-resilience](plans/network-resilience.md) | 1 | Done (awaiting merge) | 2026-10-27 |
 | [config-command](plans/config-command.md) | 1 | Done (awaiting merge) | 2026-10-27 |
 | [game-catalog](plans/game-catalog.md) | 1 | Done (awaiting merge) | 2026-10-27 |
+| [game-references](plans/game-references.md) | 1 | In progress | 2026-10-27 |
 
 Status values: Not started · In progress · Blocked (reason) · Done (awaiting cleanup).
