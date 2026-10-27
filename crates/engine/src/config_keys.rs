@@ -422,7 +422,9 @@ mod tests {
             parse_key("emulators.cemu.game_dirs").unwrap(),
             Key::GameDirs("cemu".into())
         );
-        let dirs = ["/g1".to_owned(), "relative".to_owned()];
+        // Host-absolute: "/g1" has no drive on Windows.
+        let g1 = std::env::temp_dir().join("g1").to_str().unwrap().to_owned();
+        let dirs = [g1, "relative".to_owned()];
         assert!(typed_value(&Key::GameDirs("cemu".into()), "k", &dirs[..1]).is_ok());
         assert!(typed_value(&Key::GameDirs("cemu".into()), "k", &dirs).is_err());
         assert!(typed_value(&Key::GameDirs("cemu".into()), "k", &[]).is_err());
@@ -450,8 +452,13 @@ mod tests {
 
     #[test]
     fn paths_must_be_absolute_without_parent_steps() {
-        assert!(absolute_path("k", "/opt/cemu").is_ok());
-        assert!(absolute_path("k", "/opt/../etc").is_err());
+        // Absolute means absolute on the host: "/opt/cemu" has no drive on
+        // Windows, so build the paths from the temp dir.
+        let base = std::env::temp_dir();
+        let ok = base.join("opt").join("cemu");
+        let up = base.join("opt").join("..").join("etc");
+        assert!(absolute_path("k", ok.to_str().unwrap()).is_ok());
+        assert!(absolute_path("k", up.to_str().unwrap()).is_err());
         assert!(absolute_path("k", "opt/cemu").is_err());
     }
 

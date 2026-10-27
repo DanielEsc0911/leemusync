@@ -456,7 +456,9 @@ mod tests {
             vec![Found {
                 key: "1fffff00".into(),
                 name: Some("Synthetic Game".into()),
-                path: root.join("games/Synthetic Game"),
+                // Joined part by part: under the `\\?\` prefix canonicalize gives on
+                // Windows, `/` is not a separator.
+                path: root.join("games").join("Synthetic Game"),
             }]
         );
     }
