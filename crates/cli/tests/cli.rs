@@ -243,6 +243,9 @@ fn config_set_get_unset_round_trips_every_key_family() {
         &["set", "emulators.cemu.games.101C9500", "/games/zelda.wux"],
     );
     assert_eq!(get("emulators.cemu.games.101c9500"), "/games/zelda.wux");
+    assert_eq!(get("emulators.cemu")["root"], "/opt/cemu");
+    assert_eq!(get("emulators.cemu.games")["101c9500"], "/games/zelda.wux");
+    assert_eq!(get("backend"), serde_json::Value::Null);
     let list = config_json(r, &["list"]);
     assert_eq!(list["api_version"], 1);
     assert_eq!(list["values"]["emulators.cemu.exe"][0], "flatpak");

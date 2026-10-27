@@ -115,10 +115,29 @@ fn parse_key(key: &str) -> Result<Key, EngineError> {
 }
 
 fn absolute_path(key: &str, value: &str) -> Result<Item, EngineError> {
-    if value.chars().any(char::is_control) || !Path::new(value).is_absolute() {
+    let path = Path::new(value);
+    if value.chars().any(char::is_control)
+        || !path.is_absolute()
+        || path
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
         return Err(bad_value(key));
     }
     Ok(toml_edit::value(value))
+}
+
+/// A table that holds settable keys: `leases`, `emulators`, `emulators.<id>`,
+/// `emulators.<id>.games` (`get` shows it whole).
+fn is_table(key: &str) -> Result<bool, EngineError> {
+    let parts: Vec<&str> = key.split('.').collect();
+    Ok(match parts.as_slice() {
+        ["leases" | "emulators"] => true,
+        ["emulators", id] | ["emulators", id, "games"] => {
+            profiles::bundled()?.iter().any(|p| p.id == *id)
+        }
+        _ => false,
+    })
 }
 
 /// The TOML value for `key`, from the command-line words.
@@ -221,7 +240,7 @@ impl Engine {
         Ok(out)
     }
 
-    /// One value; `null` for a known key that isn't set.
+    /// One value, or a whole table as one object; `null` for a known key that isn't set.
     ///
     /// # Errors
     /// `Usage` for an unknown key or emulator.
@@ -233,13 +252,13 @@ impl Engine {
             {
                 key.to_owned()
             }
+            Err(_) if is_table(key)? => key.to_owned(),
             Err(e) => return Err(e),
         };
         let values = self.config_values()?;
         if let Some(v) = values.get(&key) {
             return Ok(v.clone());
         }
-        // A table (`backend`, `device`): its values as one object.
         let prefix = format!("{key}.");
         let sub: serde_json::Map<String, Json> = values
             .into_iter()
@@ -339,6 +358,22 @@ mod tests {
             "config_bad_value:emulators.cemu.games.a/b"
         );
         assert_eq!(usage("x\u{1b}[31m"), "config_unknown_key:x[31m");
+    }
+
+    #[test]
+    fn paths_must_be_absolute_without_parent_steps() {
+        assert!(absolute_path("k", "/opt/cemu").is_ok());
+        assert!(absolute_path("k", "/opt/../etc").is_err());
+        assert!(absolute_path("k", "opt/cemu").is_err());
+    }
+
+    #[test]
+    fn tables_with_settable_keys_are_known() {
+        assert!(is_table("emulators.cemu").unwrap());
+        assert!(is_table("emulators.cemu.games").unwrap());
+        assert!(is_table("leases").unwrap());
+        assert!(!is_table("emulators.nope").unwrap());
+        assert!(!is_table("emulators.cemu.other").unwrap());
     }
 
     #[test]

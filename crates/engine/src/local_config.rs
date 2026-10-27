@@ -168,10 +168,60 @@ impl LocalConfig {
 
     /// # Errors
     /// `Config` if it can't be serialised; `Io` if the atomic write fails.
+    ///
+    /// The user's comments and key order survive: the new values are merged into the file
+    /// as it is on disk (config-and-cli §Config file).
     pub fn save(&self, path: &Path) -> Result<(), EngineError> {
-        let text = toml::to_string(self).map_err(|e| EngineError::Config(e.to_string()))?;
+        let fresh = toml::to_string(self).map_err(|e| EngineError::Config(e.to_string()))?;
+        let text = match std::fs::read_to_string(path)
+            .ok()
+            .and_then(|old| old.parse::<toml_edit::DocumentMut>().ok())
+        {
+            Some(mut doc) => {
+                let new: toml_edit::DocumentMut = fresh
+                    .parse()
+                    .map_err(|e: toml_edit::TomlError| EngineError::Config(e.to_string()))?;
+                merge(doc.as_table_mut(), new.as_table());
+                doc.to_string()
+            }
+            None => fresh,
+        };
         fsx::write_atomic(path, text.as_bytes())?;
         Ok(())
+    }
+}
+
+/// Makes `old` hold `new`'s values, keeping `old`'s comments and order where keys survive.
+fn merge(old: &mut dyn toml_edit::TableLike, new: &dyn toml_edit::TableLike) {
+    let gone: Vec<String> = old
+        .iter()
+        .map(|(k, _)| k.to_owned())
+        .filter(|k| !new.contains_key(k))
+        .collect();
+    for k in gone {
+        old.remove(&k);
+    }
+    for (k, n) in new.iter() {
+        let same = match (old.get_mut(k), n) {
+            (Some(o), n) if o.is_table_like() && n.is_table_like() => {
+                if let (Some(o), Some(n)) = (o.as_table_like_mut(), n.as_table_like()) {
+                    merge(o, n);
+                }
+                true
+            }
+            (Some(toml_edit::Item::Value(o)), toml_edit::Item::Value(n)) => {
+                if o.to_string().trim() != n.to_string().trim() {
+                    let decor = o.decor().clone();
+                    *o = n.clone();
+                    *o.decor_mut() = decor;
+                }
+                true
+            }
+            _ => false,
+        };
+        if !same {
+            old.insert(k, n.clone());
+        }
     }
 }
 
@@ -179,6 +229,23 @@ impl LocalConfig {
 mod tests {
     use super::*;
     use lemusync_core::VersionId;
+
+    #[test]
+    fn save_keeps_the_users_comments() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        let mut c = sample();
+        let text = format!("# mine\n{}", toml::to_string(&c).unwrap())
+            .replace("conflict_policy", "# policy\nconflict_policy");
+        std::fs::write(&path, &text).unwrap();
+        c.grants.push(PathBuf::from("/home/u/other"));
+        c.repo = None;
+        c.save(&path).unwrap();
+        let saved = std::fs::read_to_string(&path).unwrap();
+        assert!(saved.starts_with("# mine\n"), "{saved}");
+        assert!(saved.contains("# policy\nconflict_policy"), "{saved}");
+        assert_eq!(LocalConfig::parse(&saved).unwrap(), c);
+    }
 
     fn sample() -> LocalConfig {
         let mut c = LocalConfig::new(DeviceId(VersionId::from_parts(1, [3; 10])), "fedora-pc");

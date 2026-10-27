@@ -21,6 +21,7 @@ Resolved with the `directories` crate:
 - The engine validates on load and hot-reloads on change. If the file is invalid, the engine keeps the last good config and reports the error (status `Error`, CLI exit code 3).
 - Secrets are **never** stored here ([security §Credentials](security.md#credentials)).
 - The UI writes the same file through the engine API, so hand edits and UI edits never fight.
+- Every engine write (`config set`, `grant add`, `init`, `backend add`…) merges the new values into the file on disk, so the user's comments and key order survive (`LocalConfig::save`, `toml_edit`).
 
 ## Commands
 Every command supports `--json` (stable English keys, versioned) and `--help`. Human-readable output is localised.
@@ -50,15 +51,15 @@ Every command supports `--json` (stable English keys, versioned) and `--help`. H
 
 The Phase 1 first slice ships `init`, `join`, `backend add/login`, `grant add/list`, `players add/list`, `scan`, `accounts map/recover`, `sync [--dry-run] [--yes]`, `status`, `history`, `restore` and `doctor` ([plan](../progress/plans/phase-1-first-sync.md)). M1b adds `play`, `conflicts`, `resolve <game> <version> [--as <player>]`, `lease status`, `lease release --force <game>` and `accounts create` ([plan](../progress/plans/phase-1b-play.md)). `--as` defaults to the only player in the repo. `config path|list|get|set|unset` reads and changes this file (below).
 
-**`config`.** Keys are dotted paths. `list` shows every value (defaults included) and `get` one; both take `--json` (`{"api_version", "values": {key: value}}` and `{"api_version", "key", "value"}`; an unset key is `null`). `path` prints the file's path. `set`/`unset` change only the settable keys below. The edit keeps the user's comments and key order (`toml_edit`), is parsed back into the config and refused if invalid, and is written atomically under the engine's state lock. A bad value, an unknown key or emulator, or a managed key is a usage error (exit 2) and leaves the file byte-identical. `unset` returns a key to its default and removes tables it leaves empty. Code: `crates/engine/src/config_keys.rs`, `crates/cli/src/config_cmd.rs`.
+**`config`.** Keys are dotted paths. `list` shows every value (defaults included) and `get` one key or a whole table as one object (`backend`, `leases`, `emulators.<id>`); both take `--json` (`{"api_version", "values": {key: value}}` and `{"api_version", "key", "value"}`; an unset key is `null`). `path` prints the file's path. `set`/`unset` change only the settable keys below. The edit keeps the user's comments and key order (`toml_edit`), is parsed back into the config and refused if invalid, and is written atomically under the engine's state lock. A bad value, an unknown key or emulator, or a managed key is a usage error (exit 2) and leaves the file byte-identical. `unset` returns a key to its default and removes tables it leaves empty. Code: `crates/engine/src/config_keys.rs`, `crates/cli/src/config_cmd.rs`.
 
 | Key | Type | Owner |
 |---|---|---|
 | `conflict_policy` | `ask` \| `newest` | `config set` |
 | `leases.ttl_secs` | integer, 120–86400 | `config set` |
-| `emulators.<id>.root` | absolute path | `config set` |
+| `emulators.<id>.root` | absolute path, no `..` (`scan` still needs it inside a grant, B2) | `config set` |
 | `emulators.<id>.exe` | list of words (`set` takes several) | `config set` |
-| `emulators.<id>.games.<game>` | absolute path; the game key is lowercased like `play` | `config set` |
+| `emulators.<id>.games.<game>` | absolute path, no `..`; the game key is lowercased like `play` | `config set` |
 | `repo` | repo id | `init` / `join` |
 | `backend.*` | backend reference | `backend add` |
 | `grants` | list of folders | `grant add` (B2: grants change only there) |
