@@ -386,18 +386,13 @@ fn games_lists_detected_games_offline_in_both_languages() {
     );
     let es = run(r, "es_MX.UTF-8", &["games"]);
     assert!(String::from_utf8_lossy(&es.stdout).contains("del emulador"));
-    // The user's path wins.
-    config_ok(
-        r,
-        &[
-            "set",
-            "emulators.cemu.games.1FFFFF00",
-            "/elsewhere/game.wux",
-        ],
-    );
+    // The user's path wins. It must be absolute on the host OS.
+    let elsewhere = r.join("elsewhere").join("game.wux");
+    let elsewhere = elsewhere.to_str().unwrap();
+    config_ok(r, &["set", "emulators.cemu.games.1FFFFF00", elsewhere]);
     let json = run(r, "en_US.UTF-8", &["--json", "games"]);
     let json: serde_json::Value = serde_json::from_slice(&json.stdout).unwrap();
-    assert_eq!(json["games"][0]["path"], "/elsewhere/game.wux");
+    assert_eq!(json["games"][0]["path"], elsewhere);
     assert_eq!(json["games"][0]["source"], "config");
     assert_eq!(json["games"][0]["name"], "Synthetic Game");
 }
