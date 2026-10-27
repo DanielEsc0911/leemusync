@@ -58,7 +58,7 @@ Defined in `crates/api`, versioned (`api_version`), and identical in-process and
 - **Commands:** status · sync now · pause/resume · list games · history · restore version · resolve conflict · start/end play session · players CRUD · account mappings · devices · backends CRUD/test · grants CRUD · settings get/set · profiles list/validate · diagnostics.
 - **Events (stream):** `StatusChanged` · `SessionChanged` · `ConflictDetected` · `LeaseWarning` · `TransferProgress` · `ConnectionEvent` · `Error`.
 - **`TransferProgress`** (`crates/api/src/lib.rs`): player, emulator, game, phase (`checking`, `uploading`, `downloading`) and files and bytes done out of the phase's total. The engine sends it to the sink set with `Engine::set_progress` during `sync`, `restore` and `accounts recover`. Sync and restore reports carry what each stream moved (`files`, `bytes`).
-- **`ConnectionEvent`** (`crates/api/src/lib.rs`): `retrying` (operation, attempt, max attempts, delay in ms) while the store retries a transient error, and `recovered` on the first success after that. The engine sends it to the sink set with `Engine::set_connection_sink` for every backend call ([reliability §Network](reliability.md#network)).
+- **`ConnectionEvent`** (`crates/api/src/lib.rs`): `retrying` (operation, attempt, max attempts, delay in ms) while the store retries a transient error, and `recovered` once, on a success when no other request is still retrying. The engine sends it to the sink set with `Engine::set_connection_sink` for every backend call ([reliability §Network](reliability.md#network)).
 - **One status model** feeds every surface: tray, notifications, Live Updates, Live Activities, UI ([status-and-notifications](ui/status-and-notifications.md)).
 
 ## IPC
