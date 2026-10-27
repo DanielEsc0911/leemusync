@@ -362,8 +362,13 @@ mod tests {
 
     #[test]
     fn paths_must_be_absolute_without_parent_steps() {
-        assert!(absolute_path("k", "/opt/cemu").is_ok());
-        assert!(absolute_path("k", "/opt/../etc").is_err());
+        // Absolute means absolute on the host: "/opt/cemu" has no drive on
+        // Windows, so build the paths from the temp dir.
+        let base = std::env::temp_dir();
+        let ok = base.join("opt").join("cemu");
+        let up = base.join("opt").join("..").join("etc");
+        assert!(absolute_path("k", ok.to_str().unwrap()).is_ok());
+        assert!(absolute_path("k", up.to_str().unwrap()).is_err());
         assert!(absolute_path("k", "opt/cemu").is_err());
     }
 
