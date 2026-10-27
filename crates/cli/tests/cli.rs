@@ -184,11 +184,82 @@ fn play_commands_fail_with_the_spec_exit_codes() {
     for args in [
         &["--json", "conflicts"][..],
         &["--json", "lease", "status"],
-        &["--json", "play", "cemu", "101c9400"],
+        &["--json", "play", "101c9400"],
     ] {
         let out = run(root.path(), "en_US.UTF-8", args);
         assert_eq!(out.status.code(), Some(2), "{args:?}: no repo yet");
     }
+}
+
+fn error_code(out: &Output) -> String {
+    let json: serde_json::Value = serde_json::from_slice(&out.stdout).expect("JSON error");
+    json["error"]["code"]
+        .as_str()
+        .unwrap_or_default()
+        .to_owned()
+}
+
+#[test]
+fn every_game_argument_takes_an_alias_key_or_name() {
+    let root = tempfile::tempdir().unwrap();
+    let r = root.path();
+    cemu_with_a_game(r);
+    config_ok(r, &["set", "aliases.sg", "cemu/1fffff00"]);
+    // The game resolves, so each command gets as far as needing the repo.
+    for game in [
+        "sg",
+        "synthetic game",
+        "\"Synthetic Game (USA)\"",
+        "1FFFFF00",
+    ] {
+        for args in [
+            &["--json", "play", game, "--as", "p1"][..],
+            &["--json", "play", game, "--emu", "cemu"],
+            &["--json", "history", game],
+            &["--json", "restore", game, "v", "--yes"],
+            &["--json", "lease", "release", "--force", game],
+        ] {
+            let out = run(r, "en_US.UTF-8", args);
+            assert_eq!(out.status.code(), Some(2), "{args:?}");
+            assert_eq!(error_code(&out), "not_set_up", "{args:?}: {out:?}");
+        }
+    }
+    // Unknown: a localized not-found error that points at `lemusync games`.
+    let out = run(r, "en_US.UTF-8", &["play", "zelda breath", "--as", "p1"]);
+    assert_eq!(out.status.code(), Some(2));
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        err.contains("There's no game zelda breath") && err.contains("lemusync games"),
+        "{err}"
+    );
+    let es = run(r, "es_MX.UTF-8", &["history", "zelda breath"]);
+    assert!(
+        String::from_utf8_lossy(&es.stderr).contains("No hay ningún juego zelda breath"),
+        "{es:?}"
+    );
+    // Ambiguous: every candidate, and how to pick one.
+    add_game(r, "Twin", "000500001FFFFF01", "Synthetic Game (EUR)");
+    let out = run(r, "en_US.UTF-8", &["play", "synthetic game"]);
+    assert_eq!(out.status.code(), Some(2));
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        err.contains("cemu/1fffff00")
+            && err.contains("cemu/1fffff01")
+            && err.contains("--emu")
+            && err.contains("games alias"),
+        "{err}"
+    );
+    // The alias still picks one.
+    let out = run(r, "en_US.UTF-8", &["--json", "play", "sg"]);
+    assert_eq!(error_code(&out), "not_set_up", "{out:?}");
+    // The old `play <emulator> <game>` form is a usage error.
+    let out = run(r, "en_US.UTF-8", &["play", "cemu", "1fffff00"]);
+    assert_eq!(out.status.code(), Some(2));
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        err.contains("unexpected argument '1fffff00'") && err.contains("Usage: lemusync play"),
+        "{err}"
+    );
 }
 
 fn config_json(root: &Path, args: &[&str]) -> serde_json::Value {

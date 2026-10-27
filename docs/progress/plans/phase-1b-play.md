@@ -181,7 +181,7 @@ Maintainer, Fedora + CachyOS, R2 repo from M1a, release binaries from this branc
 
 - [x] **B0: Set up.** On each PC: `lemusync` config `[emulators.cemu] exe` (Flatpak on Fedora, `/usr/bin/cemu` on CachyOS) and `games.101c9400 = "<BotW path>"`. `lemusync sync`, `lemusync doctor`: all ok.
 - [x] **B1: Account creation.** On the PC missing a player's account: `lemusync accounts create "<player>" cemu`, confirm, open Cemu, select the account, check BotW shows that player's save. **V-ACC-4:** first, in a scratch Cemu tree, create one account in Cemu itself and keep its `account.dat` (online fields empty) to replace the hand-built fixtures in `profiles/fixtures/cemu/account-create/`. Delete the hand-made M1a accounts only if the maintainer wants to.
-- [x] **B2: SC1.** Each player runs `lemusync play cemu 101c9400 --as "<player>"` on a different PC at the same time, plays 10 min, quits. Both syncs upload; `lemusync conflicts` is empty; `lease status` empty.
+- [x] **B2: SC1.** Each player runs `lemusync play 101c9400 --as "<player>"` on a different PC at the same time, plays 10 min, quits. Both syncs upload; `lemusync conflicts` is empty; `lease status` empty.
 - [x] **B3: SC2.** Player 1 plays on Fedora, quits, then `play` on CachyOS: the game starts with the progress just made.
 - [x] **B4: SC3.** Same player starts `play` on both PCs; on the second choose "play anyway"; save on both; quit. `lemusync conflicts` shows 2 heads; `resolve` one; the other is still in `history` and `restore` brings it back.
 - [x] **B5: SC5 spot check.** During a `play` upload, pull the network cable, then `kill -9` a sync mid-restore; rerun `lemusync sync`: no corruption, BotW loads.

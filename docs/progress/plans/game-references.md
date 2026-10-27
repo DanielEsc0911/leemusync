@@ -72,9 +72,16 @@
 
 When `--as` is omitted, `play` keeps its current default-player behaviour. `history` and `restore` used to require a player; now they use that same default and fail with the existing "which player?" error when it's ambiguous. Add a test for that.
 
-- [ ] **Step 1: failing CLI tests:**
+- [x] **Step 1: failing CLI tests:**
   - `play botw --as p1` and `play "breath of the wild" --as p1` launch the same game;
   - an ambiguous query exits with a usage error that lists the candidates and suggests `--emu` or an alias;
   - an unknown game exits with a localized not-found error that suggests `lemusync games`;
   - the old `play cemu 101c9400` form now fails with a clear usage message.
-- [ ] **Step 2: implement**, then update every example in the docs that uses the old shapes (`grep -rn "play cemu\|history \|restore \|resolve \|lease release" docs/ crates/`), and change the bridge or `docs/specs/ui/navigation.md` only if they mirror these arguments. CHANGELOG, board row, `just check`, commit `feat(cli)!: games by alias or name in every command`.
+- [x] **Step 2: implement**, then update every example in the docs that uses the old shapes (`grep -rn "play cemu\|history \|restore \|resolve \|lease release" docs/ crates/`), and change the bridge or `docs/specs/ui/navigation.md` only if they mirror these arguments. CHANGELOG, board row, `just check`, commit `feat(cli)!: games by alias or name in every command`.
+
+### Deviations (found while implementing)
+- `resolve` takes the emulator filter as a parameter: `resolve(query, emulator: Option<&str>, candidates)`.
+- The engine's `play`, `history`, `restore`, `resolve` and `lease_release_game` keep taking a resolved emulator and key. The CLI resolves first with `Engine::resolve_game` (`crates/engine/src/game_refs.rs`), which gathers the candidates (catalog, aliases, repo streams).
+- `config set aliases.<alias>` works offline, so it checks the game against this device's catalog only; `games alias` also accepts a game known only from the repo.
+- `emulators.<id>.games.<game>` accepts an alias of one of `<id>`'s games in place of the key.
+- The old `play <emulator> <game>` form fails with clap's own usage error (`unexpected argument`, exit 2).

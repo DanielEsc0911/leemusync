@@ -66,22 +66,27 @@ enum Cmd {
     },
     Status,
     History {
-        player: String,
-        emulator: String,
         game: String,
+        #[arg(long)]
+        emu: Option<String>,
+        #[arg(long = "as")]
+        player: Option<String>,
     },
     Restore {
-        player: String,
-        emulator: String,
         game: String,
         what: String,
+        #[arg(long)]
+        emu: Option<String>,
+        #[arg(long = "as")]
+        player: Option<String>,
         #[arg(long)]
         yes: bool,
     },
     Doctor,
     Play {
-        emulator: String,
         game: String,
+        #[arg(long)]
+        emu: Option<String>,
         #[arg(long = "as")]
         player: Option<String>,
         #[arg(last = true)]
@@ -278,7 +283,11 @@ async fn player_of(engine: &mut Engine, given: Option<&String>) -> Result<String
     if let Some(p) = given {
         return Ok(p.clone());
     }
-    let mut players = engine.players_list().await?;
+    pick_player(engine.players_list().await?)
+}
+
+/// The only player in the repo; "which player?" otherwise.
+fn pick_player(mut players: Vec<String>) -> Result<String, EngineError> {
     if players.len() == 1 {
         Ok(players.remove(0))
     } else {
@@ -297,11 +306,12 @@ fn now_ms() -> i64 {
 async fn run_play(engine: &mut Engine, cmd: &Cmd, t: &I18n, json: bool) -> Result<u8, EngineError> {
     match cmd {
         Cmd::Play {
-            emulator,
             game,
+            emu,
             player,
             args,
         } => {
+            let (emulator, game) = &engine.resolve_game(game, emu.as_deref()).await?;
             let player = player_of(engine, player.as_ref()).await?;
             let p = play::TermPrompt {
                 lang: I18n::env_lang(),
@@ -359,11 +369,15 @@ async fn run_play(engine: &mut Engine, cmd: &Cmd, t: &I18n, json: bool) -> Resul
             let keep: VersionId = version
                 .parse()
                 .map_err(|_| EngineError::Usage(format!("version_invalid:{version}")))?;
-            let game = game.to_lowercase();
+            let (emulator, game) = engine.resolve_game(game, None).await?;
             let (list, _) = engine.conflicts().await?;
             let mut found: Vec<_> = list
                 .iter()
-                .filter(|c| c.game == game && player.as_ref().is_none_or(|p| *p == c.player))
+                .filter(|c| {
+                    c.game == game
+                        && c.emulator == emulator
+                        && player.as_ref().is_none_or(|p| *p == c.player)
+                })
                 .collect();
             let c = match found.len() {
                 0 => return Err(EngineError::Usage(format!("no_conflict:{game}"))),
@@ -404,6 +418,7 @@ async fn run_play(engine: &mut Engine, cmd: &Cmd, t: &I18n, json: bool) -> Resul
         Cmd::Lease {
             cmd: LeaseCmd::Release { game, .. },
         } => {
+            let (_, game) = &engine.resolve_game(game, None).await?;
             let released = engine.lease_release_game(game).await?;
             if json {
                 output::json(&serde_json::json!({
@@ -820,11 +835,9 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
                 output::status(t, &report);
             }
         }
-        Cmd::History {
-            player,
-            emulator,
-            game,
-        } => {
+        Cmd::History { game, emu, player } => {
+            let (emulator, game) = &engine.resolve_game(game, emu.as_deref()).await?;
+            let player = &player_of(&mut engine, player.as_ref()).await?;
             let report = engine.history(player, emulator, game).await?;
             if json {
                 output::json(&report);
@@ -833,12 +846,14 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
             }
         }
         Cmd::Restore {
-            player,
-            emulator,
             game,
             what,
+            emu,
+            player,
             yes,
         } => {
+            let (emulator, game) = &engine.resolve_game(game, emu.as_deref()).await?;
+            let player = &player_of(&mut engine, player.as_ref()).await?;
             if !*yes {
                 let question = t.t(
                     "prompt-restore",
@@ -876,4 +891,19 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
         }
     }
     Ok(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_default_player_is_the_only_one_else_which_player() {
+        assert_eq!(pick_player(vec!["Ana".into()]).unwrap(), "Ana");
+        for players in [vec![], vec!["Ana".to_owned(), "Bea".to_owned()]] {
+            assert!(
+                matches!(pick_player(players), Err(EngineError::Usage(k)) if k == "player_needed")
+            );
+        }
+    }
 }

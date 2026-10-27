@@ -32,12 +32,12 @@ Every command supports `--json` (stable English keys, versioned) and `--help`. H
 | `lemusync join` | Join an existing repo (passphrase or recovery key) |
 | `lemusync status` | Engine state, pending transfers, conflicts, leases |
 | `lemusync sync [--dry-run]` | Sync now |
-| `lemusync play <emulator> <game> [--as <player>] [-- <args>]` | Launcher mode |
+| `lemusync play <game> [--emu <id>] [--as <player>] [-- <args>]` | Launcher mode. `<game>` is an alias, key or name ([Game references](#commands)), e.g. `lemusync play botw --as daniel` |
 | `lemusync games [--json]` | Installed games on this device: emulator, key, name (the key when none is known), path, where it was found (`config`, `emulator`, `scan`) and its aliases (`aliases`, absent when none). Local and offline, no storage access ([Game discovery](emulator-profiles.md#game-discovery)). Code: `crates/cli/src/games_cmd.rs` |
 | `lemusync games alias <game> <alias> [--emu <id>]` / `games unalias <alias>` | Give a game a short name, or remove it ([Game references](#commands)) |
-| `lemusync history <game>` / `restore <game> <version>` | Browse and restore |
-| `lemusync conflicts` / `resolve <game> <version>` | Conflict handling |
-| `lemusync lease status` / `lease release --force` | Lease handling |
+| `lemusync history <game> [--emu <id>] [--as <player>]` / `restore <game> <version> [--emu <id>] [--as <player>] [--yes]` | Browse and restore |
+| `lemusync conflicts` / `resolve <game> <version> [--as <player>]` | Conflict handling |
+| `lemusync lease status` / `lease release --force <game>` | Lease handling |
 | `lemusync players add/list` / `accounts map <player> <emulator> <id> [--keep\|--replace]` | Players and account mappings |
 | `lemusync accounts recover <emulator> <id> --player <name>` | Upload an orphaned save folder as a player's first version |
 | `lemusync accounts create <player> <emulator> [--name <name>] [--yes]` | Write a new emulator account from profile data, map it to the player, then sync to restore their saves ([players-and-accounts](players-and-accounts.md#creating-a-cemu-account-sp8)) |
@@ -51,7 +51,7 @@ Every command supports `--json` (stable English keys, versioned) and `--help`. H
 | `lemusync logs [--follow]` | Local, redacted logs |
 | `lemusync doctor` | Diagnose permissions, paths, keystore, battery/background settings, clock skew |
 
-The Phase 1 first slice ships `init`, `join`, `backend add/login`, `grant add/list`, `players add/list`, `scan`, `accounts map/recover`, `sync [--dry-run] [--yes]`, `status`, `history`, `restore` and `doctor` ([plan](../progress/plans/phase-1-first-sync.md)). M1b adds `play`, `conflicts`, `resolve <game> <version> [--as <player>]`, `lease status`, `lease release --force <game>` and `accounts create` ([plan](../progress/plans/phase-1b-play.md)). `--as` defaults to the only player in the repo. `config path|list|get|set|unset` reads and changes this file (below).
+The Phase 1 first slice ships `init`, `join`, `backend add/login`, `grant add/list`, `players add/list`, `scan`, `accounts map/recover`, `sync [--dry-run] [--yes]`, `status`, `history`, `restore` and `doctor` ([plan](../progress/plans/phase-1-first-sync.md)). M1b adds `play`, `conflicts`, `resolve <game> <version> [--as <player>]`, `lease status`, `lease release --force <game>` and `accounts create` ([plan](../progress/plans/phase-1b-play.md)). Every `<game>` argument goes through the [game references](#commands) resolver, and `--emu <id>` narrows it to one emulator. `--as` defaults to the only player in the repo, for `history` and `restore` too; with several players it's the "which player?" usage error (`player_needed`). The older `play <emulator> <game>` and `history`/`restore <player> <emulator> <game>` shapes were removed before alpha, with no compatibility form. `config path|list|get|set|unset` reads and changes this file (below).
 
 **`config`.** Keys are dotted paths. `list` shows every value (defaults included) and `get` one key or a whole table as one object (`backend`, `leases`, `emulators.<id>`); both take `--json` (`{"api_version", "values": {key: value}}` and `{"api_version", "key", "value"}`; an unset key is `null`). `path` prints the file's path. `set`/`unset` change only the settable keys below. The edit keeps the user's comments and key order (`toml_edit`), is parsed back into the config and refused if invalid, and is written atomically under the engine's state lock. A bad value, an unknown key or emulator, or a managed key is a usage error (exit 2) and leaves the file byte-identical. `unset` returns a key to its default and removes tables it leaves empty. Code: `crates/engine/src/config_keys.rs`, `crates/cli/src/config_cmd.rs`.
 

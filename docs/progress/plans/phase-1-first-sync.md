@@ -9360,11 +9360,11 @@ Found in Task 17c Step 7: a sync after a short play session took 52 s and printe
     lemusync doctor                                 # all ok
     ```
 
-- [x] **A2: First push.** `lemusync sync --dry-run` (expect `uploaded` for BotW), then `lemusync sync` (answer yes: the panic backup exists). `lemusync history "<Fedora player>" cemu 101c9400` shows 1 version. Run `lemusync sync` again: `up to date`.
+- [x] **A2: First push.** `lemusync sync --dry-run` (expect `uploaded` for BotW), then `lemusync sync` (answer yes: the panic backup exists). `lemusync history 101c9400 --as "<Fedora player>"` shows 1 version. Run `lemusync sync` again: `up to date`.
 - [x] **A3: Play.** Open Cemu, play BotW and save in game. While it's open, run `lemusync sync`: BotW is skipped with "emulator running", and `doctor` shows `cemu running running`. Close Cemu.
 - [x] **A4: Second push.** `lemusync sync --dry-run` (expect `uploaded`), `lemusync sync`, then `history`: 2 versions, the newest is the head and its parent is the first. Record object counts and timings from the R2 dashboard if notable.
 - [x] **A5: Check without copying.** Compare names and hashes of `user/80000001` with what `history` reports (files and bytes of the head). Open Cemu once more and confirm the save is where you left it.
-- [ ] **A6 (optional): Restore round trip.** `lemusync restore "<Fedora player>" cemu 101c9400 <first version id>`, then check it in Cemu and close it. A `sync` now uploads that old state as a new version on top. To go back, `restore … <the A4 version id>` and `sync` again. History is never rewritten, and every pre-restore copy is in `~/.local/share/lemusync/history/`.
+- [ ] **A6 (optional): Restore round trip.** `lemusync restore 101c9400 <first version id> --as "<Fedora player>"`, then check it in Cemu and close it. A `sync` now uploads that old state as a new version on top. To go back, `restore … <the A4 version id>` and `sync` again. History is never rewritten, and every pre-restore copy is in `~/.local/share/lemusync/history/`.
 
 **Part B: both PCs** (after Part A; rewritten 2026-10-20). The repo already exists on R2 from Part A, so CachyOS **joins** it. The Fedora player (named in Part A; `lemusync players list` shows the exact name) gets a new Cemu account on CachyOS, and the CachyOS player gets a new one on Fedora. Use each PC's own release binary built from the branch below. Cemu is closed unless a step says otherwise.
 

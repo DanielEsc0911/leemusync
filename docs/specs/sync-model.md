@@ -67,6 +67,7 @@ Advisory per-stream locks so two devices don't play the same player's save at on
 Steps 2 and 6 drive the live status surfaces ([status-and-notifications](ui/status-and-notifications.md)).
 
 M1b (`Engine::play`, `PlayReport`):
+- `lemusync play <game>` first resolves `<game>` (an alias, key or loosely typed name) to one emulator and key ([config-and-cli §Game references](config-and-cli.md#commands)); an unknown or ambiguous game stops before anything else happens.
 - The game's path comes from the device's game catalog (`Engine::games`, [emulator-profiles §Game discovery](emulator-profiles.md#game-discovery)): the user's `games.<key>` first, then a game found in the emulator's own game folders, then one in the user's `game_dirs`. So `play` works for any installed game without config. A game no source knows is a usage error `game_not_found` that suggests `lemusync games` and `lemusync config set emulators.<id>.games.<key> <path>`. Names in the catalog are found on each device, never stored in the repo ([D34](../decisions.md#d34-game-names-are-found-on-each-device-never-stored-in-the-repo-2026-10-27)); a device without the game shows the bare key. Sync itself is driven by save folders and doesn't need the catalog.
 - Refused with `emulator_running` if the emulator is already open (the profile's process names), checked before the pull and again right before launch (I3).
 - Steps 2 and 6 are a sync of that one stream. A conflict at step 2 asks the player for a head (a resolution version) or "play this device's copy".
