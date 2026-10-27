@@ -111,6 +111,6 @@ Swapping works the same way, but at container granularity: the whole memory card
 
 ## Verify
 - **V-ACC-1** Same Cemu layout and `account.dat` format on Windows and macOS. Deferred by the maintainer on 2026-10-08 (spike SP7 device pass). The second Linux install (CachyOS) is done ([above](#cemu-accounts-sp7)).
-- **V-ACC-4** Capture a Cemu-written `account.dat` from a scratch tree on the M1b test day ([phase-1b-play](../progress/plans/phase-1b-play.md) Task 9 B1) and replace the hand-built golden fixtures in `profiles/fixtures/cemu/account-create/` (the SP8 scratch tree was deleted).
+- **V-ACC-4** Capture a Cemu-written `account.dat` from a scratch tree on the M1b test day ([phase-1b-play](../progress/plans/phase-1b-play.md) Task 9 B1) and replace the hand-built golden fixtures in `profiles/fixtures/cemu/account-create/` (the SP8 scratch tree was deleted). Deferred by the maintainer on 2026-10-27; the hand-built fixtures stay until then.
 - **V-ACC-2** RPCS3 and Yuzu-family layouts (Phase 6 profile work).
 [cemu-launch]: https://github.com/cemu-project/Cemu/blob/main/src/config/LaunchSettings.cpp
