@@ -4,31 +4,31 @@
 use std::path::Path;
 
 const ALLOWED: &[(&str, &[&str])] = &[
-    ("leemusync-core", &[]),
-    ("leemusync-crypto", &[]),
-    ("leemusync-store", &[]),
-    ("leemusync-api", &[]),
+    ("lemusync-core", &[]),
+    ("lemusync-crypto", &[]),
+    ("lemusync-store", &[]),
+    ("lemusync-api", &[]),
     (
-        "leemusync-engine",
+        "lemusync-engine",
         &[
-            "leemusync-core",
-            "leemusync-crypto",
-            "leemusync-store",
-            "leemusync-api",
+            "lemusync-core",
+            "lemusync-crypto",
+            "lemusync-store",
+            "lemusync-api",
         ],
     ),
-    ("leemusync-ipc", &["leemusync-api"]),
+    ("lemusync-ipc", &["lemusync-api"]),
     (
-        "leemusync-daemon",
-        &["leemusync-api", "leemusync-engine", "leemusync-ipc"],
+        "lemusync-daemon",
+        &["lemusync-api", "lemusync-engine", "lemusync-ipc"],
     ),
     (
-        "leemusync-cli",
-        &["leemusync-api", "leemusync-engine", "leemusync-ipc"],
+        "lemusync-cli",
+        &["lemusync-api", "lemusync-engine", "lemusync-ipc"],
     ),
     (
-        "leemusync-bridge",
-        &["leemusync-api", "leemusync-engine", "leemusync-ipc"],
+        "lemusync-bridge",
+        &["lemusync-api", "lemusync-engine", "lemusync-ipc"],
     ),
 ];
 
@@ -46,7 +46,7 @@ pub(crate) fn check(root: &Path) -> Result<(), Vec<String>> {
                 // Normal dependencies only; dev/build dependencies may cross layers.
                 .filter(|dep| dep["kind"].is_null())
                 .filter_map(|dep| dep["name"].as_str())
-                .filter(|dep| dep.starts_with("leemusync-"))
+                .filter(|dep| dep.starts_with("lemusync-"))
                 .map(str::to_string)
                 .collect();
             (name, internal)
@@ -58,7 +58,7 @@ pub(crate) fn check(root: &Path) -> Result<(), Vec<String>> {
 fn violations(graph: &[(String, Vec<String>)]) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
     for (name, deps) in graph {
-        if !name.starts_with("leemusync-") {
+        if !name.starts_with("lemusync-") {
             continue;
         }
         let Some((_, allowed)) = ALLOWED
@@ -97,7 +97,7 @@ mod tests {
     #[test]
     fn allows_downward_dependency() {
         assert_eq!(
-            violations(&graph("leemusync-engine", &["leemusync-core"])),
+            violations(&graph("lemusync-engine", &["lemusync-core"])),
             Ok(())
         );
     }
@@ -105,15 +105,15 @@ mod tests {
     #[test]
     fn rejects_upward_dependency() {
         assert_eq!(
-            violations(&graph("leemusync-core", &["leemusync-engine"])),
+            violations(&graph("lemusync-core", &["lemusync-engine"])),
             Err(vec![
-                "leemusync-core must not depend on leemusync-engine".to_string()
+                "lemusync-core must not depend on lemusync-engine".to_string()
             ])
         );
     }
 
     #[test]
     fn rejects_crate_missing_from_table() {
-        assert!(violations(&graph("leemusync-extra", &[])).is_err());
+        assert!(violations(&graph("lemusync-extra", &[])).is_err());
     }
 }

@@ -105,7 +105,7 @@ jobs:
       - name: Build CLI and daemon
         run: |
           rustup toolchain install
-          cargo build --release --locked -p leemusync-cli -p leemusync-daemon
+          cargo build --release --locked -p lemusync-cli -p lemusync-daemon
       - name: Build the Flutter app
         working-directory: app
         run: flutter build linux --release
@@ -137,10 +137,10 @@ jobs:
           for pair in x86_64:x86_64-unknown-linux-gnu aarch64:aarch64-unknown-linux-gnu armv7:armv7-unknown-linux-gnueabihf; do
             arch="${pair%%:*}"; target="${pair#*:}"
             rustup target add "$target"
-            cargo build --release --locked --target "$target" -p leemusync-cli -p leemusync-daemon
-            rm -rf dist/headless && mkdir -p dist/headless/leemusync/bin
-            cp "target/$target/release/leemusync" "target/$target/release/leemusyncd" dist/headless/leemusync/bin/
-            tar -C dist/headless -czf "dist/out/leemusync-${VERSION}-linux-${arch}-headless.tar.gz" leemusync
+            cargo build --release --locked --target "$target" -p lemusync-cli -p lemusync-daemon
+            rm -rf dist/headless && mkdir -p dist/headless/lemusync/bin
+            cp "target/$target/release/lemusync" "target/$target/release/lemusyncd" dist/headless/lemusync/bin/
+            tar -C dist/headless -czf "dist/out/lemusync-${VERSION}-linux-${arch}-headless.tar.gz" lemusync
           done
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -175,7 +175,7 @@ jobs:
       - name: Build CLI and daemon
         run: |
           rustup toolchain install
-          cargo build --release --locked -p leemusync-cli -p leemusync-daemon
+          cargo build --release --locked -p lemusync-cli -p lemusync-daemon
       - name: Build the Flutter app
         working-directory: app
         run: flutter build windows --release
@@ -186,15 +186,15 @@ jobs:
           bin_dir="$(cygpath -w "$PWD/target/release")"
           out_dir="$(cygpath -w "$PWD/dist/out")"
           mkdir -p dist/out
-          LEEMUSYNC_VERSION="$VERSION" LEEMUSYNC_VERSION_NUMERIC="$numeric" \
-            LEEMUSYNC_GUI_DIR="$gui_dir" LEEMUSYNC_BIN_DIR="$bin_dir" \
-            iscc "//O$out_dir" packaging/windows/leemusync.iss
+          LEMUSYNC_VERSION="$VERSION" LEMUSYNC_VERSION_NUMERIC="$numeric" \
+            LEMUSYNC_GUI_DIR="$gui_dir" LEMUSYNC_BIN_DIR="$bin_dir" \
+            iscc "//O$out_dir" packaging/windows/lemusync.iss
           for pair in en:en-US:en-us es:es-ES:es-es; do
             lang="${pair%%:*}"; rest="${pair#*:}"; culture="${rest%%:*}"; wxl="${rest#*:}"
-            wix build packaging/windows/leemusync.wxs -arch x64 \
+            wix build packaging/windows/lemusync.wxs -arch x64 \
               -culture "$culture" -loc "packaging/windows/${wxl}.wxl" \
               -d "Version=$numeric" -d "GuiDir=$gui_dir" -d "BinDir=$bin_dir" \
-              -o "dist/out/leemusync-${VERSION}-windows-x64-${lang}.msi"
+              -o "dist/out/lemusync-${VERSION}-windows-x64-${lang}.msi"
           done
           rm -f dist/out/*.wixpdb
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -218,10 +218,10 @@ jobs:
           rustup toolchain install
           rustup target add aarch64-apple-darwin x86_64-apple-darwin
           for target in aarch64-apple-darwin x86_64-apple-darwin; do
-            cargo build --release --locked --target "$target" -p leemusync-cli -p leemusync-daemon
+            cargo build --release --locked --target "$target" -p lemusync-cli -p lemusync-daemon
           done
           mkdir -p dist/helpers
-          for bin in leemusync leemusyncd; do
+          for bin in lemusync lemusyncd; do
             lipo -create -output "dist/helpers/$bin" \
               "target/aarch64-apple-darwin/release/$bin" "target/x86_64-apple-darwin/release/$bin"
           done
@@ -231,8 +231,8 @@ jobs:
       - name: Package .dmg
         run: |
           mkdir -p dist/out
-          packaging/macos/make-dmg.sh app/build/macos/Build/Products/Release/LeemuSync.app dist/helpers \
-            "dist/out/leemusync-${VERSION}-macos-universal.dmg"
+          packaging/macos/make-dmg.sh app/build/macos/Build/Products/Release/LemuSync.app dist/helpers \
+            "dist/out/lemusync-${VERSION}-macos-universal.dmg"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: macos
@@ -260,7 +260,7 @@ jobs:
           ANDROID_KEYSTORE_BASE64: ${{ github.event_name != 'pull_request' && secrets.ANDROID_KEYSTORE_BASE64 || '' }}
         run: |
           if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
-            path="$RUNNER_TEMP/leemusync-release.jks"
+            path="$RUNNER_TEMP/lemusync-release.jks"
             printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$path"
             echo "ANDROID_KEYSTORE_PATH=$path" >> "$GITHUB_ENV"
             echo "suffix=" >> "$GITHUB_OUTPUT"
@@ -284,11 +284,11 @@ jobs:
           mkdir -p dist/out
           for abi in arm64-v8a armeabi-v7a x86_64; do
             cp "app/build/app/outputs/flutter-apk/app-${abi}-release.apk" \
-              "dist/out/leemusync-${VERSION}-android-${abi}${SUFFIX}.apk"
+              "dist/out/lemusync-${VERSION}-android-${abi}${SUFFIX}.apk"
           done
       - name: Remove the keystore
         if: always()
-        run: rm -f "$RUNNER_TEMP/leemusync-release.jks"
+        run: rm -f "$RUNNER_TEMP/lemusync-release.jks"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: android
@@ -324,12 +324,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-        run: gh release create "$GITHUB_REF_NAME" --draft --verify-tag --title "LeemuSync $VERSION" dist/*
+        run: gh release create "$GITHUB_REF_NAME" --draft --verify-tag --title "LemuSync $VERSION" dist/*
       - name: Upload combined artifact (manual runs)
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: leemusync-${{ env.VERSION }}
+          name: lemusync-${{ env.VERSION }}
           path: dist/*
           if-no-files-found: error
 
@@ -352,6 +352,6 @@ jobs:
           cat SHA256SUMS
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: leemusync-${{ env.VERSION }}
+          name: lemusync-${{ env.VERSION }}
           path: dist/*
           if-no-files-found: error

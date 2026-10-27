@@ -1,12 +1,12 @@
-//! `leemusync accounts map` (choices a/b, keep or replace) and `accounts recover`
+//! `lemusync accounts map` (choices a/b, keep or replace) and `accounts recover`
 //! (players-and-accounts §Discovery).
 
 use std::path::Path;
 
-use leemusync_api::{API_VERSION, CreatedAccount, StreamAction, StreamReport};
-use leemusync_core::PlayerId;
-use leemusync_core::account::key_value;
-use leemusync_core::account_template::{self, CreateTemplate, TemplateError};
+use lemusync_api::{API_VERSION, CreatedAccount, StreamAction, StreamReport};
+use lemusync_core::PlayerId;
+use lemusync_core::account::key_value;
+use lemusync_core::account_template::{self, CreateTemplate, TemplateError};
 
 use crate::discover::save_folder;
 use crate::progress::Meter;
@@ -30,8 +30,8 @@ pub enum MapOutcome {
 }
 
 /// `key:data` usage errors (P6: the CLI maps keys to localised text).
-fn map_error(e: &leemusync_core::config::ConfigError) -> EngineError {
-    use leemusync_core::config::ConfigError;
+fn map_error(e: &lemusync_core::config::ConfigError) -> EngineError {
+    use lemusync_core::config::ConfigError;
     match e {
         ConfigError::UnknownPlayer(name) => EngineError::Usage(format!("unknown_player:{name}")),
         ConfigError::AccountTaken { player, .. } => {
@@ -43,7 +43,7 @@ fn map_error(e: &leemusync_core::config::ConfigError) -> EngineError {
 
 impl Engine {
     fn player_id(
-        config: &leemusync_core::config::RepoConfig,
+        config: &lemusync_core::config::RepoConfig,
         name: &str,
     ) -> Result<PlayerId, EngineError> {
         config
@@ -321,7 +321,7 @@ fn existing_ids(t: &CreateTemplate, root: &Path) -> Result<Vec<u32>, EngineError
 fn random(len: usize) -> Result<Vec<u8>, EngineError> {
     let mut out = Vec::with_capacity(len);
     while out.len() < len {
-        out.extend_from_slice(&leemusync_crypto::random_bytes::<32>()?);
+        out.extend_from_slice(&lemusync_crypto::random_bytes::<32>()?);
     }
     out.truncate(len);
     Ok(out)

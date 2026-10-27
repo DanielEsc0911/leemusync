@@ -4,19 +4,19 @@ Installer and package definitions for every release artifact. The pipeline that 
 
 | Path | Builds |
 |---|---|
-| `icons/leemusync.png` | 256×256 app icon (Flutter's default; placeholder until the Phase 3 brand) |
+| `icons/lemusync.png` | 256×256 app icon (Flutter's default; placeholder until the Phase 3 brand) |
 | `linux/package.sh` | `.deb`, `.rpm` (nfpm), `.AppImage` (appimagetool), `.tar.gz` |
 | `linux/nfpm.yaml` | nfpm config for `.deb` and `.rpm` |
-| `linux/io.github.danielesc0911.leemusync.desktop` | Desktop entry (en + es) |
-| `windows/leemusync.iss` | Inno Setup `.exe` (English/Spanish selectable) |
-| `windows/leemusync.wxs`, `en-us.wxl`, `es-es.wxl` | WiX `.msi`, one per culture |
-| `macos/make-dmg.sh` | `.dmg` with the CLI and daemon in `LeemuSync.app/Contents/Helpers/` |
+| `linux/io.github.danielesc0911.lemusync.desktop` | Desktop entry (en + es) |
+| `windows/lemusync.iss` | Inno Setup `.exe` (English/Spanish selectable) |
+| `windows/lemusync.wxs`, `en-us.wxl`, `es-es.wxl` | WiX `.msi`, one per culture |
+| `macos/make-dmg.sh` | `.dmg` with the CLI and daemon in `LemuSync.app/Contents/Helpers/` |
 
 ## Build the Linux packages locally
 Needs [nfpm](https://github.com/goreleaser/nfpm) and [appimagetool](https://github.com/AppImage/appimagetool) on `PATH` (versions pinned in `release.yml`). From the repo root:
 
 ```bash
-cargo build --release -p leemusync-cli -p leemusync-daemon
+cargo build --release -p lemusync-cli -p lemusync-daemon
 (cd app && flutter build linux --release)
 packaging/linux/package.sh 0.0.0-dev.1 x86_64   # output in dist/out/ (git-ignored)
 ```

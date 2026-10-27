@@ -3,11 +3,11 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use leemusync_api::{ConflictInfo, HeadInfo, StreamAction, StreamReport, Warning};
-use leemusync_core::heads::{Graph, heads};
-use leemusync_core::manifest::Version;
-use leemusync_core::reconcile::resolution_parents;
-use leemusync_core::{PlayerId, StreamId, VersionId};
+use lemusync_api::{ConflictInfo, HeadInfo, StreamAction, StreamReport, Warning};
+use lemusync_core::heads::{Graph, heads};
+use lemusync_core::manifest::Version;
+use lemusync_core::reconcile::resolution_parents;
+use lemusync_core::{PlayerId, StreamId, VersionId};
 
 use crate::progress::Meter;
 use crate::query::Target;

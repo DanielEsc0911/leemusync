@@ -1,5 +1,5 @@
 [package]
-name = "leemusync-bridge"
+name = "lemusync-bridge"
 description = "UI bindings: flutter_rust_bridge (Dart) and UniFFI (Kotlin/Swift) in one library."
 version.workspace = true
 edition.workspace = true

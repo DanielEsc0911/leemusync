@@ -33,5 +33,5 @@ Checklist in the PR description:
 - [ ] Tests first; `just check` green
 - [ ] en + es strings
 - [ ] UI changes: goldens reviewed for every size class
-- [ ] Security-relevant change: `leemusync-security` checklist done
+- [ ] Security-relevant change: `lemusync-security` checklist done
 - [ ] Progress plan updated

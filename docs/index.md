@@ -1,4 +1,4 @@
-# LeemuSync documentation index
+# LemuSync documentation index
 
 Read this file, then only the docs your task needs. Headings are stable: grep the outline (`grep -n "^#" <file>`) and read just that section. Status values: **Draft** (direction set, details open) · **Decided** (agreed, not built) · **Partial** (partly built) · **Implemented** (matches the code).
 

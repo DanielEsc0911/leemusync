@@ -10,7 +10,7 @@
 
 ## Global constraints
 - Rules: [AGENTS.md](../../../AGENTS.md) / [rules.md](../../rules.md). Especially B1 (layers), B2 (no `unsafe`, minimal deps), P6 (en + es), W1–W5.
-- Package names `leemusync-<dir>`. Every crate: `publish = false`, `license = "MPL-2.0"`, `edition = "2024"`, `[lints] workspace = true`.
+- Package names `lemusync-<dir>`. Every crate: `publish = false`, `license = "MPL-2.0"`, `edition = "2024"`, `[lints] workspace = true`.
 - Workspace lints: `unsafe_code = "forbid"`; clippy `all` = deny, `pedantic` = warn; `unwrap_used`, `dbg_macro`, `todo` = deny (unwrap/expect allowed in tests via `clippy.toml`). CI runs clippy with `-D warnings`.
 - `xtask` dependencies: `serde_json` only.
 - `crates/bridge/rust-toolchain.toml` repeats the root toolchain channel for the Flutter build hook. Bump both together (found in SP1).
@@ -23,8 +23,8 @@
 ## Open decisions (maintainer)
 | ID | Decision | Outcome |
 |---|---|---|
-| OD1 | Repository | Resolved: `github.com/DanielEsc0911/leemusync` (remote `origin` = `git@github.com:DanielEsc0911/leemusync.git`) |
-| OD2 | App/bundle id | Resolved: `io.github.danielesc0911.leemusync` ([D22](../../decisions.md#d22-app-and-bundle-id-iogithubdanielesc0911leemusync-2026-10-07)) |
+| OD1 | Repository | Resolved: `github.com/DanielEsc0911/lemusync` (remote `origin` = `git@github.com:DanielEsc0911/lemusync.git`) |
+| OD2 | App/bundle id | Resolved: `io.github.danielesc0911.lemusync` ([D22](../../decisions.md#d22-app-and-bundle-id-iogithubdanielesc0911lemusync-2026-10-07)) |
 | OD3 | Store accounts and test devices | No Apple Developer or Play account yet ([D23](../../decisions.md#d23-distribution-before-store-accounts-2026-10-07)). Devices: [testing §Device lab](../../specs/testing.md#device-lab) |
 
 ## Deferred device checks (maintainer, 2026-10-08)
@@ -45,7 +45,7 @@ Known gaps, not dropped. Task 6 must answer or re-scope each one.
 - Create: `crates/cli/Cargo.toml`, `crates/cli/src/main.rs`, `crates/cli/tests/version.rs`
 
 **Interfaces:**
-- Produces: binaries `leemusync` (package `leemusync-cli`) and `leemusyncd` (package `leemusync-daemon`), each printing `<bin> <version>`. Library crates exist, empty, with their responsibility in the crate docs.
+- Produces: binaries `lemusync` (package `lemusync-cli`) and `lemusyncd` (package `lemusync-daemon`), each printing `<bin> <version>`. Library crates exist, empty, with their responsibility in the crate docs.
 
 - [x] **Step 1: Install toolchains**
 
@@ -78,7 +78,7 @@ members = ["crates/*"]
 version = "0.0.0"
 edition = "2024"
 license = "MPL-2.0"
-repository = "https://github.com/DanielEsc0911/leemusync"
+repository = "https://github.com/DanielEsc0911/lemusync"
 rust-version = "1.99" # same as rust-toolchain.toml
 
 [workspace.lints.rust]
@@ -108,8 +108,8 @@ allow-expect-in-tests = true
 `crates/cli/Cargo.toml`:
 ```toml
 [package]
-name = "leemusync-cli"
-description = "LeemuSync command-line interface."
+name = "lemusync-cli"
+description = "LemuSync command-line interface."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -118,7 +118,7 @@ rust-version.workspace = true
 publish = false
 
 [[bin]]
-name = "leemusync"
+name = "lemusync"
 path = "src/main.rs"
 
 [lints]
@@ -127,7 +127,7 @@ workspace = true
 
 `crates/cli/src/main.rs`:
 ```rust
-//! `leemusync`: command-line interface. Spec: docs/specs/config-and-cli.md.
+//! `lemusync`: command-line interface. Spec: docs/specs/config-and-cli.md.
 
 fn main() {}
 ```
@@ -138,50 +138,50 @@ use std::process::Command;
 
 #[test]
 fn prints_name_and_version() {
-    let output = Command::new(env!("CARGO_BIN_EXE_leemusync"))
+    let output = Command::new(env!("CARGO_BIN_EXE_lemusync"))
         .output()
         .expect("binary runs");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert_eq!(
         stdout.trim(),
-        format!("leemusync {}", env!("CARGO_PKG_VERSION"))
+        format!("lemusync {}", env!("CARGO_PKG_VERSION"))
     );
 }
 ```
 
 - [x] **Step 5: Run it and watch it fail**
 
-Run: `cargo test -p leemusync-cli`
-Expected: FAIL. `assertion left == right failed`, left `""`, right `"leemusync 0.0.0"`.
+Run: `cargo test -p lemusync-cli`
+Expected: FAIL. `assertion left == right failed`, left `""`, right `"lemusync 0.0.0"`.
 
 - [x] **Step 6: Implement**
 
 `crates/cli/src/main.rs`:
 ```rust
-//! `leemusync`: command-line interface. Spec: docs/specs/config-and-cli.md.
+//! `lemusync`: command-line interface. Spec: docs/specs/config-and-cli.md.
 
 fn main() {
-    println!("leemusync {}", env!("CARGO_PKG_VERSION"));
+    println!("lemusync {}", env!("CARGO_PKG_VERSION"));
 }
 ```
 
-Run: `cargo test -p leemusync-cli` → Expected: PASS (1 test).
+Run: `cargo test -p lemusync-cli` → Expected: PASS (1 test).
 
 - [x] **Step 7: Same for the daemon (test first, then implementation)**
 
-`crates/daemon/Cargo.toml`: identical to the CLI manifest except `name = "leemusync-daemon"`, `description = "LeemuSync always-on sync daemon."`, and `[[bin]] name = "leemusyncd"`.
+`crates/daemon/Cargo.toml`: identical to the CLI manifest except `name = "lemusync-daemon"`, `description = "LemuSync always-on sync daemon."`, and `[[bin]] name = "lemusyncd"`.
 
-`crates/daemon/tests/version.rs`: identical to the CLI test with `CARGO_BIN_EXE_leemusyncd` and the expected prefix `leemusyncd`. Run it → FAIL with `fn main() {}`. Then:
+`crates/daemon/tests/version.rs`: identical to the CLI test with `CARGO_BIN_EXE_lemusyncd` and the expected prefix `lemusyncd`. Run it → FAIL with `fn main() {}`. Then:
 
 `crates/daemon/src/main.rs`:
 ```rust
-//! `leemusyncd`: the always-on sync daemon. Spec: docs/specs/architecture.md.
+//! `lemusyncd`: the always-on sync daemon. Spec: docs/specs/architecture.md.
 
 fn main() {
-    println!("leemusyncd {}", env!("CARGO_PKG_VERSION"));
+    println!("lemusyncd {}", env!("CARGO_PKG_VERSION"));
 }
 ```
-Run: `cargo test -p leemusync-daemon` → PASS.
+Run: `cargo test -p lemusync-daemon` → PASS.
 
 - [x] **Step 8: Library crates.** For each row, create `crates/<dir>/Cargo.toml` (same shape as the CLI manifest, without `[[bin]]`) and `crates/<dir>/src/lib.rs` with only the crate doc comment:
 
@@ -197,7 +197,7 @@ Run: `cargo test -p leemusync-daemon` → PASS.
 - [x] **Step 9: Task runner.** `justfile`:
 
 ```just
-# LeemuSync task runner. `just --list` shows every recipe.
+# LemuSync task runner. `just --list` shows every recipe.
 # On Windows, run from Git Bash (just uses `sh`).
 
 default:
@@ -324,20 +324,20 @@ mod tests {
 
     #[test]
     fn allows_downward_dependency() {
-        assert_eq!(violations(&graph("leemusync-engine", &["leemusync-core"])), Ok(()));
+        assert_eq!(violations(&graph("lemusync-engine", &["lemusync-core"])), Ok(()));
     }
 
     #[test]
     fn rejects_upward_dependency() {
         assert_eq!(
-            violations(&graph("leemusync-core", &["leemusync-engine"])),
-            Err(vec!["leemusync-core must not depend on leemusync-engine".to_string()])
+            violations(&graph("lemusync-core", &["lemusync-engine"])),
+            Err(vec!["lemusync-core must not depend on lemusync-engine".to_string()])
         );
     }
 
     #[test]
     fn rejects_crate_missing_from_table() {
-        assert!(violations(&graph("leemusync-extra", &[])).is_err());
+        assert!(violations(&graph("lemusync-extra", &[])).is_err());
     }
 }
 ```
@@ -485,15 +485,15 @@ use std::process::Command;
 use serde_json::Value;
 
 const ALLOWED: &[(&str, &[&str])] = &[
-    ("leemusync-core", &[]),
-    ("leemusync-crypto", &[]),
-    ("leemusync-store", &[]),
-    ("leemusync-api", &[]),
-    ("leemusync-engine", &["leemusync-core", "leemusync-crypto", "leemusync-store", "leemusync-api"]),
-    ("leemusync-ipc", &["leemusync-api"]),
-    ("leemusync-daemon", &["leemusync-api", "leemusync-engine", "leemusync-ipc"]),
-    ("leemusync-cli", &["leemusync-api", "leemusync-engine", "leemusync-ipc"]),
-    ("leemusync-bridge", &["leemusync-api", "leemusync-engine", "leemusync-ipc"]),
+    ("lemusync-core", &[]),
+    ("lemusync-crypto", &[]),
+    ("lemusync-store", &[]),
+    ("lemusync-api", &[]),
+    ("lemusync-engine", &["lemusync-core", "lemusync-crypto", "lemusync-store", "lemusync-api"]),
+    ("lemusync-ipc", &["lemusync-api"]),
+    ("lemusync-daemon", &["lemusync-api", "lemusync-engine", "lemusync-ipc"]),
+    ("lemusync-cli", &["lemusync-api", "lemusync-engine", "lemusync-ipc"]),
+    ("lemusync-bridge", &["lemusync-api", "lemusync-engine", "lemusync-ipc"]),
 ];
 
 pub(crate) fn check(root: &Path) -> Result<(), Vec<String>> {
@@ -520,7 +520,7 @@ pub(crate) fn check(root: &Path) -> Result<(), Vec<String>> {
                 // Normal dependencies only; dev/build dependencies may cross layers.
                 .filter(|dep| dep["kind"].is_null())
                 .filter_map(|dep| dep["name"].as_str())
-                .filter(|dep| dep.starts_with("leemusync-"))
+                .filter(|dep| dep.starts_with("lemusync-"))
                 .map(str::to_string)
                 .collect();
             (name, internal)
@@ -532,7 +532,7 @@ pub(crate) fn check(root: &Path) -> Result<(), Vec<String>> {
 fn violations(graph: &[(String, Vec<String>)]) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
     for (name, deps) in graph {
-        if !name.starts_with("leemusync-") {
+        if !name.starts_with("lemusync-") {
             continue;
         }
         let Some((_, allowed)) = ALLOWED.iter().find(|(crate_name, _)| *crate_name == name.as_str()) else {
@@ -723,7 +723,7 @@ git commit -m "ci: add cargo-deny, CI workflow and dependabot" \
   -m "Co-Authored-By: Claude <noreply@anthropic.com>"
 ```
 
-- [x] **Step 7: Publish (maintainer approval required).** The remote `origin` is `git@github.com:DanielEsc0911/leemusync.git`, and `main` and the work branch are pushed. Push the latest commits, open a PR `chore/phase-0-foundations` → `main`, confirm every CI job is green, and merge. In repository settings: protect `main` (PR + required checks), enable private vulnerability reporting, secret scanning and push protection.
+- [x] **Step 7: Publish (maintainer approval required).** The remote `origin` is `git@github.com:DanielEsc0911/lemusync.git`, and `main` and the work branch are pushed. Push the latest commits, open a PR `chore/phase-0-foundations` → `main`, confirm every CI job is green, and merge. In repository settings: protect `main` (PR + required checks), enable private vulnerability reporting, secret scanning and push protection.
 
 ---
 
@@ -734,12 +734,12 @@ git commit -m "ci: add cargo-deny, CI workflow and dependabot" \
 - Modify: `app/pubspec.yaml`, `app/analysis_options.yaml`, `app/lib/main.dart`, `app/.gitignore`, `xtask/src/main.rs`, `justfile`, `.github/workflows/ci.yml`, `.github/dependabot.yml`
 
 **Interfaces:**
-- Produces: `LeemuSyncApp({Key? key, Locale? locale})` in `app/lib/main.dart`; ARB keys `appTitle`, `statusSynced`, `statusUploading(count)`; `cargo xtask i18n-check`; internal `i18n::check(&Path) -> Result<(), Vec<String>>`, `i18n::diff(&str, &BTreeSet<String>, &BTreeSet<String>) -> Vec<String>`.
+- Produces: `LemuSyncApp({Key? key, Locale? locale})` in `app/lib/main.dart`; ARB keys `appTitle`, `statusSynced`, `statusUploading(count)`; `cargo xtask i18n-check`; internal `i18n::check(&Path) -> Result<(), Vec<String>>`, `i18n::diff(&str, &BTreeSet<String>, &BTreeSet<String>) -> Vec<String>`.
 
 - [x] **Step 1: Install Flutter (stable) and create the app** (`--org` from D22):
 ```bash
 flutter --version
-flutter create --org io.github.danielesc0911 --project-name leemusync \
+flutter create --org io.github.danielesc0911 --project-name lemusync \
   --platforms android,ios,macos,windows,linux --empty app
 ```
 Pin the version in `app/pubspec.yaml` under `environment:` → `flutter: <exact version from flutter --version>`. Set the top-level `version: 0.0.0+1` so it matches the workspace version ([release §Versioning](../../specs/release.md#versioning)).
@@ -766,7 +766,7 @@ Append `lib/l10n/generated/` to `app/.gitignore` (the ARB files are the source o
 ```json
 {
   "@@locale": "en",
-  "appTitle": "LeemuSync",
+  "appTitle": "LemuSync",
   "@appTitle": { "description": "Product name. Never translated." },
   "statusSynced": "All saves synced",
   "@statusSynced": { "description": "Home status when nothing is pending." },
@@ -782,7 +782,7 @@ Append `lib/l10n/generated/` to `app/.gitignore` (the ARB files are the source o
 ```json
 {
   "@@locale": "es",
-  "appTitle": "LeemuSync",
+  "appTitle": "LemuSync",
   "statusSynced": "Todas las partidas están sincronizadas",
   "statusUploading": "{count, plural, =1{Subiendo 1 cambio} other{Subiendo {count} cambios}}"
 }
@@ -813,23 +813,23 @@ linter:
 ```dart
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:leemusync/main.dart';
+import 'package:lemusync/main.dart';
 
 void main() {
   testWidgets('shows synced status in English', (tester) async {
-    await tester.pumpWidget(const LeemuSyncApp(locale: Locale('en')));
+    await tester.pumpWidget(const LemuSyncApp(locale: Locale('en')));
     await tester.pumpAndSettle();
     expect(find.text('All saves synced'), findsOneWidget);
   });
 
   testWidgets('shows synced status in Spanish', (tester) async {
-    await tester.pumpWidget(const LeemuSyncApp(locale: Locale('es')));
+    await tester.pumpWidget(const LemuSyncApp(locale: Locale('es')));
     await tester.pumpAndSettle();
     expect(find.text('Todas las partidas están sincronizadas'), findsOneWidget);
   });
 }
 ```
-Run: `cd app && flutter gen-l10n && flutter test` → Expected: FAIL (`LeemuSyncApp` isn't defined).
+Run: `cd app && flutter gen-l10n && flutter test` → Expected: FAIL (`LemuSyncApp` isn't defined).
 
 - [x] **Step 5: Implement.** `app/lib/main.dart`:
 ```dart
@@ -837,12 +837,12 @@ import 'package:flutter/material.dart';
 
 import 'l10n/generated/app_localizations.dart';
 
-void main() => runApp(const LeemuSyncApp());
+void main() => runApp(const LemuSyncApp());
 
 /// Root widget. The design system and navigation shell replace the
 /// placeholder home in Phase 3 (docs/specs/ui/).
-class LeemuSyncApp extends StatelessWidget {
-  const LeemuSyncApp({super.key, this.locale});
+class LemuSyncApp extends StatelessWidget {
+  const LemuSyncApp({super.key, this.locale});
 
   /// Forces a locale (tests, user override). Null follows the OS.
   final Locale? locale;
@@ -951,7 +951,7 @@ Run: `cargo xtask i18n-check` → `xtask i18n-check: ok`. Then delete `statusSyn
 
 - [x] **Step 7: Final `justfile`**
 ```just
-# LeemuSync task runner. `just --list` shows every recipe.
+# LemuSync task runner. `just --list` shows every recipe.
 # On Windows, run from Git Bash (just uses `sh`).
 
 default:
@@ -1016,17 +1016,17 @@ git commit -m "feat(app): add Flutter shell with English and Spanish strings" \
 Spec: [release](../../specs/release.md) (Artifacts, Install layout, Signing). Decisions: D22, D23, D24.
 
 **Files:**
-- Create: `xtask/src/metadata.rs`, `xtask/src/version.rs`, `.github/workflows/release.yml`, `packaging/README.md`, `packaging/icons/leemusync.png`, `packaging/linux/nfpm.yaml`, `packaging/linux/io.github.danielesc0911.leemusync.desktop`, `packaging/windows/leemusync.iss`, `packaging/windows/leemusync.wxs`, `packaging/windows/en-us.wxl`, `packaging/windows/es-es.wxl`, `packaging/macos/make-dmg.sh`
+- Create: `xtask/src/metadata.rs`, `xtask/src/version.rs`, `.github/workflows/release.yml`, `packaging/README.md`, `packaging/icons/lemusync.png`, `packaging/linux/nfpm.yaml`, `packaging/linux/io.github.danielesc0911.lemusync.desktop`, `packaging/windows/lemusync.iss`, `packaging/windows/lemusync.wxs`, `packaging/windows/en-us.wxl`, `packaging/windows/es-es.wxl`, `packaging/macos/make-dmg.sh`
 - Modify: `xtask/src/layers.rs`, `xtask/src/main.rs`, `app/windows/CMakeLists.txt`, `app/windows/runner/Runner.rc`, `app/linux/CMakeLists.txt`, `app/macos/Runner/Configs/AppInfo.xcconfig`, `app/android/app/build.gradle.kts`, `.gitignore`, `docs/specs/release.md`
 
 **Interfaces:**
-- Consumes: binaries `leemusync` and `leemusyncd` (Task 1), the Flutter app (Task 4), `xtask` (Task 2).
+- Consumes: binaries `lemusync` and `lemusyncd` (Task 1), the Flutter app (Task 4), `xtask` (Task 2).
 - Produces: `cargo xtask version-check <tag>`; internal `metadata::load(&Path) -> Result<serde_json::Value, Vec<String>>`, `version::compare(&str, &str, &str) -> Result<(), Vec<String>>`; `release.yml` jobs `version`, `linux`, `headless`, `windows`, `macos`, `android`, `publish`.
 
 **Permanent identifiers (never change after the first release):**
 - Inno Setup `AppId`: `{350A21EC-E42B-4C95-8E97-B1433D66294D}`
 - WiX `UpgradeCode`: `95ABB515-7BAD-4E28-AC9F-BF5865B70A15`
-- App/bundle id and Windows AppUserModelID: `io.github.danielesc0911.leemusync`
+- App/bundle id and Windows AppUserModelID: `io.github.danielesc0911.lemusync`
 
 - [x] **Step 1: Shared `cargo metadata` loader (refactor; tests must stay green).** Move the command call out of `layers.rs` into `xtask/src/metadata.rs`:
 
@@ -1068,9 +1068,9 @@ pub(crate) fn check(root: &Path, tag: &str) -> Result<(), Vec<String>> {
         .as_array()
         .into_iter()
         .flatten()
-        .find(|package| package["name"] == "leemusync-cli")
+        .find(|package| package["name"] == "lemusync-cli")
         .and_then(|package| package["version"].as_str())
-        .ok_or_else(|| vec!["leemusync-cli not found in cargo metadata".to_string()])?
+        .ok_or_else(|| vec!["lemusync-cli not found in cargo metadata".to_string()])?
         .to_string();
     let pubspec = fs::read_to_string(root.join("app/pubspec.yaml"))
         .map_err(|e| vec![format!("app/pubspec.yaml: {e}")])?;
@@ -1123,50 +1123,50 @@ mod tests {
 In `main.rs`: `mod version;`, the arm `"version-check" => version::check(&root, &std::env::args().nth(2).unwrap_or_default()),`, and `version-check <tag>` in the unknown-task message. Run: `cargo test -p xtask` → PASS. `cargo xtask version-check v0.0.0` → ok only if `pubspec.yaml` says `version: 0.0.0+1`; set it so.
 
 - [x] **Step 3: GUI executable names and placeholder icon** (release §Install layout)
-  - `app/windows/CMakeLists.txt`: `set(BINARY_NAME "leemusync")` → `set(BINARY_NAME "LeemuSync")`. In `app/windows/runner/Runner.rc`, set `FileDescription` and `ProductName` to `LeemuSync`.
-  - `app/linux/CMakeLists.txt`: `set(BINARY_NAME "leemusync")` → `set(BINARY_NAME "leemusync-gui")`. Keep `APPLICATION_ID` = `io.github.danielesc0911.leemusync`.
-  - `app/macos/Runner/Configs/AppInfo.xcconfig`: `PRODUCT_NAME = LeemuSync`.
-  - `cp app/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_256.png packaging/icons/leemusync.png` (Flutter's default icon; placeholder until the Phase 3 brand).
-  - Run `cd app && flutter build linux --release` → `build/linux/x64/release/bundle/leemusync-gui` exists, and `flutter test` still passes.
+  - `app/windows/CMakeLists.txt`: `set(BINARY_NAME "lemusync")` → `set(BINARY_NAME "LemuSync")`. In `app/windows/runner/Runner.rc`, set `FileDescription` and `ProductName` to `LemuSync`.
+  - `app/linux/CMakeLists.txt`: `set(BINARY_NAME "lemusync")` → `set(BINARY_NAME "lemusync-gui")`. Keep `APPLICATION_ID` = `io.github.danielesc0911.lemusync`.
+  - `app/macos/Runner/Configs/AppInfo.xcconfig`: `PRODUCT_NAME = LemuSync`.
+  - `cp app/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_256.png packaging/icons/lemusync.png` (Flutter's default icon; placeholder until the Phase 3 brand).
+  - Run `cd app && flutter build linux --release` → `build/linux/x64/release/bundle/lemusync-gui` exists, and `flutter test` still passes.
 
-- [x] **Step 4: Linux packaging.** `packaging/linux/io.github.danielesc0911.leemusync.desktop`:
+- [x] **Step 4: Linux packaging.** `packaging/linux/io.github.danielesc0911.lemusync.desktop`:
 ```ini
 [Desktop Entry]
 Type=Application
-Name=LeemuSync
+Name=LemuSync
 Comment=Keep your emulator saves in sync on every device
 Comment[es]=Mantén tus partidas guardadas sincronizadas en todos tus dispositivos
-Exec=leemusync-gui
-Icon=io.github.danielesc0911.leemusync
+Exec=lemusync-gui
+Icon=io.github.danielesc0911.lemusync
 Terminal=false
 Categories=Game;Utility;
 ```
-`packaging/linux/nfpm.yaml` (the workflow exports `LEEMUSYNC_VERSION` and `NFPM_ARCH` = `amd64`|`arm64`, and stages files under `dist/stage/`):
+`packaging/linux/nfpm.yaml` (the workflow exports `LEMUSYNC_VERSION` and `NFPM_ARCH` = `amd64`|`arm64`, and stages files under `dist/stage/`):
 ```yaml
-name: leemusync
+name: lemusync
 arch: ${NFPM_ARCH}
 platform: linux
-version: ${LEEMUSYNC_VERSION}
+version: ${LEMUSYNC_VERSION}
 version_schema: semver
 maintainer: Daniel <daescalona@proton.me>
 description: Keep your emulator saves in sync on every device, using storage you own.
-homepage: https://github.com/DanielEsc0911/leemusync
+homepage: https://github.com/DanielEsc0911/lemusync
 license: MPL-2.0
 contents:
   - src: dist/stage/gui/
-    dst: /opt/leemusync/
+    dst: /opt/lemusync/
     type: tree
-  - src: /opt/leemusync/leemusync-gui
-    dst: /usr/bin/leemusync-gui
+  - src: /opt/lemusync/lemusync-gui
+    dst: /usr/bin/lemusync-gui
     type: symlink
-  - src: dist/stage/bin/leemusync
-    dst: /usr/bin/leemusync
-  - src: dist/stage/bin/leemusyncd
-    dst: /usr/bin/leemusyncd
-  - src: packaging/linux/io.github.danielesc0911.leemusync.desktop
-    dst: /usr/share/applications/io.github.danielesc0911.leemusync.desktop
-  - src: packaging/icons/leemusync.png
-    dst: /usr/share/icons/hicolor/256x256/apps/io.github.danielesc0911.leemusync.png
+  - src: dist/stage/bin/lemusync
+    dst: /usr/bin/lemusync
+  - src: dist/stage/bin/lemusyncd
+    dst: /usr/bin/lemusyncd
+  - src: packaging/linux/io.github.danielesc0911.lemusync.desktop
+    dst: /usr/share/applications/io.github.danielesc0911.lemusync.desktop
+  - src: packaging/icons/lemusync.png
+    dst: /usr/share/icons/hicolor/256x256/apps/io.github.danielesc0911.lemusync.png
 overrides:
   deb:
     depends: [libgtk-3-0]
@@ -1178,34 +1178,34 @@ Commands (pin the nfpm and appimagetool versions in the workflow; check each fla
 nfpm package --config packaging/linux/nfpm.yaml --packager deb --target dist/out/
 nfpm package --config packaging/linux/nfpm.yaml --packager rpm --target dist/out/
 # APPIMAGE_ARCH = x86_64 | aarch64
-# AppImage: AppDir = GUI bundle + usr/bin/{leemusync,leemusyncd} + .desktop + icon + AppRun (exec "$APPDIR/leemusync-gui" "$@")
-ARCH="$APPIMAGE_ARCH" appimagetool dist/AppDir "dist/out/leemusync-${LEEMUSYNC_VERSION}-linux-${APPIMAGE_ARCH}.AppImage"
-# tar.gz layout: leemusync/leemusync-gui (+ bundle files) and leemusync/bin/ (release §Install layout)
-mkdir -p dist/tar/leemusync && cp -r dist/stage/gui/. dist/tar/leemusync/ && cp -r dist/stage/bin dist/tar/leemusync/bin
-tar -C dist/tar -czf "dist/out/leemusync-${LEEMUSYNC_VERSION}-linux-${APPIMAGE_ARCH}.tar.gz" leemusync
+# AppImage: AppDir = GUI bundle + usr/bin/{lemusync,lemusyncd} + .desktop + icon + AppRun (exec "$APPDIR/lemusync-gui" "$@")
+ARCH="$APPIMAGE_ARCH" appimagetool dist/AppDir "dist/out/lemusync-${LEMUSYNC_VERSION}-linux-${APPIMAGE_ARCH}.AppImage"
+# tar.gz layout: lemusync/lemusync-gui (+ bundle files) and lemusync/bin/ (release §Install layout)
+mkdir -p dist/tar/lemusync && cp -r dist/stage/gui/. dist/tar/lemusync/ && cp -r dist/stage/bin dist/tar/lemusync/bin
+tar -C dist/tar -czf "dist/out/lemusync-${LEMUSYNC_VERSION}-linux-${APPIMAGE_ARCH}.tar.gz" lemusync
 ```
 Check: `dpkg-deb -c` and `rpm -qlp` list exactly the install layout; nfpm turns `-alpha.1` into a version that sorts before the final release (deb `~`). Record the result.
 
 - [x] **Step 5: Windows packaging.** Both installers install the layout from release §Install layout and remove it cleanly on uninstall.
-  - `packaging/windows/leemusync.iss` (Inno Setup 6.3+): `AppId={{350A21EC-E42B-4C95-8E97-B1433D66294D}`, `AppName=LeemuSync`, `AppVersion` from env `LEEMUSYNC_VERSION`, `VersionInfoVersion` = numeric `X.Y.Z.0`, `DefaultDirName={autopf}\LeemuSync`, `ArchitecturesAllowed=x64compatible`, `ArchitecturesInstallIn64BitMode=x64compatible`, `LicenseFile=..\..\LICENSE`, `ChangesEnvironment=yes`, `WizardStyle=modern`, `OutputBaseFilename=leemusync-<version>-windows-x64-setup`. `[Languages]`: `en` = `compiler:Default.isl`, `es` = `compiler:Languages\Spanish.isl` (P6). `[Files]`: GUI bundle → `{app}`, CLI + daemon → `{app}\bin`. `[Icons]`: Start Menu shortcut to `{app}\LeemuSync.exe` with `AppUserModelID: "io.github.danielesc0911.leemusync"`. Add `{app}\bin` to the machine `PATH` on install and remove it on uninstall, without duplicates.
-  - `packaging/windows/leemusync.wxs` (WiX v5+, V-PKG-1): `Package` with `UpgradeCode="95ABB515-7BAD-4E28-AC9F-BF5865B70A15"`, `Version` = **numeric** `X.Y.Z` (MSI rejects `-alpha`; the pre-release only appears in the file name), `MajorUpgrade`, `MediaTemplate EmbedCab="yes"`. GUI files under `ProgramFiles64Folder\LeemuSync` (harvested from the Flutter output folder), `bin\` with CLI + daemon (one Component per file), a Start Menu shortcut with `ShortcutProperty Key="System.AppUserModel.ID" Value="io.github.danielesc0911.leemusync"`, and an `Environment` element appending `[INSTALLFOLDER]bin` to the system `PATH`. User-visible strings in `en-us.wxl` / `es-es.wxl`. Build one MSI per culture: `wix build -culture en-US …` and `-culture es-ES …` → `…-windows-x64-en.msi`, `…-windows-x64-es.msi`.
-  - Test both on the Windows machine: install → `LeemuSync` in the Start Menu, `leemusync` works in a new terminal → uninstall → nothing left behind.
+  - `packaging/windows/lemusync.iss` (Inno Setup 6.3+): `AppId={{350A21EC-E42B-4C95-8E97-B1433D66294D}`, `AppName=LemuSync`, `AppVersion` from env `LEMUSYNC_VERSION`, `VersionInfoVersion` = numeric `X.Y.Z.0`, `DefaultDirName={autopf}\LemuSync`, `ArchitecturesAllowed=x64compatible`, `ArchitecturesInstallIn64BitMode=x64compatible`, `LicenseFile=..\..\LICENSE`, `ChangesEnvironment=yes`, `WizardStyle=modern`, `OutputBaseFilename=lemusync-<version>-windows-x64-setup`. `[Languages]`: `en` = `compiler:Default.isl`, `es` = `compiler:Languages\Spanish.isl` (P6). `[Files]`: GUI bundle → `{app}`, CLI + daemon → `{app}\bin`. `[Icons]`: Start Menu shortcut to `{app}\LemuSync.exe` with `AppUserModelID: "io.github.danielesc0911.lemusync"`. Add `{app}\bin` to the machine `PATH` on install and remove it on uninstall, without duplicates.
+  - `packaging/windows/lemusync.wxs` (WiX v5+, V-PKG-1): `Package` with `UpgradeCode="95ABB515-7BAD-4E28-AC9F-BF5865B70A15"`, `Version` = **numeric** `X.Y.Z` (MSI rejects `-alpha`; the pre-release only appears in the file name), `MajorUpgrade`, `MediaTemplate EmbedCab="yes"`. GUI files under `ProgramFiles64Folder\LemuSync` (harvested from the Flutter output folder), `bin\` with CLI + daemon (one Component per file), a Start Menu shortcut with `ShortcutProperty Key="System.AppUserModel.ID" Value="io.github.danielesc0911.lemusync"`, and an `Environment` element appending `[INSTALLFOLDER]bin` to the system `PATH`. User-visible strings in `en-us.wxl` / `es-es.wxl`. Build one MSI per culture: `wix build -culture en-US …` and `-culture es-ES …` → `…-windows-x64-en.msi`, `…-windows-x64-es.msi`.
+  - Test both on the Windows machine: install → `LemuSync` in the Start Menu, `lemusync` works in a new terminal → uninstall → nothing left behind.
 
 - [x] **Step 6: macOS DMG.** `packaging/macos/make-dmg.sh`:
 ```bash
 #!/usr/bin/env bash
-# Usage: make-dmg.sh <path/to/LeemuSync.app> <dir with leemusync + leemusyncd> <output.dmg>
+# Usage: make-dmg.sh <path/to/LemuSync.app> <dir with lemusync + lemusyncd> <output.dmg>
 set -euo pipefail
 app="$1"; helpers="$2"; out="$3"
 mkdir -p "$app/Contents/Helpers"
-cp "$helpers/leemusync" "$helpers/leemusyncd" "$app/Contents/Helpers/"
+cp "$helpers/lemusync" "$helpers/lemusyncd" "$app/Contents/Helpers/"
 codesign --force --deep --sign - "$app"   # ad-hoc signature (D23); Developer ID later
 stage="$(mktemp -d)"
 cp -R "$app" "$stage/"
 ln -s /Applications "$stage/Applications"
-hdiutil create -volname LeemuSync -srcfolder "$stage" -ov -format UDZO "$out"
+hdiutil create -volname LemuSync -srcfolder "$stage" -ov -format UDZO "$out"
 ```
-The CLI and daemon are universal binaries: build `aarch64-apple-darwin` and `x86_64-apple-darwin`, then `lipo -create -output <out> <arm64> <x86_64>`. Test on the MacBook: open the DMG → drag to Applications → Open Anyway → the app starts; `LeemuSync.app/Contents/Helpers/leemusync` prints its version.
+The CLI and daemon are universal binaries: build `aarch64-apple-darwin` and `x86_64-apple-darwin`, then `lipo -create -output <out> <arm64> <x86_64>`. Test on the MacBook: open the DMG → drag to Applications → Open Anyway → the app starts; `LemuSync.app/Contents/Helpers/lemusync` prints its version.
 
 - [x] **Step 7: Android release signing.** In `app/android/app/build.gradle.kts`, sign `release` with the maintainer key when CI provides it; otherwise fall back to the debug key:
 ```kotlin
@@ -1230,23 +1230,23 @@ android {
 }
 ```
 Merge this into the generated `android { … }` block; don't create a second one. Add `*.jks` and `*.keystore` to `.gitignore`.
-**Maintainer, once:** `keytool -genkeypair -v -keystore leemusync-release.jks -keyalg RSA -keysize 4096 -validity 10000 -alias leemusync`. Store `base64` of the file and the passwords as repository secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. Keep two offline backups: losing the key means installed apps can never update.
+**Maintainer, once:** `keytool -genkeypair -v -keystore lemusync-release.jks -keyalg RSA -keysize 4096 -validity 10000 -alias lemusync`. Store `base64` of the file and the passwords as repository secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. Keep two offline backups: losing the key means installed apps can never update.
 
 - [x] **Step 8: `.github/workflows/release.yml`.** Triggers: `push: tags: ['v*']`, `workflow_dispatch`, and `pull_request` with `paths: ['.github/workflows/release.yml', 'packaging/**']`. GitHub only lets you start a `workflow_dispatch` workflow once it's on the default branch, so PRs that touch packaging are the dry run. Top-level `permissions: contents: read`. Every action pinned by SHA (Task 3 Step 3). Version = tag without `v`, or for manual and PR runs `0.0.0-dev.<run_number>` for file names only.
 
 | Job | Runner(s) | Does |
 |---|---|---|
 | `version` | ubuntu-latest | Tag runs only: `cargo xtask version-check "$GITHUB_REF_NAME"` |
-| `linux` | `ubuntu-22.04` (x86_64), `ubuntu-22.04-arm` (arm64) | apt: `clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev`; `cargo build --release -p leemusync-cli -p leemusync-daemon`; `flutter build linux --release`; stage; nfpm deb + rpm; AppImage; tar.gz. If the Flutter action lacks linux-arm64 (V-PKG-4), clone Flutter at the version pinned in `pubspec.yaml` |
+| `linux` | `ubuntu-22.04` (x86_64), `ubuntu-22.04-arm` (arm64) | apt: `clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev`; `cargo build --release -p lemusync-cli -p lemusync-daemon`; `flutter build linux --release`; stage; nfpm deb + rpm; AppImage; tar.gz. If the Flutter action lacks linux-arm64 (V-PKG-4), clone Flutter at the version pinned in `pubspec.yaml` |
 | `headless` | ubuntu-22.04 | CLI + daemon `.tar.gz` for x86_64, aarch64, armv7 (`rustup target add`; apt `gcc-aarch64-linux-gnu gcc-arm-linux-gnueabihf`; `CARGO_TARGET_<TRIPLE>_LINKER`) |
 | `windows` | windows-latest | Rust release build; `flutter build windows --release`; Inno Setup → `.exe`; WiX → two `.msi` (V-PKG-2: install with `choco`/`dotnet tool` if absent) |
 | `macos` | macos-latest | Rust for both macOS targets + `lipo`; `flutter build macos --release`; `make-dmg.sh` |
-| `android` | ubuntu-latest | `actions/setup-java` (Temurin 17); decode `ANDROID_KEYSTORE_BASE64` to a temp file and export `ANDROID_KEYSTORE_PATH` when present; **tag runs fail if the secrets are missing**; `flutter build apk --release --split-per-abi`; rename to `leemusync-<v>-android-<abi>.apk` (`-debug` suffix when unsigned) |
-| `publish` | ubuntu-latest, needs all | Download artifacts; `sha256sum * > SHA256SUMS`; `actions/attest-build-provenance` over every file (job permissions: `id-token: write`, `attestations: write`, `contents: write`); tag → `gh release create "$GITHUB_REF_NAME" --draft --verify-tag --title "LeemuSync $VERSION" dist/*`; manual or PR → upload one combined workflow artifact. Attest only on tag and manual runs (PRs from forks get no OIDC token) |
+| `android` | ubuntu-latest | `actions/setup-java` (Temurin 17); decode `ANDROID_KEYSTORE_BASE64` to a temp file and export `ANDROID_KEYSTORE_PATH` when present; **tag runs fail if the secrets are missing**; `flutter build apk --release --split-per-abi`; rename to `lemusync-<v>-android-<abi>.apk` (`-debug` suffix when unsigned) |
+| `publish` | ubuntu-latest, needs all | Download artifacts; `sha256sum * > SHA256SUMS`; `actions/attest-build-provenance` over every file (job permissions: `id-token: write`, `attestations: write`, `contents: write`); tag → `gh release create "$GITHUB_REF_NAME" --draft --verify-tag --title "LemuSync $VERSION" dist/*`; manual or PR → upload one combined workflow artifact. Attest only on tag and manual runs (PRs from forks get no OIDC token) |
 
-- [x] **Step 9: Dry run.** Push the branch and open a PR. The `pull_request` trigger builds every artifact (download them from the run's Artifacts section). Download the artifacts and test each on the [Device lab](../../specs/testing.md#device-lab): `.exe` + `.msi` on Windows; `.rpm`, `.AppImage`, `.tar.gz` on Fedora; `.AppImage` + `.tar.gz` on CachyOS; `.deb` in an Ubuntu container (`dpkg -i` + `leemusync`); `.apk` on the Galaxy A25; `.dmg` on the MacBook. Write the results and the answers to V-PKG-1…5 into release.md. Done 2026-10-08 (run 37789852214): see [release §Dry run results](../../specs/release.md#dry-run-results-2026-10-08). Windows installers and CachyOS deferred → V-PKG-6.
+- [x] **Step 9: Dry run.** Push the branch and open a PR. The `pull_request` trigger builds every artifact (download them from the run's Artifacts section). Download the artifacts and test each on the [Device lab](../../specs/testing.md#device-lab): `.exe` + `.msi` on Windows; `.rpm`, `.AppImage`, `.tar.gz` on Fedora; `.AppImage` + `.tar.gz` on CachyOS; `.deb` in an Ubuntu container (`dpkg -i` + `lemusync`); `.apk` on the Galaxy A25; `.dmg` on the MacBook. Write the results and the answers to V-PKG-1…5 into release.md. Done 2026-10-08 (run 37789852214): see [release §Dry run results](../../specs/release.md#dry-run-results-2026-10-08). Windows installers and CachyOS deferred → V-PKG-6.
 
-- [x] **Step 10: Tag test (maintainer approval required).** Set the version to `0.0.1-alpha.1` in `Cargo.toml` and `app/pubspec.yaml` (`0.0.1-alpha.1+1`). Tag `v0.0.1-alpha.1` and push the tag. Confirm the draft release lists every format + `SHA256SUMS`, and that `gh attestation verify <file> --repo DanielEsc0911/leemusync` passes. Leave it as a draft (don't publish) or delete the draft and tag, as the maintainer decides. Done 2026-10-08 (run 37832589541): see [release §Tag test results](../../specs/release.md#tag-test-results-2026-10-08). Draft kept unpublished.
+- [x] **Step 10: Tag test (maintainer approval required).** Set the version to `0.0.1-alpha.1` in `Cargo.toml` and `app/pubspec.yaml` (`0.0.1-alpha.1+1`). Tag `v0.0.1-alpha.1` and push the tag. Confirm the draft release lists every format + `SHA256SUMS`, and that `gh attestation verify <file> --repo DanielEsc0911/lemusync` passes. Leave it as a draft (don't publish) or delete the draft and tag, as the maintainer decides. Done 2026-10-08 (run 37832589541): see [release §Tag test results](../../specs/release.md#tag-test-results-2026-10-08). Draft kept unpublished.
 
 - [x] **Step 11: Commit.** `just check` → green, then:
 ```bash
@@ -1297,16 +1297,16 @@ Runs on the CachyOS laptop, by the maintainer or an agent there. Results go into
    The `sha256sum -c` line must print `OK`. The hash is from Flutter's `releases_linux.json`.
 3. **Get the branch and check it.** Rustup installs Rust 1.99.0 and the bridge targets on first use.
    ```sh
-   git clone https://github.com/DanielEsc0911/leemusync.git && cd leemusync   # or: git pull
+   git clone https://github.com/DanielEsc0911/lemusync.git && cd lemusync   # or: git pull
    git switch spike/sp1-bridge
    just check
-   cargo test -p leemusync-bridge -- --include-ignored
+   cargo test -p lemusync-bridge -- --include-ignored
    ```
    Expected: `just check` green; 3 bridge tests pass (shared counter, valid certificate, bad certificates rejected).
 4. **Probe** (a window opens for about 10 s and closes by itself). Run from `app/`:
    ```sh
    flutter build linux --profile -t tool/sp1_probe.dart
-   build/linux/x64/profile/bundle/leemusync-gui 2>/dev/null | grep '^SP1'
+   build/linux/x64/profile/bundle/lemusync-gui 2>/dev/null | grep '^SP1'
    for i in 1 2 3; do flutter run --profile -d linux -t tool/sp1_probe.dart --trace-startup >/dev/null 2>&1; cat build/start_up_info.json; echo; done
    ```
    Keep the `SP1 {...}` line and the three `timeToFirstFrameRasterizedMicros` values. If the monitor runs above 60 Hz, `refresh_hz` shows it and the frame numbers are the 120 Hz data SP1 wants.
@@ -1314,7 +1314,7 @@ Runs on the CachyOS laptop, by the maintainer or an agent there. Results go into
    ```sh
    flutter build linux --release
    du -sh build/linux/x64/release/bundle; du -h build/linux/x64/release/bundle/lib/*
-   build/linux/x64/release/bundle/leemusync-gui >/dev/null 2>&1 & p=$!; sleep 6; grep VmRSS /proc/$p/status; kill $p
+   build/linux/x64/release/bundle/lemusync-gui >/dev/null 2>&1 & p=$!; sleep 6; grep VmRSS /proc/$p/status; kill $p
    ```
 6. **Cemu check (V-ACC-1, needed for M1).** Find the install type and data root, then compare with [players-and-accounts §Cemu accounts](../../specs/players-and-accounts.md#cemu-accounts-sp7):
    ```sh

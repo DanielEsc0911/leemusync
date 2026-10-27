@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 /// Version of the report and request shapes in this crate. Bumped on breaking changes.
 pub const API_VERSION: u32 = 1;
 
-/// Result of `leemusync sync`: one entry per stream, plus warnings.
+/// Result of `lemusync sync`: one entry per stream, plus warnings.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SyncReport {
     /// Shape version, always `API_VERSION`.
@@ -123,7 +123,7 @@ pub struct Warning {
 pub enum WarningCode {
     /// The emulator is running, so saves may change under the sync.
     EmulatorRunning,
-    /// A save folder is not granted to `LeemuSync`.
+    /// A save folder is not granted to `LemuSync`.
     NotGranted,
     /// A shared folder that should be empty is not.
     SharedFolderNotEmpty,
@@ -140,7 +140,7 @@ pub enum WarningCode {
     /// A version id could not be parsed.
     InvalidVersion,
     /// `init` created the repo, but a later step failed on this device; `detail` is the error
-    /// code. `leemusync join` with the passphrase finishes the setup.
+    /// code. `lemusync join` with the passphrase finishes the setup.
     SetupIncomplete,
     /// A save folder could not be read safely (symlink or I/O error); `detail` is its path.
     UnreadableFolder,
@@ -152,7 +152,7 @@ pub enum WarningCode {
     LeaseReleaseFailed,
 }
 
-/// Result of `leemusync scan`: what was found on this machine.
+/// Result of `lemusync scan`: what was found on this machine.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScanReport {
     /// Shape version, always `API_VERSION`.
@@ -170,7 +170,7 @@ pub struct InstallReport {
     pub emulator: String,
     /// Base folder of the install.
     pub base: String,
-    /// True when the base folder is granted to `LeemuSync`.
+    /// True when the base folder is granted to `LemuSync`.
     pub granted: bool,
     /// Folders that still need a grant.
     pub needs_grant: Vec<String>,
@@ -191,7 +191,7 @@ pub struct AccountReport {
     pub player: Option<String>,
 }
 
-/// Result of `leemusync accounts create`.
+/// Result of `lemusync accounts create`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreatedAccount {
     /// Shape version, always `API_VERSION`.
@@ -223,7 +223,7 @@ pub struct SaveReport {
     pub bytes: u64,
 }
 
-/// Result of `leemusync status`.
+/// Result of `lemusync status`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StatusReport {
     /// Shape version, always `API_VERSION`.
@@ -259,7 +259,7 @@ pub struct StreamStatus {
     pub base: Option<String>,
 }
 
-/// Result of `leemusync history`.
+/// Result of `lemusync history`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HistoryReport {
     /// Shape version, always `API_VERSION`.
@@ -324,7 +324,7 @@ pub struct ConflictInfo {
     pub heads: Vec<HeadInfo>,
 }
 
-/// A step of `leemusync play`, for live status (sync-model §Launcher mode).
+/// A step of `lemusync play`, for live status (sync-model §Launcher mode).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PlayEvent {
@@ -350,7 +350,7 @@ pub enum PlayLease {
     PlayedAnyway,
 }
 
-/// Result of `leemusync play`.
+/// Result of `lemusync play`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PlayReport {
     /// Shape version, always `API_VERSION`.
@@ -369,7 +369,7 @@ pub struct PlayReport {
     pub warnings: Vec<Warning>,
 }
 
-/// One lease, as `leemusync status` shows it (sync-model §Leases).
+/// One lease, as `lemusync status` shows it (sync-model §Leases).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LeaseInfo {
     /// Player name.
@@ -390,7 +390,7 @@ pub struct LeaseInfo {
     pub ours: bool,
 }
 
-/// Result of `leemusync init`. The recovery key is never included.
+/// Result of `lemusync init`. The recovery key is never included.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InitReport {
     /// Shape version, always `API_VERSION`.
@@ -403,7 +403,7 @@ pub struct InitReport {
     pub warnings: Vec<Warning>,
 }
 
-/// Result of `leemusync doctor`.
+/// Result of `lemusync doctor`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DoctorReport {
     /// Shape version, always `API_VERSION`.

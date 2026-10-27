@@ -3,9 +3,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-use leemusync_api::{Warning, WarningCode};
-use leemusync_core::account::{decode_mii_name, key_value};
-use leemusync_core::profile::{PatternPart, Profile, parse_pattern};
+use lemusync_api::{Warning, WarningCode};
+use lemusync_core::account::{decode_mii_name, key_value};
+use lemusync_core::profile::{PatternPart, Profile, parse_pattern};
 
 use crate::profiles::Install;
 use crate::{EngineError, fsx};
@@ -359,7 +359,7 @@ mod tests {
         assert_eq!(d.warnings.len(), 1);
         assert_eq!(
             d.warnings[0].code,
-            leemusync_api::WarningCode::UnreadableFolder
+            lemusync_api::WarningCode::UnreadableFolder
         );
     }
 }

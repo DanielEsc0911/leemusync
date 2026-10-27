@@ -1,5 +1,5 @@
 [package]
-name = "leemusync-crypto"
+name = "lemusync-crypto"
 description = "Encryption, key derivation and keyed hashing."
 version.workspace = true
 edition.workspace = true

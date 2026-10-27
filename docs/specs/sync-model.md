@@ -72,11 +72,11 @@ M1b (`Engine::play`, `PlayReport`):
 - Held lease: **wait** polls every 10 s, **play anyway** plays without a lease (a divergence becomes a conflict, D6), **take over** works only on a stale lease.
 - The emulator's blocking wait runs on its own thread while the engine renews every 60 s. A failed renewal is a `lease_renew_failed` warning and is retried; it never stops the game.
 - Step 6 waits until no save file changed for the quiet period, then snapshots and uploads; no change uploads nothing.
-- Release runs on every path once the lease is taken, errors included. A failed release is a `lease_release_failed` warning. If LeemuSync itself is killed mid-game, the lease goes stale after its TTL and the next acquire on this device overwrites it.
+- Release runs on every path once the lease is taken, errors included. A failed release is a `lease_release_failed` warning. If LemuSync itself is killed mid-game, the lease goes stale after its TTL and the next acquire on this device overwrites it.
 - A failed upload after exit keeps the files and the stream's base, so the next sync sees them as changed and uploads them (B3).
 
 ### Watch mode (fallback)
-- **Desktop:** the profile's process names mark when the emulator is running. On the first save change, LeemuSync takes the lease for that stream. When the emulator exits (or files go quiet): snapshot, upload, release.
+- **Desktop:** the profile's process names mark when the emulator is running. On the first save change, LemuSync takes the lease for that stream. When the emulator exits (or files go quiet): snapshot, upload, release.
 - **No process info (mobile):** a file change plus the quiet period triggers snapshot and upload. The lease is held from the first change until the upload finishes.
 - **Pull** happens at emulator start (desktop), on app open, and on scheduled syncs (mobile).
 
@@ -95,7 +95,7 @@ Several heads are merged automatically by union ([D30](../decisions.md#d30-repo-
 
 ## Remote layout
 ```
-<root>/leemusync/
+<root>/lemusync/
   repo.json                              format version, KDF params, wrapped master keys
   config/versions/<versionId>            repo-config stream
   devices/<deviceId>                     device record
@@ -123,4 +123,4 @@ Snapshots queue in local history and upload when the device is back online. Pare
 - **V-SYNC-2** Listing delay and consistency on Google Drive, Dropbox and OneDrive (SP6). Google Drive data point 2026-10-08: listings were consistent on the first list in 5/5 rounds of 10 files (small sample). Drive `list` entries carry no mtime, so lease liveness on Drive can't come from listing mtimes; it needs a `stat` per lease or the lease's own `renewed_at` ([storage-backends §Google Drive (live)](storage-backends.md#google-drive-live)).
 
 ## Open questions
-- Watch mode on desktop: should LeemuSync take the lease for the *last played* game as soon as the emulator starts? Decide with Phase 2 usage data.
+- Watch mode on desktop: should LemuSync take the lease for the *last played* game as soon as the emulator starts? Decide with Phase 2 usage data.

@@ -5,7 +5,7 @@ mod common;
 use std::path::{Path, PathBuf};
 
 use common::{FIXTURE, env, install_fixture};
-use leemusync_engine::Engine;
+use lemusync_engine::Engine;
 
 #[tokio::test]
 async fn flatpak_fixture_matches_expected_toml() {
@@ -140,6 +140,6 @@ async fn an_unreadable_save_folder_is_a_warning_not_zero_files() {
         .unwrap();
     let report = engine.scan().await.unwrap();
     assert!(report.warnings.iter().any(|w| {
-        w.code == leemusync_api::WarningCode::UnreadableFolder && w.detail.ends_with("80000001")
+        w.code == lemusync_api::WarningCode::UnreadableFolder && w.detail.ends_with("80000001")
     }));
 }

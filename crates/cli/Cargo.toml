@@ -1,6 +1,6 @@
 [package]
-name = "leemusync-cli"
-description = "LeemuSync command-line interface."
+name = "lemusync-cli"
+description = "LemuSync command-line interface."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -9,12 +9,12 @@ rust-version.workspace = true
 publish = false
 
 [[bin]]
-name = "leemusync"
+name = "lemusync"
 path = "src/main.rs"
 
 [dependencies]
-leemusync-api = { path = "../api" }
-leemusync-engine = { path = "../engine" }
+lemusync-api = { path = "../api" }
+lemusync-engine = { path = "../engine" }
 clap = { workspace = true }
 fluent-bundle = { workspace = true }
 rpassword = { workspace = true }

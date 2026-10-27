@@ -1,7 +1,7 @@
 //! One suite for every adapter (storage-backends §Conformance suite).
 #![allow(clippy::unwrap_used)] // test helper; clippy.toml only exempts `#[test]` fns
 
-use leemusync_store::{Entry, ErrorClass, PutMode, Store};
+use lemusync_store::{Entry, ErrorClass, PutMode, Store};
 
 async fn suite(store: &Store, root: &str) {
     let a = format!("{root}a");
@@ -122,19 +122,19 @@ async fn modified_advances(store: &Store, root: &str) {
 }
 
 #[tokio::test]
-#[ignore = "live Google Drive: run `cargo run -p leemusync-store --example gdrive_login` first"]
+#[ignore = "live Google Drive: run `cargo run -p lemusync-store --example gdrive_login` first"]
 async fn gdrive_conformance() {
-    use leemusync_store::{GdriveConfig, oauth::OAuthClient};
+    use lemusync_store::{GdriveConfig, oauth::OAuthClient};
     use zeroize::Zeroizing;
-    let client_id = std::env::var("LEEMUSYNC_TEST_GDRIVE_CLIENT_ID").unwrap();
+    let client_id = std::env::var("LEMUSYNC_TEST_GDRIVE_CLIENT_ID").unwrap();
     let secret = Zeroizing::new(
-        keyring::Entry::new("leemusync-test", "gdrive-client-secret")
+        keyring::Entry::new("lemusync-test", "gdrive-client-secret")
             .unwrap()
             .get_password()
             .unwrap(),
     );
     let refresh = Zeroizing::new(
-        keyring::Entry::new("leemusync-test", "gdrive-refresh")
+        keyring::Entry::new("lemusync-test", "gdrive-refresh")
             .unwrap()
             .get_password()
             .unwrap(),
@@ -153,17 +153,17 @@ async fn gdrive_conformance() {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_millis();
-    suite(&store, &format!("leemusync-conformance/{run}/")).await;
+    suite(&store, &format!("lemusync-conformance/{run}/")).await;
 }
 
 #[tokio::test]
-#[ignore = "live S3/R2: set LEEMUSYNC_TEST_S3_ENDPOINT, _BUCKET, _KEY_ID and keyring leemusync-test/s3-secret"]
+#[ignore = "live S3/R2: set LEMUSYNC_TEST_S3_ENDPOINT, _BUCKET, _KEY_ID and keyring lemusync-test/s3-secret"]
 async fn s3_conformance() {
-    use leemusync_store::S3Config;
+    use lemusync_store::S3Config;
     use zeroize::Zeroizing;
-    let var = |name: &str| std::env::var(format!("LEEMUSYNC_TEST_S3_{name}")).unwrap();
+    let var = |name: &str| std::env::var(format!("LEMUSYNC_TEST_S3_{name}")).unwrap();
     let secret = Zeroizing::new(
-        keyring::Entry::new("leemusync-test", "s3-secret")
+        keyring::Entry::new("lemusync-test", "s3-secret")
             .unwrap()
             .get_password()
             .unwrap(),
@@ -182,7 +182,7 @@ async fn s3_conformance() {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_millis();
-    let root = format!("leemusync-conformance/{run}/");
+    let root = format!("lemusync-conformance/{run}/");
     suite(&store, &root).await;
 
     // V-STORE-1: concurrent create-only writes to one name have exactly one winner.

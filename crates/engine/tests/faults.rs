@@ -5,9 +5,9 @@
 mod common;
 
 use common::{Pc, SAVE, join, map};
-use leemusync_api::StreamAction;
-use leemusync_engine::{EngineError, MapChoice, SyncOptions};
-use leemusync_store::{Fault, Faults};
+use lemusync_api::StreamAction;
+use lemusync_engine::{EngineError, MapChoice, SyncOptions};
+use lemusync_store::{Fault, Faults};
 
 #[allow(clippy::unwrap_used)] // test helper: a failure here is a failed test
 async fn two_pcs(root: &std::path::Path) -> (Pc, Pc) {

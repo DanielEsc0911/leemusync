@@ -3,8 +3,8 @@
 use std::fs::File;
 use std::path::Path;
 
-use leemusync_core::manifest::FileEntry;
-use leemusync_core::{PlayerId, StreamId, VersionId};
+use lemusync_core::manifest::FileEntry;
+use lemusync_core::{PlayerId, StreamId, VersionId};
 use rusqlite::{Connection, OptionalExtension, params};
 
 use crate::EngineError;
@@ -252,7 +252,7 @@ impl State {
         })?;
         rows.map(|row| {
             let (op, stream, kind, step, data) = row?;
-            let hash = leemusync_core::Hash32::from_hex(&stream)
+            let hash = lemusync_core::Hash32::from_hex(&stream)
                 .map_err(|e| EngineError::Io(e.to_string()))?;
             Ok(JournalEntry {
                 op,
@@ -298,7 +298,7 @@ impl State {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use leemusync_core::{Hash32, VersionId};
+    use lemusync_core::{Hash32, VersionId};
 
     fn row() -> StreamRow {
         StreamRow {

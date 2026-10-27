@@ -1,4 +1,4 @@
-//! Where `LeemuSync` keeps its files (config-and-cli §Locations).
+//! Where `LemuSync` keeps its files (config-and-cli §Locations).
 
 use std::path::{Path, PathBuf};
 
@@ -17,7 +17,7 @@ impl Locations {
     /// # Errors
     /// `Config` when the OS reports no home directory.
     pub fn from_os() -> Result<Self, EngineError> {
-        let project = directories::ProjectDirs::from("", "", "leemusync")
+        let project = directories::ProjectDirs::from("", "", "lemusync")
             .ok_or_else(|| EngineError::Config("no_home_dir".into()))?;
         let base = directories::BaseDirs::new()
             .ok_or_else(|| EngineError::Config("no_home_dir".into()))?;
@@ -35,8 +35,8 @@ impl Locations {
     pub fn under(root: &Path) -> Self {
         let home = root.join("home");
         Self {
-            config_dir: root.join("config/leemusync"),
-            data_dir: root.join("data/leemusync"),
+            config_dir: root.join("config/lemusync"),
+            data_dir: root.join("data/lemusync"),
             xdg_data: home.join(".local/share"),
             xdg_config: home.join(".config"),
             home,

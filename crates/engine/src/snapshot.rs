@@ -6,8 +6,8 @@ use std::fs::Metadata;
 use std::io::Read as _;
 use std::path::{Path, PathBuf};
 
-use leemusync_core::manifest::FileEntry;
-use leemusync_core::{BlobId, RelPath};
+use lemusync_core::manifest::FileEntry;
+use lemusync_core::{BlobId, RelPath};
 
 use crate::{EngineError, fsx};
 
@@ -182,7 +182,7 @@ fn read_consistent(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use leemusync_core::Hash32;
+    use lemusync_core::Hash32;
 
     fn fake_id(d: &[u8]) -> BlobId {
         let mut h = [0u8; 32];

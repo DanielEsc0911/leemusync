@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping. LeemuSync is pre-alpha and the design lives in [docs/](docs/index.md).
+Thanks for helping. LemuSync is pre-alpha and the design lives in [docs/](docs/index.md).
 
 1. Read [AGENTS.md](AGENTS.md). The non-negotiable rules apply to humans and AI agents alike. Full text: [docs/rules.md](docs/rules.md).
 2. Follow [docs/specs/git-workflow.md](docs/specs/git-workflow.md) for branches, commit format and co-author trailers.

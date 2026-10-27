@@ -1,16 +1,16 @@
-package io.github.danielesc0911.leemusync
+package io.github.danielesc0911.lemusync
 
 import android.content.Context
 
 /**
- * Loads `libleemusync_bridge.so`, the same library Dart loads through
+ * Loads `liblemusync_bridge.so`, the same library Dart loads through
  * flutter_rust_bridge, so Kotlin and Dart share one engine
  * (docs/specs/architecture.md, Bridge). The UniFFI calls live in
- * `uniffi.leemusync`.
+ * `uniffi.lemusync`.
  */
 object Bridge {
     init {
-        System.loadLibrary("leemusync_bridge")
+        System.loadLibrary("lemusync_bridge")
     }
 
     /** Gives rustls-platform-verifier the app context. Call once, before any TLS. */

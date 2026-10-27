@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use std::collections::BTreeMap;
 
-use leemusync_engine::{
+use lemusync_engine::{
     Engine, EngineEnv, EngineError, FakeProbe, JoinSecret, Locations, MapChoice, MapOutcome,
     MemorySecrets, SecretStore, SyncOptions, fsx,
 };
@@ -71,7 +71,7 @@ pub fn env_with(root: &Path, probe: Arc<FakeProbe>, secrets: Arc<dyn SecretStore
         locations: Locations::under(root),
         secrets,
         processes: probe,
-        kdf: leemusync_crypto::KdfParams {
+        kdf: lemusync_crypto::KdfParams {
             m_kib: 19_456,
             t: 1,
             p: 1,
@@ -185,7 +185,7 @@ impl Pc {
         fsx::copy_tree(&act.join("80000001"), &act.join(id)).unwrap();
     }
 
-    pub async fn sync(&mut self) -> leemusync_api::SyncReport {
+    pub async fn sync(&mut self) -> lemusync_api::SyncReport {
         self.engine.confirm_first_sync().unwrap();
         self.engine
             .sync(SyncOptions { dry_run: false })

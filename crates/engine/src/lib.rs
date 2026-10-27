@@ -31,14 +31,14 @@ mod upload;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use leemusync_core::DeviceId;
-use leemusync_crypto::KdfParams;
+use lemusync_core::DeviceId;
+use lemusync_crypto::KdfParams;
 
 pub use accounts::{MapChoice, MapOutcome};
 pub use error::EngineError;
 pub use failpoints::Failpoints;
 pub use lease::{Acquire, LeaseHandle};
-pub use leemusync_core::VersionId;
+pub use lemusync_core::VersionId;
 pub use local_config::{
     BackendConfig, ConflictPolicy, DeviceSection, EmulatorOverride, LeaseSettings, LocalConfig,
 };
@@ -84,14 +84,14 @@ pub struct Engine {
     /// Where `TransferProgress` goes (`set_progress`); nowhere by default.
     progress: Option<ProgressSink>,
     /// Streams whose stale lease we took over, by previous holder; read by the next upload.
-    takeovers: std::sync::Mutex<std::collections::BTreeMap<leemusync_core::StreamId, DeviceId>>,
+    takeovers: std::sync::Mutex<std::collections::BTreeMap<lemusync_core::StreamId, DeviceId>>,
     /// Test-only shift of the lease clock (`shift_lease_clock_ms`).
     clock_shift_ms: i64,
     /// Renew, lease-poll and quiet-period intervals for `play` (shortened in tests).
     play_timings: play::Timings,
     /// Test-only request faults for every store opened (`set_store_faults`).
     #[cfg(feature = "failpoints")]
-    store_faults: Option<leemusync_store::Faults>,
+    store_faults: Option<lemusync_store::Faults>,
 }
 
 impl Engine {
@@ -134,7 +134,7 @@ impl Engine {
     }
 
     /// Rolls back every restore a crash interrupted (reliability §Restore procedure).
-    pub(crate) fn recover_journal(&self) -> Result<Vec<leemusync_api::Warning>, EngineError> {
+    pub(crate) fn recover_journal(&self) -> Result<Vec<lemusync_api::Warning>, EngineError> {
         restore::recover(&self.state, self.env.processes.as_ref())
     }
 
@@ -167,7 +167,7 @@ impl Engine {
     /// Test-only: every store this engine opens from now on injects `faults` (network
     /// matrix). Drops the open repo so the next operation reopens it through the faulty store.
     #[cfg(feature = "failpoints")]
-    pub fn set_store_faults(&mut self, faults: Option<leemusync_store::Faults>) {
+    pub fn set_store_faults(&mut self, faults: Option<lemusync_store::Faults>) {
         self.store_faults = faults;
         self.repo = None;
     }
@@ -187,14 +187,14 @@ pub(crate) fn now_ms() -> u64 {
 pub(crate) fn new_version_id() -> Result<VersionId, EngineError> {
     Ok(VersionId::from_parts(
         now_ms(),
-        leemusync_crypto::random_bytes::<10>()?,
+        lemusync_crypto::random_bytes::<10>()?,
     ))
 }
 
 /// Local history for one stream: `<data>/history/<stream id>` (reliability §Local history).
 pub(crate) fn history_dir(
     data_dir: &std::path::Path,
-    stream: &leemusync_core::StreamId,
+    stream: &lemusync_core::StreamId,
 ) -> std::path::PathBuf {
     data_dir.join("history").join(stream.to_string())
 }
@@ -208,7 +208,7 @@ mod tests {
             locations: Locations::under(root),
             secrets: Arc::new(MemorySecrets::default()),
             processes: Arc::new(FakeProbe::default()),
-            kdf: leemusync_crypto::KdfParams {
+            kdf: lemusync_crypto::KdfParams {
                 m_kib: 19_456,
                 t: 1,
                 p: 1,
@@ -232,7 +232,7 @@ mod tests {
     fn exit_codes_follow_the_cli_spec() {
         assert_eq!(EngineError::Usage("x".into()).exit_code(), 2);
         assert_eq!(EngineError::Config("x".into()).exit_code(), 3);
-        let auth = leemusync_store::StoreError::new(leemusync_store::ErrorClass::Auth, "x");
+        let auth = lemusync_store::StoreError::new(lemusync_store::ErrorClass::Auth, "x");
         assert_eq!(EngineError::Store(auth).exit_code(), 6);
         assert_eq!(EngineError::Unlock.exit_code(), 1);
     }

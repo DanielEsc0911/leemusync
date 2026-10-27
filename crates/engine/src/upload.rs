@@ -4,9 +4,9 @@
 use std::collections::BTreeSet;
 
 use futures_util::{StreamExt, TryStreamExt, stream};
-use leemusync_api::TransferPhase;
-use leemusync_core::manifest::{EmulatorRef, FORMAT, FileEntry, Meta, Version};
-use leemusync_core::{DeviceId, PlayerId, StreamId, VersionId};
+use lemusync_api::TransferPhase;
+use lemusync_core::manifest::{EmulatorRef, FORMAT, FileEntry, Meta, Version};
+use lemusync_core::{DeviceId, PlayerId, StreamId, VersionId};
 
 use crate::progress::Meter;
 use crate::repo::Repo;
@@ -132,13 +132,13 @@ pub(crate) async fn commit_manifest(
 mod tests {
     use super::*;
     use crate::repo::Repo;
-    use leemusync_core::{Hash32, VersionId};
+    use lemusync_core::{Hash32, VersionId};
 
     #[tokio::test]
     async fn blobs_first_manifest_last() {
         let dir = tempfile::tempdir().unwrap();
-        let store = leemusync_store::Store::fs(&dir.path().join("remote")).unwrap();
-        let fast = leemusync_crypto::KdfParams {
+        let store = lemusync_store::Store::fs(&dir.path().join("remote")).unwrap();
+        let fast = lemusync_crypto::KdfParams {
             m_kib: 19_456,
             t: 1,
             p: 1,
@@ -187,8 +187,8 @@ mod tests {
     #[tokio::test]
     async fn twelve_files_land_twelve_blobs_and_one_manifest() {
         let dir = tempfile::tempdir().unwrap();
-        let store = leemusync_store::Store::fs(&dir.path().join("remote")).unwrap();
-        let fast = leemusync_crypto::KdfParams {
+        let store = lemusync_store::Store::fs(&dir.path().join("remote")).unwrap();
+        let fast = lemusync_crypto::KdfParams {
             m_kib: 19_456,
             t: 1,
             p: 1,
@@ -259,7 +259,7 @@ mod tests {
                     .sum()
             })
         }
-        walk(&remote.join("leemusync/blobs"))
+        walk(&remote.join("lemusync/blobs"))
     }
 
     #[tokio::test]
@@ -267,8 +267,8 @@ mod tests {
         use std::sync::{Arc, Mutex};
         let dir = tempfile::tempdir().unwrap();
         let remote = dir.path().join("remote");
-        let store = leemusync_store::Store::fs(&remote).unwrap();
-        let fast = leemusync_crypto::KdfParams {
+        let store = lemusync_store::Store::fs(&remote).unwrap();
+        let fast = lemusync_crypto::KdfParams {
             m_kib: 19_456,
             t: 1,
             p: 1,
@@ -317,7 +317,7 @@ mod tests {
         assert_eq!(blob_count(&remote), 12, "only `same` and `changed` went up");
         assert_eq!(meter.transferred(), (2, 11));
         let last = seen.lock().unwrap().last().unwrap().clone();
-        assert_eq!(last.phase, leemusync_api::TransferPhase::Uploading);
+        assert_eq!(last.phase, lemusync_api::TransferPhase::Uploading);
         assert_eq!((last.files_done, last.files_total), (2, 2));
         assert_eq!((last.bytes_done, last.bytes_total), (11, 11));
     }
@@ -325,8 +325,8 @@ mod tests {
     #[tokio::test]
     async fn a_changed_history_copy_uploads_no_manifest() {
         let dir = tempfile::tempdir().unwrap();
-        let store = leemusync_store::Store::fs(&dir.path().join("remote")).unwrap();
-        let fast = leemusync_crypto::KdfParams {
+        let store = lemusync_store::Store::fs(&dir.path().join("remote")).unwrap();
+        let fast = lemusync_crypto::KdfParams {
             m_kib: 19_456,
             t: 1,
             p: 1,
@@ -362,8 +362,8 @@ mod tests {
     async fn a_corrupt_existing_blob_blocks_the_upload() {
         let dir = tempfile::tempdir().unwrap();
         let remote = dir.path().join("remote");
-        let store = leemusync_store::Store::fs(&remote).unwrap();
-        let fast = leemusync_crypto::KdfParams {
+        let store = lemusync_store::Store::fs(&remote).unwrap();
+        let fast = lemusync_crypto::KdfParams {
             m_kib: 19_456,
             t: 1,
             p: 1,
@@ -376,15 +376,11 @@ mod tests {
             crate::snapshot::take(&src, &dir.path().join("hist"), 1024, &|d| repo.blob_id(d))
                 .unwrap()
                 .unwrap();
-        let raw = leemusync_store::Store::fs(&remote).unwrap();
+        let raw = lemusync_store::Store::fs(&remote).unwrap();
         let path = crate::repo::blob_path(&snap.files[0].blob);
-        raw.put(
-            &path,
-            b"torn".to_vec(),
-            leemusync_store::PutMode::CreateOnly,
-        )
-        .await
-        .unwrap();
+        raw.put(&path, b"torn".to_vec(), lemusync_store::PutMode::CreateOnly)
+            .await
+            .unwrap();
         let stream = StreamId(Hash32([5; 32]));
         let meta = UploadMeta {
             stream,

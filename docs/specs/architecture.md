@@ -11,17 +11,17 @@ How the pieces fit together: components, crate layers, process model per platfor
                  └───────┬───────────────────────────────────────────────┬───────────────────┘
           desktop: IPC   │                                               │  mobile: in-process
                  ┌───────▼────────┐                              ┌───────▼────────────────────┐
-                 │ leemusyncd     │  CLI ──IPC──►                │ leemusync-bridge (cdylib)  │
+                 │ lemusyncd     │  CLI ──IPC──►                │ lemusync-bridge (cdylib)  │
                  │ engine + tray  │                              │  FRB (Dart) + UniFFI       │
                  │ + notifications│                              │  (Kotlin/Swift) → 1 engine │
                  └───────┬────────┘                              └───────┬────────────────────┘
-                         └─────────────► leemusync-engine ◄──────────────┘
+                         └─────────────► lemusync-engine ◄──────────────┘
                                           │      │       │
                                core ◄─────┘   crypto   store ──► user's storage (S3, WebDAV, SFTP…)
 ```
 
 ## Layers
-Crates live under `crates/` with package names `leemusync-<dir>`. Dependencies only point down. `cargo xtask layers` enforces this table:
+Crates live under `crates/` with package names `lemusync-<dir>`. Dependencies only point down. `cargo xtask layers` enforces this table:
 
 | Crate | Responsibility | May depend on (internal) |
 |---|---|---|
@@ -31,8 +31,8 @@ Crates live under `crates/` with package names `leemusync-<dir>`. Dependencies o
 | `api` | Engine API: request/response/event types and the `EngineApi` trait. Stable and versioned | — |
 | `engine` | Orchestration: scanning, watching, snapshots, transfers, leases, journal, state DB, scheduler. Implements `EngineApi` | core, crypto, store, api |
 | `ipc` | Local-socket transport: framing, handshake, `EngineApi` client and server | api |
-| `daemon` | `leemusyncd` binary: service lifecycle, tray, notifications, sleep inhibition | api, engine, ipc |
-| `cli` | `leemusync` binary | api, engine, ipc |
+| `daemon` | `lemusyncd` binary: service lifecycle, tray, notifications, sleep inhibition | api, engine, ipc |
+| `cli` | `lemusync` binary | api, engine, ipc |
 | `bridge` | Mobile/desktop UI bindings: flutter_rust_bridge + UniFFI in one cdylib | api, engine, ipc |
 
 Rules:
@@ -43,8 +43,8 @@ Rules:
 ## Process model
 | Platform | Processes | Engine lives in |
 |---|---|---|
-| Windows, macOS, Linux desktop | `leemusyncd` (user-level service, owns tray and notifications) + Flutter app (on demand) + `leemusync` CLI | daemon |
-| Headless (Pi, server) | `leemusyncd --headless` + CLI | daemon |
+| Windows, macOS, Linux desktop | `lemusyncd` (user-level service, owns tray and notifications) + Flutter app (on demand) + `lemusync` CLI | daemon |
+| Headless (Pi, server) | `lemusyncd --headless` + CLI | daemon |
 | Android | App process. Kotlin service/jobs keep it alive during work | bridge (in-process) |
 | iOS | App process (also used by App Intents and background tasks) | bridge (in-process) |
 
@@ -72,10 +72,10 @@ Defined in `crates/api`, versioned (`api_version`), and identical in-process and
 |---|---|
 | Dart | [flutter_rust_bridge](https://cjycode.com/flutter_rust_bridge/) 2.13.0 (Rust `=2.13.0`, Dart `2.13.0`, codegen `2.13.0`, all three must match). Public items in `crates/bridge/src/api/` get bindings in `app/lib/bridge/`. Config: `app/flutter_rust_bridge.yaml`. Regenerate with `flutter_rust_bridge_codegen generate` in `app/`, then `just fmt` |
 | Build | FRB's **native-assets** backend: `app/hook/build.dart` (Dart build hook, `flutter_rust_bridge_hooks` → `native_toolchain_rust` 1.0.4) runs Cargo for the target and bundles the library. No per-platform glue (cargokit) in `android/`, `ios/`, `linux/`… The hook requires `crates/bridge/rust-toolchain.toml` with an exact channel and every target it may build. Keep its channel equal to the root one |
-| Kotlin, Swift | [UniFFI](https://mozilla.github.io/uniffi-rs/) 0.32.2, proc-macro mode (`setup_scaffolding!("leemusync")`, `#[uniffi::export]`), surface in `crates/bridge/src/native.rs`. Bindings: `cargo run -p leemusync-bridge --features bindgen --bin uniffi-bindgen -- generate --library <lib> --language kotlin --language swift --out-dir <dir>` |
+| Kotlin, Swift | [UniFFI](https://mozilla.github.io/uniffi-rs/) 0.32.2, proc-macro mode (`setup_scaffolding!("lemusync")`, `#[uniffi::export]`), surface in `crates/bridge/src/native.rs`. Bindings: `cargo run -p lemusync-bridge --features bindgen --bin uniffi-bindgen -- generate --library <lib> --language kotlin --language swift --out-dir <dir>` |
 | `unsafe` | The crate sets `unsafe_code = "deny"` (not `forbid`) in its own `[lints]` and allows it only on `mod frb_generated` and `mod native`. Lints are off for the generated module |
 | TLS | `rustls` 0.23 with the `ring` provider (no `aws-lc-rs`, no CMake for cross builds) and `rustls-platform-verifier` 0.7.1 ([security §Network](security.md#network)) |
-| Android glue | Kotlin `Bridge` (`app/android/.../Bridge.kt`) calls `System.loadLibrary("leemusync_bridge")`, the same `.so` Dart opens, then `Bridge.initTls(context)` (JNI entry in `crates/bridge/src/android.rs`, `jni` 0.22) before any TLS. Gradle adds `net.java.dev.jna:jna:5.19.1@aar` (UniFFI's Kotlin bindings use JNA) and `org.rustls:rustls-platform-verifier:0.2.0`, which is published only to a Maven repo on GitHub; that repo is restricted to the `org.rustls` group. Its version must match `rustls-platform-verifier-android` in `Cargo.lock`. Generated Kotlin bindings: `app/android/app/src/main/kotlin/uniffi/leemusync/` |
+| Android glue | Kotlin `Bridge` (`app/android/.../Bridge.kt`) calls `System.loadLibrary("lemusync_bridge")`, the same `.so` Dart opens, then `Bridge.initTls(context)` (JNI entry in `crates/bridge/src/android.rs`, `jni` 0.22) before any TLS. Gradle adds `net.java.dev.jna:jna:5.19.1@aar` (UniFFI's Kotlin bindings use JNA) and `org.rustls:rustls-platform-verifier:0.2.0`, which is published only to a Maven repo on GitHub; that repo is restricted to the `org.rustls` group. Its version must match `rustls-platform-verifier-android` in `Cargo.lock`. Generated Kotlin bindings: `app/android/app/src/main/kotlin/uniffi/lemusync/` |
 | R8 (release) | `app/android/app/proguard-rules.pro` keeps `com.sun.jna.**`, `uniffi.**` and `org.rustls.platformverifier.**`. Without it the release app crashes at the first UniFFI call (`UnsatisfiedLinkError: Can't obtain peer field ID for class com.sun.jna.Pointer`) and the verifier fails (`failed to call native verifier`). Debug and profile builds don't shrink, so they hide this |
 
 **SP1 results, Linux (2026-10-17).** Fedora 44 PC, XFCE on X11, AMD Radeon 860M, 1920×1200 at 60 Hz, Flutter 3.47.6 (Impeller, OpenGL ES), Rust 1.99.0. Probe: `app/tool/sp1_probe.dart` (spike only; `flutter run --profile -d linux -t tool/sp1_probe.dart`).
@@ -85,7 +85,7 @@ Defined in `crates/api`, versioned (`api_version`), and identical in-process and
 | Dart → Rust sync call | Works. Two calls returned `#1`, `#2` from the shared counter | — |
 | Cold start to first rasterized frame (profile, `--trace-startup`, 3 runs, includes `RustLib.init`) | 82–88 ms | ≤ 1 s ([design-system](ui/design-system.md#performance)) |
 | Frames during a 10 s rotation animation (profile) | 619 frames; build p50 0.24 ms / p99 0.38 ms; raster p50 0.43 ms / p99 0.71 ms; 4 frames over 8.3 ms total span | ≤ 8 ms per frame |
-| Release bundle (`flutter build linux --release`) | 23 MB: Flutter engine 17 MB, app AOT 3.2 MB, `libleemusync_bridge.so` 2.0 MB | — |
+| Release bundle (`flutter build linux --release`) | 23 MB: Flutter engine 17 MB, app AOT 3.2 MB, `liblemusync_bridge.so` 2.0 MB | — |
 | Idle RSS, release app after 6 s | 143 MiB (profile probe: 169 MiB max) | none for the UI (the daemon's is in [reliability](reliability.md)) |
 | Rust dependency graph | 112 crates for Linux (FRB, UniFFI, rustls, platform verifier) | — |
 

@@ -3,11 +3,11 @@
 use fluent_bundle::FluentValue;
 use std::time::Duration;
 
-use leemusync_api::{
+use lemusync_api::{
     API_VERSION, ConflictInfo, DoctorReport, ErrorBody, ErrorReport, HistoryReport, LeaseInfo,
     PlayReport, ScanReport, StatusReport, StreamAction, SyncReport, Warning,
 };
-use leemusync_engine::EngineError;
+use lemusync_engine::EngineError;
 use serde::Serialize;
 
 use crate::i18n::{I18n, s};
@@ -431,7 +431,7 @@ mod tests {
                 "{big}"
             );
             let repo = error_text(&t, &EngineError::NotSetUp("repo"));
-            assert!(repo.contains("leemusync init"), "{repo}");
+            assert!(repo.contains("lemusync init"), "{repo}");
             let other = error_text(&t, &EngineError::Io("disk full".into()));
             assert!(other.contains("disk full"), "{other}");
         }

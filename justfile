@@ -1,4 +1,4 @@
-# LeemuSync task runner. `just --list` shows every recipe.
+# LemuSync task runner. `just --list` shows every recipe.
 # On Windows, run from Git Bash (just uses `sh`).
 
 default:
@@ -31,6 +31,6 @@ check: lint test
 
 # Engine budget benches (release) and the release CLI size (reliability §Budgets)
 bench:
-    cargo bench -p leemusync-engine --bench budgets
-    cargo build --release -p leemusync-cli
-    ls -l target/release/leemusync
+    cargo bench -p lemusync-engine --bench budgets
+    cargo build --release -p lemusync-cli
+    ls -l target/release/lemusync

@@ -3,8 +3,8 @@
 mod common;
 
 use common::{Pc, join, map};
-use leemusync_api::StreamAction;
-use leemusync_engine::{EngineError, MapChoice, SyncOptions};
+use lemusync_api::StreamAction;
+use lemusync_engine::{EngineError, MapChoice, SyncOptions};
 
 #[tokio::test]
 async fn first_sync_needs_confirmation_and_uploads() {
@@ -47,7 +47,7 @@ async fn emulator_running_skips_everything() {
     assert!(
         r.warnings
             .iter()
-            .any(|w| w.code == leemusync_api::WarningCode::EmulatorRunning)
+            .any(|w| w.code == lemusync_api::WarningCode::EmulatorRunning)
     );
 }
 
@@ -80,7 +80,7 @@ async fn edit_on_one_pc_fast_forwards_the_other() {
 
 #[tokio::test]
 async fn progress_reports_each_transfer_and_an_unchanged_save_moves_nothing() {
-    use leemusync_api::{TransferPhase, TransferProgress};
+    use lemusync_api::{TransferPhase, TransferProgress};
     use std::sync::{Arc, Mutex};
     let seen: Arc<Mutex<Vec<TransferProgress>>> = Arc::default();
     let sink = {
@@ -175,7 +175,7 @@ async fn a_conflict_is_listed_and_resolved_with_nothing_lost() {
     );
     assert_eq!(list[0].heads.len(), 2);
     let history = b.engine.history("Ana", "cemu", "101c9400").await.unwrap();
-    let a_head: leemusync_core::VersionId = history
+    let a_head: lemusync_core::VersionId = history
         .versions
         .iter()
         .find(|v| v.head && v.device == a.engine.device_id().to_string())
@@ -192,7 +192,7 @@ async fn a_conflict_is_listed_and_resolved_with_nothing_lost() {
         .clone();
 
     // A version that isn't a head is refused.
-    let old: leemusync_core::VersionId = history
+    let old: lemusync_core::VersionId = history
         .versions
         .iter()
         .find(|v| !v.head)
@@ -251,7 +251,7 @@ async fn newest_policy_resolves_during_sync() {
     map(&mut b, "Ana", "80000002", MapChoice::Ask).await;
     b.sync().await;
     b.engine
-        .set_conflict_policy(leemusync_engine::ConflictPolicy::Newest)
+        .set_conflict_policy(lemusync_engine::ConflictPolicy::Newest)
         .unwrap();
     std::fs::write(
         a.cemu.join(common::SAVE).join("80000001/0/game_data.sav"),

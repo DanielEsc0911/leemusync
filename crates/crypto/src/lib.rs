@@ -9,10 +9,10 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 
 pub use zeroize::Zeroizing;
 
-pub const OBJECT_CONTEXT: &str = "leemusync v1 object";
-pub const BLOB_ID_CONTEXT: &str = "leemusync v1 blob-id";
-pub const STREAM_ID_CONTEXT: &str = "leemusync v1 stream-id";
-pub const RECOVERY_CONTEXT: &str = "leemusync v1 recovery-kek";
+pub const OBJECT_CONTEXT: &str = "lemusync v1 object";
+pub const BLOB_ID_CONTEXT: &str = "lemusync v1 blob-id";
+pub const STREAM_ID_CONTEXT: &str = "lemusync v1 stream-id";
+pub const RECOVERY_CONTEXT: &str = "lemusync v1 recovery-kek";
 
 const MAGIC: &[u8; 4] = b"LSE1";
 const NONCE_LEN: usize = 24;
@@ -28,7 +28,7 @@ pub enum CryptoError {
     Encrypt,
     #[error("authentication failed: wrong key or tampered data")]
     Decrypt,
-    #[error("not a LeemuSync encrypted object")]
+    #[error("not a LemuSync encrypted object")]
     Malformed,
     #[error("key derivation parameters are out of the allowed range")]
     KdfParams,

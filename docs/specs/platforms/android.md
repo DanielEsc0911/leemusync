@@ -3,7 +3,7 @@
 > **Status:** Draft · **Related:** [rules](../../rules.md) (B3, P4, F1), [architecture §Process model](../architecture.md#process-model), [status-and-notifications §Android](../ui/status-and-notifications.md#android), [emulator-profiles](../emulator-profiles.md), [reliability](../reliability.md) · **Code:** `app/android/` (planned)
 
 ## Purpose
-Android is the most common portable emulation platform. It also restricts file access and background work the most. This spec covers how LeemuSync works within those limits.
+Android is the most common portable emulation platform. It also restricts file access and background work the most. This spec covers how LemuSync works within those limits.
 
 ## Baseline
 - `minSdk` 26 (Android 8.0), `targetSdk` latest stable. Features above `minSdk` are detected at runtime.

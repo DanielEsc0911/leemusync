@@ -4,13 +4,13 @@
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use leemusync_store::{PutMode, S3Config, Store};
+use lemusync_store::{PutMode, S3Config, Store};
 use zeroize::Zeroizing;
 
 fn store() -> Store {
-    let var = |name: &str| std::env::var(format!("LEEMUSYNC_TEST_S3_{name}")).unwrap();
+    let var = |name: &str| std::env::var(format!("LEMUSYNC_TEST_S3_{name}")).unwrap();
     let secret = Zeroizing::new(
-        keyring::Entry::new("leemusync-test", "s3-secret")
+        keyring::Entry::new("lemusync-test", "s3-secret")
             .unwrap()
             .get_password()
             .unwrap(),
@@ -47,14 +47,14 @@ fn offset(server: SystemTime, local: SystemTime) -> f64 {
 }
 
 #[tokio::test]
-#[ignore = "live S3/R2: set LEEMUSYNC_TEST_S3_ENDPOINT, _BUCKET, _KEY_ID and keyring leemusync-test/s3-secret"]
+#[ignore = "live S3/R2: set LEMUSYNC_TEST_S3_ENDPOINT, _BUCKET, _KEY_ID and keyring lemusync-test/s3-secret"]
 async fn lease_mtime() {
     let store = store();
     let run = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_millis();
-    let prefix = format!("leemusync-conformance/{run}/locks/a/");
+    let prefix = format!("lemusync-conformance/{run}/locks/a/");
     let lock = format!("{prefix}b");
 
     let before = SystemTime::now();

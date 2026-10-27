@@ -1,4 +1,4 @@
-//! Generates the Kotlin and Swift bindings: `cargo run -p leemusync-bridge
+//! Generates the Kotlin and Swift bindings: `cargo run -p lemusync-bridge
 //! --features bindgen --bin uniffi-bindgen -- generate --library <lib> …`.
 
 fn main() {

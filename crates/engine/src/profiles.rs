@@ -4,8 +4,8 @@ use std::collections::BTreeMap;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-use leemusync_api::{Warning, WarningCode};
-use leemusync_core::profile::{Profile, expand};
+use lemusync_api::{Warning, WarningCode};
+use lemusync_core::profile::{Profile, expand};
 
 use crate::{EngineError, Locations};
 

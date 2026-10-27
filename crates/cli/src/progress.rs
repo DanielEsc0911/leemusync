@@ -7,8 +7,8 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
 use fluent_bundle::FluentValue;
-use leemusync_api::{TransferPhase, TransferProgress};
-use leemusync_engine::ProgressSink;
+use lemusync_api::{TransferPhase, TransferProgress};
+use lemusync_engine::ProgressSink;
 
 use crate::i18n::{I18n, s};
 

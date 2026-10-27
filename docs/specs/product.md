@@ -3,7 +3,7 @@
 > **Status:** Decided · **Related:** [rules](../rules.md), [architecture](architecture.md), [sync-model](sync-model.md), [roadmap](../progress/roadmap.md) · **Code:** —
 
 ## Purpose
-LeemuSync keeps emulator saves in sync across all of a household's devices, through storage they own, without ever losing a save.
+LemuSync keeps emulator saves in sync across all of a household's devices, through storage they own, without ever losing a save.
 
 ## Users
 - **Players.** Install, pick storage, play. Common emulators need no configuration.
@@ -35,9 +35,9 @@ Any emulator that stores saves as files, which covers every major console (Ninte
 
 ## Non-goals
 - Syncing ROMs, BIOS, firmware or console keys (legal risk and size; keys are secrets).
-- Hosting storage or running servers. LeemuSync is a client and the user brings the storage.
+- Hosting storage or running servers. LemuSync is a client and the user brings the storage.
 - Parsing game save contents (progress, achievements) in core ([D7](../decisions.md#d7-no-game-save-format-parsing-in-core-2026-10-07)).
-- Telemetry, LeemuSync accounts, ads.
+- Telemetry, LemuSync accounts, ads.
 - Cheats or save editing.
 
 ## Market gap

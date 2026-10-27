@@ -1,6 +1,6 @@
 ---
-name: leemusync-security
-description: Use when a LeemuSync change touches file paths or writes, crypto, keys or credentials, network or IPC, parsing of untrusted data (manifests, profiles, config, deep links, IPC frames), launching processes, dependencies, CI or release signing, and when reviewing such a change.
+name: lemusync-security
+description: Use when a LemuSync change touches file paths or writes, crypto, keys or credentials, network or IPC, parsing of untrusted data (manifests, profiles, config, deep links, IPC frames), launching processes, dependencies, CI or release signing, and when reviewing such a change.
 ---
 
 # Security review (B2)

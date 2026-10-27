@@ -1,4 +1,4 @@
-//! Launcher mode, `leemusync play` (sync-model §Launcher mode): pull, lease, launch, renew while
+//! Launcher mode, `lemusync play` (sync-model §Launcher mode): pull, lease, launch, renew while
 //! the emulator runs, then quiet period, snapshot, upload, release.
 //!
 //! The emulator's blocking `wait` runs on `spawn_blocking` while this task keeps `&mut Engine`
@@ -11,12 +11,12 @@ use std::ffi::OsString;
 use std::path::Path;
 use std::time::Duration;
 
-use leemusync_api::{
+use lemusync_api::{
     API_VERSION, ConflictInfo, PlayEvent, PlayLease, PlayReport, StreamAction, StreamReport,
     Warning, WarningCode,
 };
-use leemusync_core::VersionId;
-use leemusync_core::lease::RENEW_MS;
+use lemusync_core::VersionId;
+use lemusync_core::lease::RENEW_MS;
 
 use crate::lease::{Acquire, LeaseHandle};
 use crate::process::Launcher;

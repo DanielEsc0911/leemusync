@@ -1,15 +1,15 @@
-//! `leemusync sync`: reconcile every stream of every granted install (sync-model §Reconciliation).
+//! `lemusync sync`: reconcile every stream of every granted install (sync-model §Reconciliation).
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
-use leemusync_api::{API_VERSION, StreamAction, StreamReport, SyncReport, Warning, WarningCode};
-use leemusync_core::config::RepoConfig;
-use leemusync_core::heads::{Graph, heads};
-use leemusync_core::manifest::{FileEntry, Version};
-use leemusync_core::profile::Profile;
-use leemusync_core::reconcile::{Action, Input, Local, newest_head, reconcile};
-use leemusync_core::{DeviceId, PlayerId, StreamId, VersionId};
+use lemusync_api::{API_VERSION, StreamAction, StreamReport, SyncReport, Warning, WarningCode};
+use lemusync_core::config::RepoConfig;
+use lemusync_core::heads::{Graph, heads};
+use lemusync_core::manifest::{FileEntry, Version};
+use lemusync_core::profile::Profile;
+use lemusync_core::reconcile::{Action, Input, Local, newest_head, reconcile};
+use lemusync_core::{DeviceId, PlayerId, StreamId, VersionId};
 
 use crate::discover::{Discovery, save_folder};
 use crate::profiles::Install;
@@ -492,7 +492,7 @@ impl Engine {
                 .iter()
                 .map(|(id, v)| (*id, v.parents.clone()))
                 .collect();
-            let timed: Vec<_> = leemusync_core::heads::heads(&all)
+            let timed: Vec<_> = lemusync_core::heads::heads(&all)
                 .into_iter()
                 .filter_map(|h| versions.get(&h).map(|v| (h, v.created_at)))
                 .collect();

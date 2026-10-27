@@ -9,7 +9,7 @@ plugins {
 val releaseKeystore = System.getenv("ANDROID_KEYSTORE_PATH")
 
 android {
-    namespace = "io.github.danielesc0911.leemusync"
+    namespace = "io.github.danielesc0911.lemusync"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -20,7 +20,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "io.github.danielesc0911.leemusync"
+        applicationId = "io.github.danielesc0911.lemusync"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
