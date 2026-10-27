@@ -545,6 +545,15 @@ mod tests {
             assert!(repo.contains("lemusync init"), "{repo}");
             let other = error_text(&t, &EngineError::Io("disk full".into()));
             assert!(other.contains("disk full"), "{other}");
+            let game = error_text(
+                &t,
+                &EngineError::Usage("game_not_found:emulators.cemu.games.101c9500".into()),
+            );
+            assert!(
+                game.contains("lemusync games")
+                    && game.contains("lemusync config set emulators.cemu.games.101c9500"),
+                "{game}"
+            );
         }
     }
 }

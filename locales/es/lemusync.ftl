@@ -109,6 +109,7 @@ error-usage-not_orphaned = { $detail } no es una partida huérfana en este dispo
 error-usage-already_has_save = El jugador ya tiene una partida guardada de { $detail }. Mejor recupérala para un jugador nuevo.
 error-usage-folder_empty = Esa carpeta de guardado está vacía.
 error-usage-not_mapped = El jugador no tiene una cuenta de { $detail } en este dispositivo. Ejecuta `lemusync accounts map`.
+error-usage-game_not_found = Ese juego no se encontró en este dispositivo. Ejecuta `lemusync games` para ver los juegos encontrados, o indica su ruta con `lemusync config set { $detail } <ruta>`.
 error-usage-unknown_restore_point = { $detail } no es una versión ni una copia. Consulta `lemusync history`.
 error-usage-cannot_create = LemuSync no puede crear cuentas de { $detail }. Créala en el emulador y luego ejecuta `lemusync accounts map`.
 error-usage-too_many_accounts = El emulador ya tiene su máximo de { $detail } cuentas.

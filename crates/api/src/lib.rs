@@ -277,6 +277,42 @@ pub struct StreamStatus {
     pub base: Option<String>,
 }
 
+/// Where a game in the catalog was found (config-and-cli §Commands, `games`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GameSource {
+    /// `[emulators.<id>] games.<key>` in config.toml.
+    Config,
+    /// A game folder listed in the emulator's own config.
+    Emulator,
+    /// A folder the user listed in `[emulators.<id>] game_dirs`.
+    Scan,
+}
+
+/// One installed game on this device.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GameInfo {
+    /// Emulator profile id.
+    pub emulator: String,
+    /// Game key (Cemu: the title id's low 8 hex digits).
+    pub key: String,
+    /// Display name read from the game's metadata on this device, when known.
+    pub name: Option<String>,
+    /// What `play` starts, when known.
+    pub path: Option<String>,
+    /// Where the path came from.
+    pub source: GameSource,
+}
+
+/// Result of `lemusync games`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GamesReport {
+    /// Shape version, always `API_VERSION`.
+    pub api_version: u32,
+    /// Every game found, by emulator then key.
+    pub games: Vec<GameInfo>,
+}
+
 /// Result of `lemusync history`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HistoryReport {

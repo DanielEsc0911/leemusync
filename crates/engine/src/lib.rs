@@ -7,8 +7,6 @@ mod discover;
 mod error;
 mod failpoints;
 pub mod fsx;
-// Read by `Engine::games` (game-catalog Task 3).
-#[allow(dead_code)]
 mod games;
 mod grants;
 mod launch;
@@ -41,6 +39,7 @@ use lemusync_crypto::KdfParams;
 pub use accounts::{MapChoice, MapOutcome};
 pub use error::EngineError;
 pub use failpoints::Failpoints;
+pub use games::GameEntry;
 pub use lease::{Acquire, LeaseHandle};
 pub use lemusync_core::VersionId;
 pub use lemusync_store::redact;

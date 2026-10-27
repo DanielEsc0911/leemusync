@@ -110,6 +110,7 @@ error-usage-not_orphaned = { $detail } isn't an orphaned save on this device.
 error-usage-already_has_save = The player already has a save for { $detail }. Recover it to a new player instead.
 error-usage-folder_empty = That save folder is empty.
 error-usage-not_mapped = The player has no { $detail } account on this device. Run `lemusync accounts map`.
+error-usage-game_not_found = That game wasn't found on this device. Run `lemusync games` to see the games found, or set its path with `lemusync config set { $detail } <path>`.
 error-usage-unknown_restore_point = { $detail } is neither a version nor a backup. See `lemusync history`.
 error-usage-cannot_create = LemuSync can't create { $detail } accounts. Create it in the emulator, then run `lemusync accounts map`.
 error-usage-too_many_accounts = The emulator already has its maximum of { $detail } accounts.

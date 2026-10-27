@@ -62,14 +62,14 @@ Reuse the XML reader the profile `config_keys` already use for settings.xml. The
 
 **Files:** `crates/engine/src/games.rs`, `crates/engine/src/launch.rs`, `crates/engine/src/local_config.rs` (`[emulators.<id>] game_dirs: Vec<PathBuf>`, serde default), the `config` command allowlist (add `emulators.<id>.game_dirs`), specs `sync-model.md` §Launcher mode and `config-and-cli.md`.
 
-**Interfaces:** `Engine::games() -> Vec<GameEntry { emulator, key, name: Option<String>, path: Option<PathBuf>, source: Config | Emulator | Scan }>`. A game found by several sources merges into one entry. Path precedence: the user's `games.<key>` override, then the emulator's cache, then the scan. Names are computed on each device at runtime and are not stored in the repo (P1; no new remote format). Log that as a new decision in `decisions.md`. The spec says, as expected behaviour, that a device without the game shows bare keys. Sync itself is driven by save folders and doesn't need the catalog. LemuSync never creates ROM or game folders. A user "adds" a folder only by listing it in `game_dirs`.
+**Interfaces:** `Engine::games() -> Vec<GameEntry { emulator, key, name: Option<String>, path: Option<PathBuf>, source: Config | Emulator | Scan }>`. A game found by several sources merges into one entry. Path precedence: the user's `games.<key>` override, then the emulator's own game folders (`Emulator`), then the user's `game_dirs` (`Scan`); SP10 found no cache to read. Names are computed on each device at runtime and are not stored in the repo (P1; no new remote format). Log that as a new decision in `decisions.md`. The spec says, as expected behaviour, that a device without the game shows bare keys. Sync itself is driven by save folders and doesn't need the catalog. LemuSync never creates ROM or game folders. A user "adds" a folder only by listing it in `game_dirs`.
 
-- [ ] **Step 1: failing tests.**
+- [x] **Step 1: failing tests.**
   - With no `games` override, `launch` uses the detected path.
   - The override still wins.
   - A user `game_dirs` folder is scanned with the profile's rule.
   - A game missing from every source gives a localized error. It suggests `lemusync games` and `lemusync config set emulators.<id>.games.<key> <path>`.
-- [ ] **Step 2: implement**, then specs, `just check`, and commit `feat(engine): find installed games without manual paths`.
+- [x] **Step 2: implement**, then specs, `just check`, and commit `feat(engine): find installed games without manual paths`.
 
 ### Task 4: `lemusync games` and names everywhere
 

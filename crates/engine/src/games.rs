@@ -1,11 +1,14 @@
 //! Installed games: the folders an emulator lists and the games found in them
 //! (emulator-profiles §Game discovery). Read-only; everything read here is untrusted data (B2).
 
+use std::collections::BTreeMap;
 use std::path::{Component, Path, PathBuf};
 
+use lemusync_api::{API_VERSION, GameInfo, GameSource, GamesReport};
 use lemusync_core::profile::{GameDirs, GameScan};
 
-use crate::profiles::read_bounded;
+use crate::profiles::{bundled, read_bounded, resolve};
+use crate::{Engine, EngineError, grants};
 
 /// Entries looked at per folder; a game folder with more isn't a game folder.
 pub const MAX_ENTRIES: usize = 5_000;
@@ -189,9 +192,118 @@ pub fn scan_dir(scan: &GameScan, dir: &Path) -> Vec<Found> {
     out
 }
 
+/// One installed game: a merge of every source that knows it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GameEntry {
+    pub emulator: String,
+    pub key: String,
+    pub name: Option<String>,
+    pub path: Option<PathBuf>,
+    pub source: GameSource,
+}
+
+impl Engine {
+    /// Every game this device knows, by emulator then key. Local and offline: config.toml, the
+    /// emulator's granted config, and metadata files in game folders; nothing is written.
+    /// Path precedence: the user's `games.<key>`, then the emulator's folders, then `game_dirs`.
+    ///
+    /// # Errors
+    /// `Config` for an invalid bundled profile.
+    pub fn games(&self) -> Result<Vec<GameEntry>, EngineError> {
+        let grants = self.config.grants.clone();
+        let granted = move |p: &Path| grants::is_granted(&grants, p);
+        let mut out = Vec::new();
+        for profile in bundled()? {
+            let settings = self.config.emulators.get(&profile.id);
+            let mut merged: BTreeMap<String, GameEntry> = BTreeMap::new();
+            let mut add = |found: Found, source: GameSource| {
+                let e = merged
+                    .entry(found.key.clone())
+                    .or_insert_with(|| GameEntry {
+                        emulator: profile.id.clone(),
+                        key: found.key.clone(),
+                        name: None,
+                        path: None,
+                        source,
+                    });
+                // Later sources win the path; the first name found is kept.
+                e.name = e.name.take().or(found.name);
+                e.path = Some(found.path);
+                e.source = source;
+            };
+            if let Some(scan) = profile.games.as_ref().and_then(|g| g.scan.as_ref()) {
+                for dir in settings.map(|s| s.game_dirs.as_slice()).unwrap_or_default() {
+                    for found in scan_dir(scan, dir) {
+                        add(found, GameSource::Scan);
+                    }
+                }
+                let override_root = settings.and_then(|s| s.root.as_deref());
+                let listed = profile.games.as_ref().and_then(|g| g.dirs.as_ref());
+                if let (Some(listed), Some(install)) = (
+                    listed,
+                    resolve(&profile, &self.env.locations, override_root, &granted)?,
+                ) {
+                    for dir in emulator_dirs(listed, &install.config_dir, &granted) {
+                        for found in scan_dir(scan, &dir) {
+                            add(found, GameSource::Emulator);
+                        }
+                    }
+                }
+            }
+            for (key, path) in settings.map(|s| &s.games).into_iter().flatten() {
+                let key = key.to_ascii_lowercase();
+                if valid_key(&key) {
+                    add(
+                        Found {
+                            key,
+                            name: None,
+                            path: path.clone(),
+                        },
+                        GameSource::Config,
+                    );
+                }
+            }
+            out.extend(merged.into_values());
+        }
+        Ok(out)
+    }
+
+    /// `lemusync games`.
+    ///
+    /// # Errors
+    /// As [`Engine::games`].
+    pub fn games_report(&self) -> Result<GamesReport, EngineError> {
+        Ok(GamesReport {
+            api_version: API_VERSION,
+            games: self
+                .games()?
+                .into_iter()
+                .map(|g| GameInfo {
+                    emulator: g.emulator,
+                    key: g.key,
+                    name: g.name,
+                    path: g.path.map(|p| p.display().to_string()),
+                    source: g.source,
+                })
+                .collect(),
+        })
+    }
+
+    /// The name of `emulator`/`key` on this device, if any source knows it.
+    #[must_use]
+    pub fn game_name(&self, emulator: &str, key: &str) -> Option<String> {
+        self.games()
+            .ok()?
+            .into_iter()
+            .find(|g| g.emulator == emulator && g.key == key)
+            .and_then(|g| g.name)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Locations;
 
     fn scan_rule() -> GameScan {
         GameScan {
@@ -360,6 +472,68 @@ mod tests {
                 path: root.join("games/Synthetic Game/code/synthetic.rpx"),
             }]
         );
+    }
+
+    /// A native Cemu install whose settings.xml lists `listed`, granted.
+    fn cemu_engine(dir: &Path, listed: &Path) -> Engine {
+        let mut e = Engine::open(crate::tests::test_env(dir)).unwrap();
+        let loc = Locations::under(dir);
+        std::fs::create_dir_all(loc.xdg_data.join("Cemu")).unwrap();
+        let cfg = loc.xdg_config.join("Cemu");
+        std::fs::create_dir_all(&cfg).unwrap();
+        std::fs::write(
+            cfg.join("settings.xml"),
+            format!(
+                "<content><GamePaths><Entry>{}</Entry></GamePaths></content>",
+                listed.display()
+            ),
+        )
+        .unwrap();
+        e.config.grants.push(loc.home.canonicalize().unwrap());
+        e
+    }
+
+    #[test]
+    fn the_catalog_merges_sources_with_config_first() {
+        let dir = tempfile::tempdir().unwrap();
+        let listed = dir.path().join("listed");
+        game(&listed.join("A"), "0005000010101C00", "Alpha");
+        game(&listed.join("B"), "00050000101B0000", "Beta");
+        let mine = dir.path().join("mine");
+        game(&mine.join("A2"), "0005000010101C00", "Alpha (mine)");
+        game(&mine.join("C"), "00050000101C0000", "Gamma");
+        let mut e = cemu_engine(dir.path(), &listed);
+        let s = e.config.emulators.entry("cemu".into()).or_default();
+        s.game_dirs = vec![mine.clone()];
+        s.games
+            .insert("101B0000".into(), dir.path().join("override.wux"));
+        let games = e.games().unwrap();
+        let by = |k: &str| games.iter().find(|g| g.key == k).unwrap();
+        assert_eq!(games.len(), 3);
+        assert_eq!(by("10101c00").source, GameSource::Emulator);
+        assert_eq!(
+            by("10101c00").path.as_deref(),
+            Some(listed.join("A").as_path())
+        );
+        assert_eq!(by("10101c00").name.as_deref(), Some("Alpha (mine)"));
+        assert_eq!(by("101b0000").source, GameSource::Config);
+        assert_eq!(
+            by("101b0000").path.as_deref(),
+            Some(dir.path().join("override.wux").as_path())
+        );
+        assert_eq!(by("101b0000").name.as_deref(), Some("Beta"));
+        assert_eq!(by("101c0000").source, GameSource::Scan);
+        assert_eq!(e.game_name("cemu", "101c0000").as_deref(), Some("Gamma"));
+    }
+
+    #[test]
+    fn the_emulator_list_is_not_read_without_a_grant() {
+        let dir = tempfile::tempdir().unwrap();
+        let listed = dir.path().join("listed");
+        game(&listed.join("A"), "0005000010101C00", "Alpha");
+        let mut e = cemu_engine(dir.path(), &listed);
+        e.config.grants.clear();
+        assert_eq!(e.games().unwrap(), Vec::<GameEntry>::new());
     }
 
     #[cfg(unix)]

@@ -243,6 +243,11 @@ fn config_set_get_unset_round_trips_every_key_family() {
         &["set", "emulators.cemu.games.101C9500", "/games/zelda.wux"],
     );
     assert_eq!(get("emulators.cemu.games.101c9500"), "/games/zelda.wux");
+    config_ok(r, &["set", "emulators.cemu.game_dirs", "/games", "/more"]);
+    assert_eq!(
+        get("emulators.cemu.game_dirs"),
+        serde_json::json!(["/games", "/more"])
+    );
     assert_eq!(get("emulators.cemu")["root"], "/opt/cemu");
     assert_eq!(get("emulators.cemu.games")["101c9500"], "/games/zelda.wux");
     assert_eq!(get("backend"), serde_json::Value::Null);
@@ -252,6 +257,7 @@ fn config_set_get_unset_round_trips_every_key_family() {
     assert_eq!(list["values"]["conflict_policy"], "ask");
     assert!(list["values"]["device.id"].is_string(), "{list}");
     for key in [
+        "emulators.cemu.game_dirs",
         "emulators.cemu.games.101c9500",
         "emulators.cemu.exe",
         "emulators.cemu.root",

@@ -7,12 +7,13 @@ use crate::{Engine, EngineError, profiles};
 
 impl Engine {
     /// `exe` from `[emulators.<emulator>]`, then the profile's `launch.args` with `{game_path}`
-    /// set to `games."<title id>"` and `{account}` to the player's `account` on this device,
+    /// set to the game's path from the catalog ([`Engine::games`]: `games."<title id>"` first,
+    /// then the detected path) and `{account}` to the player's `account` on this device,
     /// each as one argument. Nothing is joined into a string.
     ///
     /// # Errors
-    /// `Usage` for an unknown emulator or one whose profile can't launch; `NotSetUp` when `exe`
-    /// or the game's path isn't configured; `Config` for an empty `exe` element or a relative
+    /// `Usage` for an unknown emulator or one whose profile can't launch, and
+    /// `game_not_found:<config key>` when no source knows the game; `NotSetUp` without `exe`; `Config` for an empty `exe` element or a relative
     /// game path (it could be read as an option).
     pub fn launch_argv(
         &self,
@@ -36,9 +37,15 @@ impl Engine {
                 "emulators.{emulator}.exe has an empty element"
             )));
         }
-        let path = settings
-            .and_then(|s| s.games.get(&game.to_ascii_lowercase()))
-            .ok_or(EngineError::NotSetUp("game path ([emulators.<id>] games)"))?;
+        let game = game.to_ascii_lowercase();
+        let path = self
+            .games()?
+            .into_iter()
+            .find(|g| g.emulator == emulator && g.key == game)
+            .and_then(|g| g.path)
+            .ok_or_else(|| {
+                EngineError::Usage(format!("game_not_found:emulators.{emulator}.games.{game}"))
+            })?;
         if !path.is_absolute() {
             return Err(EngineError::Config(format!(
                 "emulators.{emulator}.games.{game} must be an absolute path"
@@ -53,7 +60,7 @@ impl Engine {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
 
     use crate::tests::test_env;
     use crate::{EmulatorOverride, Engine, EngineError};
@@ -69,6 +76,7 @@ mod tests {
                     .iter()
                     .map(|(k, v)| ((*k).to_owned(), PathBuf::from(v)))
                     .collect(),
+                game_dirs: Vec::new(),
             },
         );
         e
@@ -119,7 +127,7 @@ mod tests {
         let e = engine(dir.path(), &["/usr/bin/cemu"], &games);
         assert!(matches!(
             e.launch_argv("cemu", "101c9300", "80000001"),
-            Err(EngineError::NotSetUp(_))
+            Err(EngineError::Usage(d)) if d == "game_not_found:emulators.cemu.games.101c9300"
         ));
         assert!(matches!(
             e.launch_argv("cemu", "101c9400", "80000001"),
@@ -129,5 +137,41 @@ mod tests {
             e.launch_argv("dolphin", "x", "80000001"),
             Err(EngineError::Usage(_))
         ));
+    }
+
+    fn meta(dir: &Path, id: &str) {
+        std::fs::create_dir_all(dir.join("meta")).unwrap();
+        std::fs::create_dir_all(dir.join("code")).unwrap();
+        std::fs::write(
+            dir.join("meta/meta.xml"),
+            format!("<menu><title_id>{id}</title_id><longname_en>G</longname_en></menu>"),
+        )
+        .unwrap();
+        std::fs::write(dir.join("code/g.rpx"), b"").unwrap();
+    }
+
+    #[test]
+    fn a_detected_game_launches_without_config_and_the_override_still_wins() {
+        let dir = tempfile::tempdir().unwrap();
+        let mine = dir.path().join("mine");
+        meta(&mine.join("G"), "000500001010AA00");
+        let mut e = engine(dir.path(), &["/usr/bin/cemu"], &[]);
+        assert!(matches!(
+            e.launch_argv("cemu", "1010aa00", "80000001"),
+            Err(EngineError::Usage(_))
+        ));
+        e.config.emulators.get_mut("cemu").unwrap().game_dirs = vec![mine.clone()];
+        let rpx = mine.join("G/code/g.rpx");
+        let argv = e.launch_argv("cemu", "1010AA00", "80000001").unwrap();
+        assert_eq!(argv[2], rpx.as_os_str());
+        let other = dir.path().join("other.wux");
+        e.config
+            .emulators
+            .get_mut("cemu")
+            .unwrap()
+            .games
+            .insert("1010aa00".into(), other.clone());
+        let argv = e.launch_argv("cemu", "1010aa00", "80000001").unwrap();
+        assert_eq!(argv[2], other.as_os_str());
     }
 }
