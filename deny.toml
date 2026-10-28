@@ -9,6 +9,12 @@ ignore = [
   # uniffi_bindgen -> askama 0.16.1 -> askama_derive. No release of those drops it yet.
   # Remove when uniffi updates askama (checked 2026-10-20).
   { id = "RUSTSEC-2026-0374", reason = "unmaintained build-time dep of uniffi's askama; no upgrade yet" },
+  # zvariant, zvariant_derive and zbus_names are unmaintained (no vulnerability): zbus 6 merged
+  # them in. ksni 0.3.7 and notify-rust 4.18.2 (Linux tray and notifications in lemusyncd) still
+  # need zbus 5. Remove when both move to zbus 6, then move lemusyncd too (checked 2026-10-28).
+  { id = "RUSTSEC-2026-0370", reason = "zvariant via zbus 5 (ksni, notify-rust); no zbus 6 release of them yet" },
+  { id = "RUSTSEC-2026-0371", reason = "zbus_names via zbus 5 (ksni, notify-rust); no zbus 6 release of them yet" },
+  { id = "RUSTSEC-2026-0372", reason = "zvariant_derive via zbus 5 (ksni, notify-rust); no zbus 6 release of them yet" },
 ]
 
 [licenses]
@@ -20,7 +26,11 @@ allow = [
 ]
 # Mozilla's root certificates as data. rustls-platform-verifier uses it only
 # on wasm32, which LemuSync doesn't ship, but the graph covers every target.
-exceptions = [{ crate = "webpki-root-certs", allow = ["CDLA-Permissive-2.0"] }]
+# ksni (the Linux tray, desktop §Linux results) is public domain under the Unlicense.
+exceptions = [
+  { crate = "webpki-root-certs", allow = ["CDLA-Permissive-2.0"] },
+  { crate = "ksni", allow = ["Unlicense"] },
+]
 
 [bans]
 multiple-versions = "warn"

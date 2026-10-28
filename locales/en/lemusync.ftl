@@ -340,3 +340,58 @@ error-usage-alias_unknown = There's no alias { $detail }. Run `lemusync games` t
 error-usage-play_old_shape = The emulator now goes after --emu: { $detail }
 history-game = { $game }
 play-starting = Starting { $game }…
+
+## Daemon: status texts (status-and-notifications §Status model)
+status-synced = All saves synced
+status-scanning = Checking for changes
+status-uploading = { $count ->
+    [one] Uploading 1 change
+   *[other] Uploading { $count } changes
+}
+status-downloading = { $count ->
+    [one] Downloading 1 change
+   *[other] Downloading { $count } changes
+}
+status-syncing = { $count ->
+    [one] Syncing 1 change
+   *[other] Syncing { $count } changes
+}
+status-paused = Sync paused
+status-offline = { $count ->
+    [one] Offline · 1 change waiting
+   *[other] Offline · { $count } changes waiting
+}
+status-conflicts = { $count ->
+    [one] 1 conflict needs you
+   *[other] { $count } conflicts need you
+}
+status-foreign-leases = { $count ->
+    [one] 1 game is in use on another device
+   *[other] { $count } games are in use on other devices
+}
+status-error-auth = Storage sign-in expired
+status-error-quota = Storage is full
+status-error-permission = LemuSync can't open a save folder
+status-error-config = The config file has a problem
+status-playing = Playing { $game } · { $player }
+
+## Daemon: tray menu
+tray-sync-now = Sync now
+tray-pause = Pause
+tray-pause-1h = For 1 hour
+tray-pause-until-resume = Until I resume
+tray-resume = Resume sync
+tray-recent = Recent games
+tray-open = Open LemuSync
+tray-quit = Quit
+
+## Daemon: notifications
+notice-conflict-title = Two devices changed { $game }
+notice-conflict-body = Choose which save to keep.
+notice-foreign-lease-title = { $game } is in use on { $device }
+notice-foreign-lease-body = Wait until it's free, or open LemuSync to decide.
+notice-auth-body = Sign in to your storage again to keep syncing.
+notice-quota-body = Free up space on your storage to keep syncing.
+notice-action-review = Review
+notice-action-wait = Wait
+notice-action-open = Open

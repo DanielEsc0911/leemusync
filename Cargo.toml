@@ -44,6 +44,10 @@ clap = { version = "4.6.7", features = ["derive"] }
 rpassword = "7.5.4"
 fluent-bundle = "0.16.0"
 unic-langid = "0.9.6"
+# Linux desktop presence in lemusyncd (desktop §Linux results). Linux-only target deps there.
+ksni = { version = "0.3.7", default-features = false, features = ["tokio"] }
+notify-rust = { version = "4.18.2", default-features = false, features = ["z-with-tokio"] }
+zbus = { version = "5.19.0", default-features = false, features = ["tokio"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

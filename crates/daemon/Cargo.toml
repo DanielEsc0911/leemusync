@@ -12,5 +12,19 @@ publish = false
 name = "lemusyncd"
 path = "src/main.rs"
 
+[dependencies]
+fluent-bundle = { workspace = true }
+tokio = { workspace = true, features = ["rt", "sync", "time", "macros"] }
+unic-langid = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+futures-util = { workspace = true }
+ksni = { workspace = true }
+notify-rust = { workspace = true }
+zbus = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+
 [lints]
 workspace = true

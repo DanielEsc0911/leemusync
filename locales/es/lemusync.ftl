@@ -339,3 +339,58 @@ error-usage-alias_unknown = No hay ningún alias { $detail }. Ejecuta `lemusync 
 error-usage-play_old_shape = Ahora el emulador va después de --emu: { $detail }
 history-game = { $game }
 play-starting = Iniciando { $game }…
+
+## Daemon: textos de estado (status-and-notifications §Status model)
+status-synced = Todas las partidas están sincronizadas
+status-scanning = Buscando cambios
+status-uploading = { $count ->
+    [one] Subiendo 1 cambio
+   *[other] Subiendo { $count } cambios
+}
+status-downloading = { $count ->
+    [one] Descargando 1 cambio
+   *[other] Descargando { $count } cambios
+}
+status-syncing = { $count ->
+    [one] Sincronizando 1 cambio
+   *[other] Sincronizando { $count } cambios
+}
+status-paused = Sincronización en pausa
+status-offline = { $count ->
+    [one] Sin conexión · 1 cambio en espera
+   *[other] Sin conexión · { $count } cambios en espera
+}
+status-conflicts = { $count ->
+    [one] 1 conflicto necesita tu decisión
+   *[other] { $count } conflictos necesitan tu decisión
+}
+status-foreign-leases = { $count ->
+    [one] 1 juego está en uso en otro dispositivo
+   *[other] { $count } juegos están en uso en otros dispositivos
+}
+status-error-auth = La sesión del almacenamiento expiró
+status-error-quota = El almacenamiento está lleno
+status-error-permission = LemuSync no puede abrir una carpeta de partidas
+status-error-config = El archivo de configuración tiene un problema
+status-playing = Jugando { $game } · { $player }
+
+## Daemon: menú de la bandeja
+tray-sync-now = Sincronizar ahora
+tray-pause = Pausar
+tray-pause-1h = Por 1 hora
+tray-pause-until-resume = Hasta que la reanude
+tray-resume = Reanudar sincronización
+tray-recent = Juegos recientes
+tray-open = Abrir LemuSync
+tray-quit = Salir
+
+## Daemon: notificaciones
+notice-conflict-title = Dos dispositivos cambiaron { $game }
+notice-conflict-body = Elige qué partida guardada conservar.
+notice-foreign-lease-title = { $game } está en uso en { $device }
+notice-foreign-lease-body = Espera a que se libere o abre LemuSync para decidir.
+notice-auth-body = Vuelve a iniciar sesión en tu almacenamiento para seguir sincronizando.
+notice-quota-body = Libera espacio en tu almacenamiento para seguir sincronizando.
+notice-action-review = Revisar
+notice-action-wait = Esperar
+notice-action-open = Abrir
