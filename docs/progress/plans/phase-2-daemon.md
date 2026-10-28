@@ -62,12 +62,12 @@ Tasks in the same wave touch different files and can run in parallel. Wave 2 sta
 - `socket::default_path() -> Result<PathBuf, IpcError>`: `$XDG_RUNTIME_DIR/lemusync/daemon.sock`; no `XDG_RUNTIME_DIR` → `IpcError::NoRuntimeDir` (never fall back to `/tmp`). `LEMUSYNC_TEST_ROOT=<dir>` → `<dir>/run/daemon.sock`.
 - `Server::bind(path) -> Result<Server, IpcError>`: creates the dir `0700`, refuses a dir owned by another uid or a symlink, removes a stale socket only when nothing answers on it (a live one → `IpcError::AlreadyRunning`), binds, sets the socket `0600`. `Server::accept() -> Connection` checks `peer_cred().uid() == own uid` and closes otherwise (logged, no reply), then reads `Hello`; a different `api_version` gets an error reply with an upgrade hint and the connection closes.
 - `Connection { async fn recv() -> Option<Request>, async fn send(&Response), async fn event(&Event) }`.
-- `Client::connect(path, client_name) -> Result<Client, IpcError>` (does the handshake; `IpcError::NotRunning` when nothing listens), `async fn call(&mut self, Request) -> Result<Response, IpcError>`, `async fn subscribe(self) -> impl Stream<Item = Result<Event, IpcError>>`.
+- `Client::connect(path, client_name) -> Result<Client, IpcError>` (does the handshake; `IpcError::NotRunning` when nothing listens), `async fn call(&mut self, Request) -> Result<Response, IpcError>`, `async fn subscribe(self) -> Result<impl Stream<Item = Result<Event, IpcError>>, IpcError>` (fails when the daemon doesn't answer `subscribed`).
 - Windows and macOS: macOS uses the same Unix transport (`getpeereid` through tokio's `peer_cred`); Windows returns `IpcError::Unsupported` for now (named pipe with a current-user DACL is Task 11).
 
-- [ ] **Step 1: failing tests.** Frame: round trip; an announced length of 1 MiB + 1 is refused without reading the body; truncated body → error; garbage JSON → error. Socket (Linux, tempdir): bind sets dir `0700` and socket `0600`; a second `bind` while the first runs → `AlreadyRunning`; a stale socket file is replaced; a handshake with `api_version + 1` gets the upgrade error; `call(Status)` gets the server's reply; `subscribe` gets two events in order; `connect` with nothing listening → `NotRunning`. Peer check: unit-test the uid comparison function (a real second uid isn't available in CI).
-- [ ] **Step 2:** implement; pass; clippy.
-- [ ] **Step 3:** specs (W1), `just check`, commit `feat(ipc): add the same-user Unix socket transport`.
+- [x] **Step 1: failing tests.** Frame: round trip; an announced length of 1 MiB + 1 is refused without reading the body; truncated body → error; garbage JSON → error. Socket (Linux, tempdir): bind sets dir `0700` and socket `0600`; a second `bind` while the first runs → `AlreadyRunning`; a stale socket file is replaced; a handshake with `api_version + 1` gets the upgrade error; `call(Status)` gets the server's reply; `subscribe` gets two events in order; `connect` with nothing listening → `NotRunning`. Peer check: unit-test the uid comparison function (a real second uid isn't available in CI).
+- [x] **Step 2:** implement; pass; clippy.
+- [x] **Step 3:** specs (W1), `just check`, commit `feat(ipc): add the same-user Unix socket transport`.
 
 ### Task 3: `core` quiet period, scheduler and backoff
 

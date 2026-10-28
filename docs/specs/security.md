@@ -1,6 +1,6 @@
 # Security
 
-> **Status:** Draft · **Related:** [rules](../rules.md) (B2 is the rule this spec implements; also P2, P7, W3), [architecture](architecture.md#ipc), [sync-model](sync-model.md), [storage-backends](storage-backends.md), [emulator-profiles](emulator-profiles.md#validation), [release](release.md), [skill: lemusync-security](../../.claude/skills/lemusync-security/SKILL.md) · **Code:** `crates/crypto/src/lib.rs`, `crates/core` (validation), `crates/ipc` (planned)
+> **Status:** Draft · **Related:** [rules](../rules.md) (B2 is the rule this spec implements; also P2, P7, W3), [architecture](architecture.md#ipc), [sync-model](sync-model.md), [storage-backends](storage-backends.md), [emulator-profiles](emulator-profiles.md#validation), [release](release.md), [skill: lemusync-security](../../.claude/skills/lemusync-security/SKILL.md) · **Code:** `crates/crypto/src/lib.rs`, `crates/core` (validation), `crates/ipc`
 
 ## Purpose
 LemuSync handles people's data, credentials and file systems on millions of possible machines. It must never become a way to attack those machines. This spec is the threat model and the required controls. [rules.md](../rules.md) B2 is the non-negotiable summary.
@@ -55,6 +55,8 @@ A provider can serve an old state or hide new versions. Devices remember the hig
 
 ## Local IPC
 Same-user only: socket permissions plus a peer credential check ([architecture §IPC](architecture.md#ipc)). Frame size limit. Every request is validated in `api`/`ipc` before the engine sees it.
+
+The own uid comes from `rustix::process::geteuid` (safe API); peers are compared with `peer_cred` (`SO_PEERCRED` / `getpeereid`) and another uid is closed without a reply (`crates/ipc/src/{socket,server}.rs`).
 
 ## File-system confinement
 - The engine reads and writes only inside **grants**: folders the user approved, which are canonicalised when stored.

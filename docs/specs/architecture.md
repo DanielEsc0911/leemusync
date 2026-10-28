@@ -66,6 +66,7 @@ Defined in `crates/api`, versioned (`api_version`), and identical in-process and
 - Unix domain socket in the user runtime dir (mode `0600`, dir `0700`). Windows named pipe with a DACL for the current user only.
 - Peer check: the same UID/SID as the daemon (`SO_PEERCRED` / `getpeereid` / pipe client token). Mismatch → close.
 - Frames: u32 big-endian length + JSON (serde), max 1 MiB. Handshake: `{api_version, client}`. Unknown versions are rejected with an upgrade hint.
+- Code: `crates/ipc` (`frame`, `socket`, `server`, `client`). Socket path `$XDG_RUNTIME_DIR/lemusync/daemon.sock` (`LEMUSYNC_TEST_ROOT=<dir>` → `<dir>/run/daemon.sock`); no runtime dir → error, never `/tmp`. `Server::bind` refuses a symlinked dir, a dir owned by another uid or a non-socket file at the path, and replaces a socket only when nothing answers on it. The oversized length is refused before the body is read; a bad request gets `bad_request` and the connection closes. A peer has 5 s to send `Hello`. Windows returns `Unsupported` until the named pipe lands (Phase 2 Task 11).
 
 ## Bridge
 `crates/bridge` builds one library (`cdylib` + `staticlib`) with both bindings ([D4](../decisions.md#d4-mobile-one-engine-in-the-app-process-two-thin-bindings-2026-10-07)):
