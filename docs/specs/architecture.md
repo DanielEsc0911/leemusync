@@ -48,7 +48,7 @@ Rules:
 | Android | App process. Kotlin service/jobs keep it alive during work | bridge (in-process) |
 | iOS | App process (also used by App Intents and background tasks) | bridge (in-process) |
 
-- **One engine per user profile.** The engine takes an exclusive lock on its state directory. A second instance exits with a clear error. On desktop the CLI talks to the daemon. If no daemon is running, the CLI may run the engine itself for one command, holding the same lock.
+- **One engine per user profile.** The engine takes an exclusive lock on its state directory. A second instance exits with a clear error. On desktop the CLI talks to the daemon. If no daemon is running, the CLI may run the engine itself for one command, holding the same lock. While the daemon runs, it answers `status`, `pause`, `resume` and event subscriptions at once from its own status model and runs other commands one at a time ([D35](../decisions.md#d35-the-cli-is-the-daemons-client-while-it-runs-2026-10-28)).
 - **Desktop UI ↔ daemon:** the Flutter app → FRB → `bridge` (IPC client) → `ipc` → daemon. The UI uses the same `EngineApi` as mobile, so the Dart code doesn't change between platforms.
 - **Tray on the main thread:** the tray event loop needs the main thread (macOS, GTK). Async work runs on a tokio runtime on other threads.
 
