@@ -395,3 +395,29 @@ notice-quota-body = Free up space on your storage to keep syncing.
 notice-action-review = Review
 notice-action-wait = Wait
 notice-action-open = Open
+
+## service (systemd user unit on Linux)
+help-service = Run the sync daemon in the background (systemd user service on Linux).
+help-service-install = Install and start the daemon; it starts again at every login.
+help-service-install-headless = Also keep syncing with nobody logged in (turns on linger). No tray or notifications then.
+help-service-uninstall = Stop and remove the daemon's service.
+help-service-start = Start the daemon.
+help-service-stop = Stop the daemon.
+help-service-status = Show whether the daemon is installed and running.
+service-installed = The daemon is installed and running ({ $path }).
+service-headless = It keeps syncing after you log out.
+service-uninstalled = The daemon was stopped and removed.
+service-linger-left = Linger was left as it was. To turn it off: loginctl disable-linger
+service-not-installed = The daemon isn't installed. Run `lemusync service install`.
+service-started = The daemon started.
+service-stopped = The daemon stopped.
+service-state = Daemon: { $enabled ->
+    [yes] starts at login
+   *[no] doesn't start at login
+}, { $active ->
+    [yes] running
+   *[no] stopped
+}, restarted { $restarts } times.
+error-usage-service_unsupported = `lemusync service` works only on Linux for now.
+error-usage-daemon_not_found = Can't find lemusyncd next to lemusync or on PATH.
+error-usage-daemon_path_invalid = lemusyncd must be an existing file with an absolute path: { $detail }

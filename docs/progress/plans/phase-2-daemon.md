@@ -132,10 +132,10 @@ Tasks in the same wave touch different files and can run in parallel. Wave 2 sta
 - `service install [--headless]` writes `~/.config/systemd/user/lemusyncd.service` atomically: `ExecStart=<absolute path of lemusyncd next to the running lemusync, else from PATH>` (refuse a relative or non-existent path), `Restart=on-failure`, `RestartSec=2`, `StartLimitIntervalSec=600`, `StartLimitBurst=5` (the crash-loop rule), `WantedBy=default.target` (not `graphical-session.target`, SP2). Then `systemctl --user daemon-reload` and `enable --now lemusyncd.service`. `--headless` also runs `loginctl enable-linger` and `ExecStart=… --headless`. All argv, no shell.
 - `uninstall` disables, stops and removes the file (linger is left as it is and the output says how to turn it off). `start`/`stop` map to `systemctl --user`. `status` prints installed/enabled/active from `systemctl --user show -p LoadState,UnitFileState,ActiveState,NRestarts lemusyncd.service` and `--json`.
 - Not Linux → usage error `service_unsupported` (Windows/macOS are Task 11).
-- With `LEMUSYNC_TEST_ROOT` the unit goes under `<root>/config/systemd/user/` and the runner is a fake that records argv (`LEMUSYNC_TEST_SYSTEMCTL=record`), so tests never touch the real user manager.
+- With `LEMUSYNC_TEST_ROOT` the unit goes under `<root>/config/systemd/user/` and the runner is always a fake that records argv to `<root>/systemctl.log` (`show` answers from `<root>/systemctl-show.txt`; `LEMUSYNC_TEST_DAEMON` names the daemon path), so tests never touch the real user manager.
 
-- [ ] **Step 1: failing tests:** golden unit text (normal and headless); install records `daemon-reload` then `enable --now`; uninstall order; `status --json` parses a recorded `show` output; en and es output; relative `lemusyncd` path refused.
-- [ ] **Step 2:** implement; pass; clippy; i18n-check; specs (the commands table and the "first slice" sentence); `just check`; commit `feat(cli): add service install/uninstall/start/stop/status on Linux`.
+- [x] **Step 1: failing tests:** golden unit text (normal and headless); install records `daemon-reload` then `enable --now`; uninstall order; `status --json` parses a recorded `show` output; en and es output; relative `lemusyncd` path refused.
+- [x] **Step 2:** implement; pass; clippy; i18n-check; specs (the commands table and the "first slice" sentence); `just check`; commit `feat(cli): add service install/uninstall/start/stop/status on Linux`.
 
 ### Task 8: `engine::Service` and `lemusyncd`
 
