@@ -13,6 +13,7 @@ pub mod path;
 pub mod profile;
 pub mod reconcile;
 pub mod schedule;
+pub mod watch_session;
 
 pub use id::{BlobId, DeviceId, Hash32, IdError, PlayerId, SessionId, StreamId, VersionId};
 pub use path::{PathError, RelPath};
