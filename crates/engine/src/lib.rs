@@ -30,6 +30,7 @@ mod snapshot;
 mod state;
 mod sync;
 mod upload;
+mod watch;
 
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -56,6 +57,7 @@ pub use secrets::{KeyringSecrets, MemorySecrets, SecretStore};
 pub use setup::{GdriveLogin, JoinSecret, S3Backend};
 pub use state::{JournalEntry, State, StreamRow};
 pub use sync::SyncOptions;
+pub use watch::{BURST, SaveWatcher};
 
 pub struct EngineEnv {
     pub locations: Locations,
