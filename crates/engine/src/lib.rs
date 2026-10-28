@@ -25,11 +25,13 @@ mod resolve;
 mod restore;
 mod scan;
 mod secrets;
+mod session;
 mod setup;
 mod snapshot;
 mod state;
 mod sync;
 mod upload;
+mod watch;
 
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -53,9 +55,11 @@ pub use play::{LeaseChoice, PlayPrompt};
 pub use process::{Child, FakeProbe, Launcher, OsLauncher, ProcessProbe, SysinfoProbe};
 pub use progress::{ConnectionSink, ProgressSink};
 pub use secrets::{KeyringSecrets, MemorySecrets, SecretStore};
+pub use session::{DEFAULT_POLL, ProcessPoller};
 pub use setup::{GdriveLogin, JoinSecret, S3Backend};
 pub use state::{JournalEntry, State, StreamRow};
 pub use sync::SyncOptions;
+pub use watch::{BURST, SaveWatcher};
 
 pub struct EngineEnv {
     pub locations: Locations,

@@ -22,6 +22,7 @@ lemusync-crypto = { path = "../crypto" }
 lemusync-store = { path = "../store" }
 directories = { workspace = true }
 futures-util = { workspace = true }
+notify = { workspace = true }
 regex = { workspace = true }
 roxmltree = { workspace = true }
 rusqlite = { workspace = true }

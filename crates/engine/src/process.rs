@@ -1,6 +1,7 @@
 //! Is an emulator running? (I3; emulator-profiles §Linux paths: match the executable name, not `comm`.)
 //! Starting one and waiting for it to exit (sync-model §Launcher mode): argv only, never a shell.
 
+use std::collections::BTreeSet;
 use std::ffi::OsString;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -48,24 +49,52 @@ impl Child for OsChild {
 
 pub trait ProcessProbe: Send + Sync {
     fn running(&self, names: &[String]) -> bool;
+
+    /// The emulator ids with a running process, from one refresh of the process list for all
+    /// of them (`names_by_emulator`: emulator id → its profile's process names).
+    fn running_set(&self, names_by_emulator: &[(String, Vec<String>)]) -> BTreeSet<String>;
 }
 
 pub struct SysinfoProbe;
 
-impl ProcessProbe for SysinfoProbe {
-    fn running(&self, names: &[String]) -> bool {
+impl SysinfoProbe {
+    /// One walk of the process list: each process's executable file name and `comm`.
+    fn snapshot() -> Vec<(Option<String>, String)> {
         let mut sys = sysinfo::System::new();
         sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
-        sys.processes().values().any(|p| {
-            let exe = p
-                .exe()
-                .and_then(|e| e.file_name())
-                .map(|n| n.to_string_lossy().into_owned());
-            let comm = p.name().to_string_lossy().into_owned();
-            names
-                .iter()
-                .any(|n| exe.as_deref().is_some_and(|e| same_name(e, n)) || same_name(&comm, n))
-        })
+        sys.processes()
+            .values()
+            .map(|p| {
+                let exe = p
+                    .exe()
+                    .and_then(|e| e.file_name())
+                    .map(|n| n.to_string_lossy().into_owned());
+                (exe, p.name().to_string_lossy().into_owned())
+            })
+            .collect()
+    }
+}
+
+fn any_matches(procs: &[(Option<String>, String)], names: &[String]) -> bool {
+    procs.iter().any(|(exe, comm)| {
+        names
+            .iter()
+            .any(|n| exe.as_deref().is_some_and(|e| same_name(e, n)) || same_name(comm, n))
+    })
+}
+
+impl ProcessProbe for SysinfoProbe {
+    fn running(&self, names: &[String]) -> bool {
+        any_matches(&Self::snapshot(), names)
+    }
+
+    fn running_set(&self, names_by_emulator: &[(String, Vec<String>)]) -> BTreeSet<String> {
+        let procs = Self::snapshot();
+        names_by_emulator
+            .iter()
+            .filter(|(_, names)| any_matches(&procs, names))
+            .map(|(id, _)| id.clone())
+            .collect()
     }
 }
 
@@ -91,6 +120,15 @@ impl FakeProbe {
 impl ProcessProbe for FakeProbe {
     fn running(&self, _names: &[String]) -> bool {
         self.0.load(Ordering::SeqCst)
+    }
+
+    /// Every emulator asked about, when set.
+    fn running_set(&self, names_by_emulator: &[(String, Vec<String>)]) -> BTreeSet<String> {
+        if self.0.load(Ordering::SeqCst) {
+            names_by_emulator.iter().map(|(id, _)| id.clone()).collect()
+        } else {
+            BTreeSet::new()
+        }
     }
 }
 
@@ -118,5 +156,21 @@ mod tests {
     #[test]
     fn sysinfo_does_not_see_a_made_up_process() {
         assert!(!SysinfoProbe.running(&["lemusync-no-such-process-7f3a".into()]));
+    }
+
+    #[test]
+    fn running_set_names_only_the_running_emulators() {
+        let me = std::env::current_exe().unwrap();
+        let me = me.file_name().unwrap().to_string_lossy().into_owned();
+        let set = SysinfoProbe.running_set(&[
+            ("me".into(), vec![me]),
+            ("ghost".into(), vec!["lemusync-no-such-process-7f3a".into()]),
+        ]);
+        assert_eq!(set, BTreeSet::from(["me".to_owned()]));
+        let p = FakeProbe::default();
+        let ask = [("cemu".to_owned(), vec![])];
+        assert!(p.running_set(&ask).is_empty());
+        p.set(true);
+        assert_eq!(p.running_set(&ask), BTreeSet::from(["cemu".to_owned()]));
     }
 }

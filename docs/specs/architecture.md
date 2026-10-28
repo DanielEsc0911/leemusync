@@ -120,8 +120,8 @@ Windows, macOS, iOS and a real Android device (Galaxy A25) are still to run ([Ph
 | Module | Job |
 |---|---|
 | `scan` | Resolve profiles + grants → candidate streams |
-| `watch` | File watching (notify) + periodic rescans |
-| `session` | Launcher/watch sessions, process detection |
+| `watch` | File watching (notify): each mapped save folder recursively, symlinks never followed and events that resolve outside the folder dropped; a missing folder is watched through its nearest existing parent until it appears; one id per stream per 250 ms burst. Rescans come from the scheduler (`core::schedule`). Code: `crates/engine/src/watch.rs` |
+| `session` | Launcher/watch sessions, process detection. Watch mode: the pure session machine in `core` (`crates/core/src/watch_session.rs`) and the process poller (`crates/engine/src/session.rs`, `ProcessProbe::running_set` in `process.rs`); launcher mode: `play.rs` |
 | `snapshot` | Quiet-period check, consistent copy, hashing |
 | `transfer` | Upload/download with retry and backoff |
 | `restore` | Staged, journaled, atomic restore with backup |

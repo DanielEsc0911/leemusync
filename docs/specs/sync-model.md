@@ -1,6 +1,6 @@
 # Sync model
 
-> **Status:** Partial (leases, play sessions and retention are still open) · **Related:** [rules](../rules.md) (B2, B3, P3), [reliability](reliability.md), [security](security.md), [players-and-accounts](players-and-accounts.md), [emulator-profiles](emulator-profiles.md), [storage-backends](storage-backends.md), [glossary](../glossary.md) · **Code:** `crates/core/src/{manifest,heads,reconcile,config}.rs`, `crates/engine/src/{repo,repo_config}.rs`, `crates/engine/src/sync.rs`, `crates/core/src/lease.rs`, `crates/engine/src/lease.rs`, `crates/engine/src/resolve.rs`, `crates/engine/src/{play,process}.rs`
+> **Status:** Partial (leases, play sessions and retention are still open) · **Related:** [rules](../rules.md) (B2, B3, P3), [reliability](reliability.md), [security](security.md), [players-and-accounts](players-and-accounts.md), [emulator-profiles](emulator-profiles.md), [storage-backends](storage-backends.md), [glossary](../glossary.md) · **Code:** `crates/core/src/{manifest,heads,reconcile,config}.rs`, `crates/engine/src/{repo,repo_config}.rs`, `crates/engine/src/sync.rs`, `crates/core/src/lease.rs`, `crates/engine/src/lease.rs`, `crates/engine/src/resolve.rs`, `crates/engine/src/{play,process,session}.rs`, `crates/core/src/watch_session.rs`
 
 ## Purpose
 How saves move between devices without loss: what is synced (streams), how history is stored (versions), how divergence is detected (heads), and how simultaneous play is coordinated (leases, play sessions).
@@ -80,7 +80,8 @@ M1b (`Engine::play`, `PlayReport`):
 ### Watch mode (fallback)
 - **Desktop:** the profile's process names mark when the emulator is running. On the first save change, LemuSync takes the lease for that stream. When the emulator exits (or files go quiet): snapshot, upload, release.
 - **No process info (mobile):** a file change plus the quiet period triggers snapshot and upload. The lease is held from the first change until the upload finishes.
-- **Pull** happens at emulator start (desktop), on app open, and on scheduled syncs (mobile).
+- **Desktop, in detail** (`core::watch_session`, `engine::session`): the daemon polls the process list every 3 s (one walk for all emulators, V-DAEMON-2). A change while the emulator runs takes that stream's lease once; the stream stays tracked even if the take fails, and the upload still happens (D6). A change while it isn't running uploads after the quiet period, with no lease. At exit every changed stream uploads after the quiet period, then its lease is released.
+- **At emulator start (desktop)** LemuSync only checks the remote (heads only) and warns when another device has a newer save. Restores happen only while the emulator is closed (I3): on app open, on scheduled syncs (mobile), and on the daemon's syncs.
 
 ### Switching machines
 Launcher mode on both ends makes handoff automatic (SC2). With watch mode the handoff is as good as the pull triggers above.

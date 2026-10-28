@@ -1,6 +1,6 @@
 # Reliability
 
-> **Status:** Draft · **Related:** [rules](../rules.md) (B3), [sync-model](sync-model.md), [security](security.md), [testing](testing.md), [platforms](platforms/desktop.md) · **Code:** `crates/engine` (`fsx.rs`, `snapshot.rs`, `upload.rs`, `restore.rs`)
+> **Status:** Draft · **Related:** [rules](../rules.md) (B3), [sync-model](sync-model.md), [security](security.md), [testing](testing.md), [platforms](platforms/desktop.md) · **Code:** `crates/engine` (`fsx.rs`, `snapshot.rs`, `upload.rs`, `restore.rs`), `crates/core/src/schedule.rs`
 
 ## Purpose
 A save must never be lost or corrupted, and sync must keep running around the clock wherever the OS allows.
@@ -56,6 +56,7 @@ Implemented in `crates/engine/src/{snapshot,upload}.rs`. Local history pruning i
 
 - **Watchdog:** the daemon exposes a health status. The service manager restarts it on crash. A crash loop (5 in 10 min) → back off and show a persistent error.
 - **Watchers miss events:** full rescan every 15 min (desktop), on resume, on network regained, and at emulator exit.
+- **Scheduler** (`core::schedule`, pure: time and jitter are inputs): a stream syncs once its files have been quiet for the quiet period. One sync at a time; a trigger during a sync gives exactly one follow-up. Transient failures back off exponentially with full jitter and a 1 s floor, doubling from 1 s to 5 min, reset by a success, resume or network regained. Auth failures stop syncing until the user syncs by hand or resumes. While paused (until a time, or until resume) only a manual sync runs. The rescan timer runs every 15 min after the last finished sync. The daemon syncs once at start.
 
 ## Sleep and resume
 - While a transfer or restore is in flight, the daemon **inhibits idle sleep only**: Windows `SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED)`, macOS `IOPMAssertionCreateWithName(kIOPMAssertPreventUserIdleSystemSleep)`, Linux logind `Inhibit("idle", …, "block")` over D-Bus. The inhibition is released as soon as the work ends, with a maximum of 10 min. A suspend the user asks for always wins, as on Windows and macOS: a logind `block` lock on `sleep` would also refuse a user-requested suspend ([systemd inhibitor locks](https://systemd.io/INHIBITOR_LOCKS/), [`org.freedesktop.login1`](https://www.freedesktop.org/software/systemd/man/latest/org.freedesktop.login1.html)), so it is never taken; B3 is protected instead by the delay lock below, leases and divergence detection.
