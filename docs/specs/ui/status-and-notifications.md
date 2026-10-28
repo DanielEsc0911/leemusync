@@ -1,6 +1,6 @@
 # Status and notifications
 
-> **Status:** Draft · **Related:** [rules](../../rules.md) (P4, P6, F1), [architecture §Engine API](../architecture.md#engine-api), [sync-model](../sync-model.md#play-sessions), [navigation](navigation.md#deep-links), [platforms/desktop](../platforms/desktop.md), [platforms/android](../platforms/android.md), [platforms/ios](../platforms/ios.md), [i18n](../i18n.md) · **Code:** `crates/api` (status types), `crates/daemon` (tray), `app/android`, `app/ios` (planned)
+> **Status:** Draft · **Related:** [rules](../../rules.md) (P4, P6, F1), [architecture §Engine API](../architecture.md#engine-api), [sync-model](../sync-model.md#play-sessions), [navigation](navigation.md#deep-links), [platforms/desktop](../platforms/desktop.md), [platforms/android](../platforms/android.md), [platforms/ios](../platforms/ios.md), [i18n](../i18n.md) · **Code:** `crates/api/src/status.rs` (status model), `crates/daemon` (tray), `app/android`, `app/ios` (planned)
 
 ## Purpose
 Every surface (tray, notifications, Live Updates, Live Activities, the app) shows the same truth from one status model, using each platform's best surface (P4).
@@ -20,6 +20,8 @@ Emitted by the engine as `StatusChanged` / `SessionChanged` events.
 | session overlay | game, player, device, started | "Playing BotW · Daniel" / "Jugando BotW · Daniel" |
 
 Priority when several apply: `error` > `attention` > `syncing` > `offline` > `paused` > `scanning` > `synced`.
+
+`Status::from_facts` applies this priority to the engine's raw facts (`StatusFacts`); the counts travel with every state.
 
 ## Notification policy
 - Notify only when something needs the player or changes their plan: conflicts, foreign leases at play time, errors, a takeover of their save. Optional "synced" confirmations are off by default.

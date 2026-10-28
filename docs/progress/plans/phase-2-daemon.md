@@ -44,14 +44,14 @@ Tasks in the same wave touch different files and can run in parallel. Wave 2 sta
 **Interfaces (produces):**
 - `pub struct Hello { pub api_version: u32, pub client: String }` and `HelloReply { api_version, daemon_version: String }`.
 - `pub enum Request` (serde `tag = "cmd"`, snake_case): `Status`, `Sync { dry_run: bool }`, `Pause { until_ms: Option<u64> }` (None = until resume), `Resume`, `Conflicts`, `Games`, `History { game: String, emu: Option<String>, player: Option<String> }`, `LeaseStatus`, `Doctor`, `Subscribe` (the connection then receives `Event`s), `Shutdown`. Task 9 adds the rest of the CLI commands.
-- `pub enum Response` (`tag = "ok"` style of your choice, documented): one variant per request carrying the existing report type, plus `Error(ErrorBody)` reusing `ErrorBody`.
+- `pub enum Response` (`{"ok": <name>, "data": …}`, adjacently tagged): one variant per request carrying the existing report type (`Conflicts` and `LeaseStatus` carry `Vec<ConflictInfo>` / `Vec<LeaseInfo>`; `Paused`, `Resumed`, `Subscribed`, `ShuttingDown` carry nothing), plus `Error(ErrorBody)` reusing `ErrorBody`. `Event` is `{"event": <name>, "data": …}`.
 - `pub enum Event`: `StatusChanged(Status)`, `SessionChanged(Option<Session>)`, `ConflictDetected(ConflictInfo)`, `LeaseWarning(LeaseInfo)`, `TransferProgress(TransferProgress)`, `Connection(ConnectionEvent)`, `Error(ErrorBody)`.
 - `pub struct Status { pub state: StatusState, pub last_sync_ms: Option<u64>, pub uploads: u32, pub downloads: u32, pub bytes: u64, pub paused_until_ms: Option<u64>, pub queued: u32, pub conflicts: u32, pub foreign_leases: u32, pub error: Option<ErrorKind> }`, `pub enum StatusState { Synced, Scanning, Syncing, Paused, Offline, Attention, Error }`, `pub enum ErrorKind { Auth, Quota, Permission, Config }`, `pub struct Session { game, name: Option<String>, emulator, player, device, started_ms }`.
 - `pub struct StatusFacts { … }` (the raw booleans and counts) and `pub fn Status::from_facts(&StatusFacts) -> Status` applying the spec's priority `error > attention > syncing > offline > paused > scanning > synced`.
 
-- [ ] **Step 1: failing tests.** Golden JSON for one `Request`, `Response` and `Event` of each kind (stable keys, like `sync_report_json_is_stable`); round trip serde for every variant; a table test of `from_facts` covering each priority pair (e.g. conflicts + syncing → `Attention`; error + anything → `Error`; paused + offline → `Offline`).
-- [ ] **Step 2:** implement; tests pass; `cargo clippy -p lemusync-api --all-targets -- -D warnings`.
-- [ ] **Step 3:** specs (W1): §Engine API lists the request and event names and points to `crates/api/src/{wire,status}.rs`; `just check`; commit `feat(api): add engine wire types and the status model`.
+- [x] **Step 1: failing tests.** Golden JSON for one `Request`, `Response` and `Event` of each kind (stable keys, like `sync_report_json_is_stable`); round trip serde for every variant; a table test of `from_facts` covering each priority pair (e.g. conflicts + syncing → `Attention`; error + anything → `Error`; paused + offline → `Offline`).
+- [x] **Step 2:** implement; tests pass; `cargo clippy -p lemusync-api --all-targets -- -D warnings`.
+- [x] **Step 3:** specs (W1): §Engine API lists the request and event names and points to `crates/api/src/{wire,status}.rs`; `just check`; commit `feat(api): add engine wire types and the status model`.
 
 ### Task 2: `ipc` over a Unix socket
 
