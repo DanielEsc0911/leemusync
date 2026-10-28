@@ -8,6 +8,7 @@ mod output;
 mod play;
 mod progress;
 mod prompt;
+mod service;
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -106,6 +107,10 @@ enum Cmd {
     Config {
         #[command(subcommand)]
         cmd: config_cmd::ConfigCmd,
+    },
+    Service {
+        #[command(subcommand)]
+        cmd: service::ServiceCmd,
     },
 }
 
@@ -488,6 +493,10 @@ async fn run_play(engine: &mut Engine, cmd: &Cmd, t: &I18n, json: bool) -> Resul
 
 #[allow(clippy::too_many_lines)] // one match arm per command, each a few lines
 async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
+    if let Cmd::Service { cmd } = &cli.command {
+        service::run(cmd, t, cli.json)?;
+        return Ok(0);
+    }
     let mut engine = Engine::open(env()?)?;
     let json = cli.json;
     let mut live = progress::Live::new(json);
@@ -500,6 +509,7 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
             return run_play(&mut engine, cmd, t, json).await;
         }
         Cmd::Config { cmd } => config_cmd::run(&mut engine, cmd, t, json)?,
+        Cmd::Service { .. } => {}
         Cmd::Init => {
             let pass = prompt::new_passphrase(t)?;
             let (report, recovery) = engine.init(&pass).await?;

@@ -340,3 +340,84 @@ error-usage-alias_unknown = There's no alias { $detail }. Run `lemusync games` t
 error-usage-play_old_shape = The emulator now goes after --emu: { $detail }
 history-game = { $game }
 play-starting = Starting { $game }…
+
+## Daemon: status texts (status-and-notifications §Status model)
+status-synced = All saves synced
+status-scanning = Checking for changes
+status-uploading = { $count ->
+    [one] Uploading 1 change
+   *[other] Uploading { $count } changes
+}
+status-downloading = { $count ->
+    [one] Downloading 1 change
+   *[other] Downloading { $count } changes
+}
+status-syncing = { $count ->
+    [one] Syncing 1 change
+   *[other] Syncing { $count } changes
+}
+status-paused = Sync paused
+status-offline = { $count ->
+    [one] Offline · 1 change waiting
+   *[other] Offline · { $count } changes waiting
+}
+status-conflicts = { $count ->
+    [one] 1 conflict needs you
+   *[other] { $count } conflicts need you
+}
+status-foreign-leases = { $count ->
+    [one] 1 game is in use on another device
+   *[other] { $count } games are in use on other devices
+}
+status-error-auth = Storage sign-in expired
+status-error-quota = Storage is full
+status-error-permission = LemuSync can't open a save folder
+status-error-config = The config file has a problem
+status-playing = Playing { $game } · { $player }
+
+## Daemon: tray menu
+tray-sync-now = Sync now
+tray-pause = Pause
+tray-pause-1h = For 1 hour
+tray-pause-until-resume = Until I resume
+tray-resume = Resume sync
+tray-recent = Recent games
+tray-open = Open LemuSync
+tray-quit = Quit
+
+## Daemon: notifications
+notice-conflict-title = Two devices changed { $game }
+notice-conflict-body = Choose which save to keep.
+notice-foreign-lease-title = { $game } is in use on { $device }
+notice-foreign-lease-body = Wait until it's free, or open LemuSync to decide.
+notice-auth-body = Sign in to your storage again to keep syncing.
+notice-quota-body = Free up space on your storage to keep syncing.
+notice-action-review = Review
+notice-action-wait = Wait
+notice-action-open = Open
+
+## service (systemd user unit on Linux)
+help-service = Run the sync daemon in the background (systemd user service on Linux).
+help-service-install = Install and start the daemon; it starts again at every login.
+help-service-install-headless = Also keep syncing with nobody logged in (turns on linger). No tray or notifications then.
+help-service-uninstall = Stop and remove the daemon's service.
+help-service-start = Start the daemon.
+help-service-stop = Stop the daemon.
+help-service-status = Show whether the daemon is installed and running.
+service-installed = The daemon is installed and running ({ $path }).
+service-headless = It keeps syncing after you log out.
+service-uninstalled = The daemon was stopped and removed.
+service-linger-left = Linger was left as it was. To turn it off: loginctl disable-linger
+service-not-installed = The daemon isn't installed. Run `lemusync service install`.
+service-started = The daemon started.
+service-stopped = The daemon stopped.
+service-state = Daemon: { $enabled ->
+    [yes] starts at login
+   *[no] doesn't start at login
+}, { $active ->
+    [yes] running
+   *[no] stopped
+}, restarted { $restarts } times.
+error-usage-service_unsupported = `lemusync service` works only on Linux for now.
+error-usage-daemon_not_found = Can't find lemusyncd next to lemusync or on PATH.
+error-usage-daemon_path_invalid = lemusyncd must be an existing file with an absolute path: { $detail }
