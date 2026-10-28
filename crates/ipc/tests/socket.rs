@@ -23,8 +23,11 @@ fn mode(p: &Path) -> u32 {
 /// Serves every connection: answers `Status` with a doctor report, `Subscribe` with two events.
 fn serve(server: Server) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
-        while let Ok(mut conn) = server.accept().await {
+        while let Ok(incoming) = server.accept().await {
             tokio::spawn(async move {
+                let Ok(Some(mut conn)) = incoming.handshake().await else {
+                    return;
+                };
                 while let Some(req) = conn.recv().await {
                     if req == Request::Subscribe {
                         conn.send(&Response::Subscribed).await.unwrap();
@@ -126,6 +129,26 @@ async fn call_and_subscribe() {
     assert_eq!(events.len(), 2);
     assert!(matches!(events[0], Ok(Event::StatusChanged(_))));
     assert!(matches!(events[1], Ok(Event::SessionChanged(None))));
+}
+
+#[tokio::test]
+async fn a_silent_client_does_not_block_a_second_one() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = sock(&dir);
+    let _task = serve(Server::bind(&path).unwrap());
+    // Connects and never sends `Hello`: the 5 s handshake timer runs on its own task.
+    let _silent = tokio::net::UnixStream::connect(&path).await.unwrap();
+    let mut client = tokio::time::timeout(
+        std::time::Duration::from_secs(2),
+        Client::connect(&path, "second"),
+    )
+    .await
+    .expect("the second client is served while the first is silent")
+    .unwrap();
+    assert!(matches!(
+        client.call(Request::Status).await.unwrap(),
+        Response::Doctor(_)
+    ));
 }
 
 #[tokio::test]

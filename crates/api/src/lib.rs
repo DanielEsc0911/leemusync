@@ -7,7 +7,7 @@ pub mod status;
 pub mod wire;
 
 pub use status::{ErrorKind, Session, Status, StatusFacts, StatusState};
-pub use wire::{Event, Hello, HelloReply, Request, Response};
+pub use wire::{Event, Hello, HelloReply, RemoteNewer, Request, Response};
 
 /// Version of the report and request shapes in this crate. Bumped on breaking changes.
 pub const API_VERSION: u32 = 1;

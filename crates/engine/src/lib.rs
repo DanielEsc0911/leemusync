@@ -5,6 +5,7 @@ mod accounts;
 mod config_keys;
 mod discover;
 mod error;
+mod events;
 mod failpoints;
 pub mod fsx;
 mod game_refs;
@@ -25,6 +26,7 @@ mod resolve;
 mod restore;
 mod scan;
 mod secrets;
+mod service;
 mod session;
 mod setup;
 mod snapshot;
@@ -41,6 +43,7 @@ use lemusync_crypto::KdfParams;
 
 pub use accounts::{MapChoice, MapOutcome};
 pub use error::EngineError;
+pub use events::EVENT_BUFFER;
 pub use failpoints::Failpoints;
 pub use game_refs::is_emulator;
 pub use games::GameEntry;
@@ -55,11 +58,12 @@ pub use play::{LeaseChoice, PlayPrompt};
 pub use process::{Child, FakeProbe, Launcher, OsLauncher, ProcessProbe, SysinfoProbe};
 pub use progress::{ConnectionSink, ProgressSink};
 pub use secrets::{KeyringSecrets, MemorySecrets, SecretStore};
+pub use service::{Service, ServiceConfig, ServiceHandle};
 pub use session::{DEFAULT_POLL, ProcessPoller};
 pub use setup::{GdriveLogin, JoinSecret, S3Backend};
 pub use state::{JournalEntry, State, StreamRow};
 pub use sync::SyncOptions;
-pub use watch::{BURST, SaveWatcher};
+pub use watch::{BURST, SaveWatcher, WatchTarget};
 
 pub struct EngineEnv {
     pub locations: Locations,

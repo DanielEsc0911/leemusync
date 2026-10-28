@@ -1,6 +1,6 @@
 # Status and notifications
 
-> **Status:** Draft · **Related:** [rules](../../rules.md) (P4, P6, F1), [architecture §Engine API](../architecture.md#engine-api), [sync-model](../sync-model.md#play-sessions), [navigation](navigation.md#deep-links), [platforms/desktop](../platforms/desktop.md), [platforms/android](../platforms/android.md), [platforms/ios](../platforms/ios.md), [i18n](../i18n.md) · **Code:** `crates/api/src/status.rs` (status model), `crates/daemon/src/{view,notices,platform}` (tray, notifications), `app/android`, `app/ios` (planned)
+> **Status:** Draft · **Related:** [rules](../../rules.md) (P4, P6, F1), [architecture §Engine API](../architecture.md#engine-api), [sync-model](../sync-model.md#play-sessions), [navigation](navigation.md#deep-links), [platforms/desktop](../platforms/desktop.md), [platforms/android](../platforms/android.md), [platforms/ios](../platforms/ios.md), [i18n](../i18n.md) · **Code:** `crates/api/src/status.rs` (status model), `crates/daemon/src/{view,notices,platform,run}` (tray, notifications, the daemon's mapping from the status model), `app/android`, `app/ios` (planned)
 
 ## Purpose
 Every surface (tray, notifications, Live Updates, Live Activities, the app) shows the same truth from one status model, using each platform's best surface (P4).
@@ -26,6 +26,7 @@ Priority when several apply: `error` > `attention` > `syncing` > `offline` > `pa
 ## Notification policy
 - Notify only when something needs the player or changes their plan: conflicts, foreign leases at play time, errors, a takeover of their save. Optional "synced" confirmations are off by default.
 - Coalesce bursts (one notification per stream per event type per 5 min). Never spam.
+- Desktop daemon (`crates/daemon/src/run.rs`, `notices.rs`): `conflict_detected` (once per new conflict), a live `lease_warning`, `remote_newer` ("Newer save of BotW from Deck" · "Close Cemu and LemuSync updates it") and a change into the auth or quota `error` each become a notice; `notices::Coalescer` applies the 5-minute rule. Other events only update the tray.
 - Every notification deep-links to the relevant screen ([navigation](navigation.md#deep-links)). Actions are offered where the platform supports them ("Review", "Wait", "Open").
 - Channels/categories: **Sync progress** (silent), **Needs attention** (high), **Errors** (default).
 

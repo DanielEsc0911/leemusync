@@ -117,6 +117,25 @@ pub enum Event {
     Connection(ConnectionEvent),
     /// A background error.
     Error(ErrorBody),
+    /// Watch mode: an emulator started while another device has a newer save of one of its
+    /// streams. Nothing is restored while it runs (I3); the update waits for it to close.
+    RemoteNewer(RemoteNewer),
+}
+
+/// The `RemoteNewer` event: a stream's newest head was written by another device.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RemoteNewer {
+    /// Player name.
+    pub player: String,
+    /// Emulator profile id.
+    pub emulator: String,
+    /// Game id.
+    pub game: String,
+    /// The game's name on this device, when known. Not synced.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// Name of the device that wrote the newer save (its id when unknown).
+    pub device: String,
 }
 
 #[cfg(test)]
@@ -334,6 +353,16 @@ mod tests {
         golden(
             &Event::Error(err()),
             r#"{"event":"error","data":{"code":"auth","message":"m"}}"#,
+        );
+        golden(
+            &Event::RemoteNewer(RemoteNewer {
+                player: "A".into(),
+                emulator: "cemu".into(),
+                game: "g".into(),
+                name: None,
+                device: "deck".into(),
+            }),
+            r#"{"event":"remote_newer","data":{"player":"A","emulator":"cemu","game":"g","device":"deck"}}"#,
         );
     }
 

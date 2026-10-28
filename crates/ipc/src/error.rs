@@ -32,6 +32,9 @@ pub enum IpcError {
     /// The daemon refused the request or the handshake.
     #[error("the daemon refused: {}", .0.message)]
     Rejected(ErrorBody),
+    /// The peer didn't finish the handshake in time.
+    #[error("the ipc handshake timed out")]
+    HandshakeTimeout,
     /// The peer sent a frame that doesn't fit the protocol here.
     #[error("unexpected ipc frame")]
     Protocol,

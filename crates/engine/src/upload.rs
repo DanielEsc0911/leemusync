@@ -76,6 +76,7 @@ pub(crate) async fn upload(
             async { Ok(()) }
         })
         .await?;
+    fp.pause("upload.before_manifest").await;
     fp.hit("upload.before_manifest")?;
     commit_manifest(repo, meta, snap.files.clone(), fp).await
 }
