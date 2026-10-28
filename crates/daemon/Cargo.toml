@@ -13,8 +13,13 @@ name = "lemusyncd"
 path = "src/main.rs"
 
 [dependencies]
+lemusync-api = { path = "../api" }
+lemusync-engine = { path = "../engine" }
+lemusync-ipc = { path = "../ipc" }
 fluent-bundle = { workspace = true }
-tokio = { workspace = true, features = ["rt", "sync", "time", "macros"] }
+tokio = { workspace = true, features = ["rt", "rt-multi-thread", "sync", "time", "macros", "signal"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
 unic-langid = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
@@ -24,7 +29,9 @@ notify-rust = { workspace = true }
 zbus = { workspace = true }
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["rt-multi-thread"] }
+futures-util = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 
 [lints]
 workspace = true

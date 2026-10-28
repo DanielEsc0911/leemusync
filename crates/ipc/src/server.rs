@@ -87,33 +87,28 @@ impl Server {
         &self.path
     }
 
-    /// Waits for the next same-user peer with a matching `Hello`. Peers with another uid are
-    /// closed without a reply; a different `api_version` gets an error with an upgrade hint.
-    /// Both are logged and skipped.
+    /// Waits for the next same-user peer. Peers with another uid are closed without a reply,
+    /// logged and skipped. The handshake is left to [`Incoming::handshake`], so the caller can
+    /// run it on its own task: a slow or silent peer never holds up the next one.
     ///
     /// # Errors
     /// I/O errors from the listener.
     #[cfg(unix)]
-    pub async fn accept(&self) -> Result<Connection, IpcError> {
+    pub async fn accept(&self) -> Result<Incoming, IpcError> {
         loop {
             let (stream, _) = self.listener.accept().await?;
             let uid = match stream.peer_cred() {
                 Ok(c) => c.uid(),
                 Err(e) => {
-                    eprintln!("lemusync ipc: peer credentials unavailable: {e}");
+                    tracing::warn!("ipc: peer credentials unavailable: {e}");
                     continue;
                 }
             };
             if !crate::socket::same_user(uid, crate::socket::own_uid()) {
-                eprintln!("lemusync ipc: closed a connection from uid {uid}");
+                tracing::warn!("ipc: closed a connection from uid {uid}");
                 continue;
             }
-            match tokio::time::timeout(HELLO_TIMEOUT, handshake(stream)).await {
-                Ok(Ok(Some(conn))) => return Ok(conn),
-                Ok(Ok(None)) => {}
-                Ok(Err(e)) => eprintln!("lemusync ipc: handshake failed: {e}"),
-                Err(_) => eprintln!("lemusync ipc: handshake timed out"),
-            }
+            return Ok(Incoming { stream });
         }
     }
 
@@ -123,7 +118,39 @@ impl Server {
     /// Always [`IpcError::Unsupported`].
     #[cfg(not(unix))]
     #[allow(clippy::unused_async, clippy::unused_async_trait_impl)] // same signature as on Unix
-    pub async fn accept(&self) -> Result<Connection, IpcError> {
+    pub async fn accept(&self) -> Result<Incoming, IpcError> {
+        Err(IpcError::Unsupported)
+    }
+}
+
+/// A same-user peer that hasn't sent its `Hello` yet.
+pub struct Incoming {
+    #[cfg(unix)]
+    stream: tokio::net::UnixStream,
+}
+
+impl Incoming {
+    /// Reads the peer's `Hello` (it has 5 s) and answers it. `None` when the peer was turned
+    /// away: it closed first, or speaks another `api_version` (it gets an error with an
+    /// upgrade hint).
+    ///
+    /// # Errors
+    /// [`IpcError::HandshakeTimeout`], I/O and frame errors.
+    #[cfg(unix)]
+    pub async fn handshake(self) -> Result<Option<Connection>, IpcError> {
+        match tokio::time::timeout(HELLO_TIMEOUT, handshake(self.stream)).await {
+            Ok(r) => r,
+            Err(_) => Err(IpcError::HandshakeTimeout),
+        }
+    }
+
+    /// See the Unix version.
+    ///
+    /// # Errors
+    /// Always [`IpcError::Unsupported`].
+    #[cfg(not(unix))]
+    #[allow(clippy::unused_async, clippy::unused_async_trait_impl)] // same signature as on Unix
+    pub async fn handshake(self) -> Result<Option<Connection>, IpcError> {
         Err(IpcError::Unsupported)
     }
 }

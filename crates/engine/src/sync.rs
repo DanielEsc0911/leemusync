@@ -44,7 +44,7 @@ pub(crate) fn action_kind(a: &Action) -> StreamAction {
     }
 }
 
-fn process_names(profile: &Profile) -> Vec<String> {
+pub(crate) fn process_names(profile: &Profile) -> Vec<String> {
     profile
         .platforms
         .get("linux")

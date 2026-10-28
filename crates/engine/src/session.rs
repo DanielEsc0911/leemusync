@@ -8,7 +8,10 @@ use std::time::Duration;
 use tokio::sync::mpsc::Sender;
 use tokio::task::JoinHandle;
 
-use crate::ProcessProbe;
+use lemusync_api::RemoteNewer;
+use lemusync_core::heads::{Graph, heads};
+
+use crate::{Engine, EngineError, ProcessProbe};
 
 /// Default poll interval (V-DAEMON-2 measures its idle cost).
 pub const DEFAULT_POLL: Duration = Duration::from_secs(3);
@@ -54,6 +57,53 @@ impl ProcessPoller {
 impl Drop for ProcessPoller {
     fn drop(&mut self) {
         self.task.abort();
+    }
+}
+
+impl Engine {
+    /// Watch mode at emulator start (`CheckRemote`): the streams of `emulator` whose newest
+    /// head another device wrote and this device hasn't restored yet. Reads the version list
+    /// only and restores nothing (I3): the update waits for the emulator to close.
+    ///
+    /// # Errors
+    /// As `watch_plan`; storage errors while listing versions.
+    pub async fn remote_newer(&mut self, emulator: &str) -> Result<Vec<RemoteNewer>, EngineError> {
+        let targets = self.watch_plan().await?;
+        let names = self.game_names();
+        let me = self.device_id();
+        let mut warnings = Vec::new();
+        let mut out = Vec::new();
+        for t in targets.into_iter().filter(|t| t.emulator == emulator) {
+            let versions = self.fetch_graph(&t.stream, &mut warnings).await?;
+            let graph: Graph = versions
+                .iter()
+                .map(|(id, v)| (*id, v.parents.clone()))
+                .collect();
+            let base = self.state.stream(&t.stream)?.and_then(|r| r.base);
+            let Some(newest) = heads(&graph)
+                .iter()
+                .filter_map(|h| versions.get(h))
+                .max_by_key(|v| (v.created_at, v.id))
+            else {
+                continue;
+            };
+            if Some(newest.id) == base || newest.device == me {
+                continue;
+            }
+            let device = self
+                .repo_ref()?
+                .device_name(&newest.device)
+                .await
+                .unwrap_or_else(|| newest.device.to_string());
+            out.push(RemoteNewer {
+                name: names.get(&(t.emulator.clone(), t.game.clone())).cloned(),
+                player: t.player_name,
+                emulator: t.emulator,
+                game: t.game,
+                device,
+            });
+        }
+        Ok(out)
     }
 }
 

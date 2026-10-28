@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, mpsc};
 use std::time::{Duration, Instant};
 
-use lemusync_core::StreamId;
+use lemusync_core::{PlayerId, StreamId};
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use tokio::sync::mpsc::Sender;
 
@@ -206,6 +206,18 @@ impl Shared {
     }
 }
 
+/// One stream the daemon watches: its save folder and who it belongs to.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WatchTarget {
+    pub stream: StreamId,
+    pub player: PlayerId,
+    /// Player name as the user sees it.
+    pub player_name: String,
+    pub emulator: String,
+    pub game: String,
+    pub folder: PathBuf,
+}
+
 impl Engine {
     /// The save folders this device syncs, one per stream, from the same data `sync` uses.
     /// Folders whose account isn't mapped here are left out. Reads the repo config (cached
@@ -214,6 +226,19 @@ impl Engine {
     /// # Errors
     /// `NotSetUp` without a repo; storage errors while listing the config.
     pub async fn watch_targets(&mut self) -> Result<Vec<(StreamId, PathBuf)>, EngineError> {
+        Ok(self
+            .watch_plan()
+            .await?
+            .into_iter()
+            .map(|t| (t.stream, t.folder))
+            .collect())
+    }
+
+    /// As [`Engine::watch_targets`], with each stream's player, emulator and game.
+    ///
+    /// # Errors
+    /// As `watch_targets`.
+    pub async fn watch_plan(&mut self) -> Result<Vec<WatchTarget>, EngineError> {
         self.ensure_repo().await?;
         let device = self.device_id();
         let config = repo_config::load(self.repo_ref()?, &self.state)
@@ -230,12 +255,45 @@ impl Engine {
                 else {
                     continue;
                 };
-                out.push((
-                    self.repo_ref()?.stream_id(player, &profile.id, &game),
+                out.push(WatchTarget {
+                    stream: self.repo_ref()?.stream_id(player, &profile.id, &game),
+                    player,
+                    player_name: config
+                        .players
+                        .get(&player)
+                        .map(|p| p.name.clone())
+                        .unwrap_or_default(),
+                    emulator: profile.id.clone(),
+                    game,
                     folder,
-                ));
+                });
             }
         }
         Ok(out)
+    }
+
+    /// Process names per emulator with a granted install here, for `ProcessPoller`. Local
+    /// only: works while the storage is unreachable.
+    ///
+    /// # Errors
+    /// `Config` for a broken bundled profile; `Io` while discovering installs.
+    pub fn process_names_by_emulator(&self) -> Result<Vec<(String, Vec<String>)>, EngineError> {
+        let mut out: Vec<(String, Vec<String>)> = Vec::new();
+        for (profile, _, discovery) in self.installs()? {
+            if discovery.is_none() || out.iter().any(|(id, _)| *id == profile.id) {
+                continue;
+            }
+            let names = crate::sync::process_names(&profile);
+            if !names.is_empty() {
+                out.push((profile.id.clone(), names));
+            }
+        }
+        Ok(out)
+    }
+
+    /// The process probe this engine was opened with (the daemon's poller shares it).
+    #[must_use]
+    pub fn process_probe(&self) -> std::sync::Arc<dyn crate::ProcessProbe> {
+        std::sync::Arc::clone(&self.env.processes)
     }
 }

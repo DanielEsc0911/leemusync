@@ -12,4 +12,4 @@ pub mod socket;
 
 pub use client::Client;
 pub use error::IpcError;
-pub use server::{Connection, Server};
+pub use server::{Connection, Incoming, Server};

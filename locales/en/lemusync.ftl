@@ -395,6 +395,8 @@ notice-quota-body = Free up space on your storage to keep syncing.
 notice-action-review = Review
 notice-action-wait = Wait
 notice-action-open = Open
+notice-remote-newer-title = Newer save of { $game } from { $device }
+notice-remote-newer-body = Close { $emulator } and LemuSync updates it.
 
 ## service (systemd user unit on Linux)
 help-service = Run the sync daemon in the background (systemd user service on Linux).
@@ -421,3 +423,7 @@ service-state = Daemon: { $enabled ->
 error-usage-service_unsupported = `lemusync service` works only on Linux for now.
 error-usage-daemon_not_found = Can't find lemusyncd next to lemusync or on PATH.
 error-usage-daemon_path_invalid = lemusyncd must be an existing file with an absolute path: { $detail }
+
+## lemusyncd (the daemon)
+daemon-already-running = LemuSync is already running for this user (another lemusyncd or lemusync command holds { $path }).
+daemon-start-failed = lemusyncd couldn't start: { $error }
