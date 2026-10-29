@@ -17,9 +17,11 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::future::Future;
 use std::time::Duration;
 
+use std::sync::Arc;
+
 use lemusync_api::{
-    ErrorBody, Event, LeaseInfo, Request, Response, Session, Status, StatusReport, StreamAction,
-    SyncReport, TransferProgress,
+    DaemonStatus, ErrorBody, Event, LeaseInfo, Request, Response, Session, Status, StatusReport,
+    StreamAction, SyncReport, TransferProgress,
 };
 use lemusync_core::StreamId;
 use lemusync_core::schedule::{Action, Quiet, ScheduleConfig, Scheduler, SyncOutcome, Trigger};
@@ -27,9 +29,10 @@ use lemusync_core::watch_session::{SessionAction, WatchSessions};
 use tokio::sync::{broadcast, mpsc, oneshot, watch};
 
 use crate::events::{self, StatusModel};
+use crate::remote_play::{ChannelPrompt, PROMPT_TIMEOUT};
 use crate::{
-    Acquire, DEFAULT_POLL, Engine, EngineError, LeaseHandle, ProcessPoller, SaveWatcher,
-    SyncOptions, WatchTarget, now_ms, redact,
+    Acquire, DEFAULT_POLL, Engine, EngineError, Launcher, LeaseHandle, OsLauncher, PlayCall,
+    ProcessPoller, SaveWatcher, SyncOptions, WatchTarget, now_ms, redact, remote,
 };
 
 /// Timings of the service. Tests shorten them.
@@ -66,6 +69,7 @@ impl Default for ServiceConfig {
 
 enum Command {
     Request(Request, oneshot::Sender<Response>),
+    Play(PlayCall, oneshot::Sender<Response>),
     Suspend(oneshot::Sender<()>),
     Resumed,
     Stop(oneshot::Sender<()>),
@@ -85,6 +89,18 @@ impl ServiceHandle {
     pub async fn call(&self, request: Request) -> Response {
         let (tx, rx) = oneshot::channel();
         if self.tx.send(Command::Request(request, tx)).await.is_err() {
+            return stopped();
+        }
+        rx.await.unwrap_or_else(|_| stopped())
+    }
+
+    /// Runs `play` (launcher mode) on the service's engine. Steps and questions go to
+    /// `call.io`; without one the non-interactive policy applies (a held lease or a conflict
+    /// fails, nothing launches). A `Request::Play` through [`ServiceHandle::call`] is the
+    /// same with no `io`.
+    pub async fn play(&self, call: PlayCall) -> Response {
+        let (tx, rx) = oneshot::channel();
+        if self.tx.send(Command::Play(call, tx)).await.is_err() {
             return stopped();
         }
         rx.await.unwrap_or_else(|_| stopped())
@@ -135,11 +151,15 @@ fn stopped() -> Response {
 }
 
 fn error_body(e: &EngineError) -> ErrorBody {
-    ErrorBody {
-        code: e.code().into(),
-        message: redact(&e.to_string()),
+    e.to_body()
+}
+
+fn bad_request(why: &str) -> Response {
+    Response::Error(ErrorBody {
+        code: "bad_request".into(),
+        message: why.into(),
         detail: None,
-    }
+    })
 }
 
 /// Owns the engine. Build with [`Service::new`], then await [`Service::run`].
@@ -148,6 +168,7 @@ pub struct Service {
     cfg: ServiceConfig,
     rx: mpsc::Receiver<Command>,
     model: StatusModel,
+    launcher: Arc<dyn Launcher>,
 }
 
 /// Work waiting for the engine.
@@ -155,6 +176,7 @@ enum Work {
     Change(StreamId),
     Running(String, bool),
     Request(Request, oneshot::Sender<Response>),
+    Play(PlayCall, oneshot::Sender<Response>),
 }
 
 /// The channels `drive` listens on besides the engine call.
@@ -200,6 +222,9 @@ struct Core {
     /// Running engine work must end by then (suspend or stop), as Unix ms.
     cancel_at: Option<u64>,
     renew_at: Option<u64>,
+    /// A request changed the setup: reload the watched folders and the status report.
+    refresh: bool,
+    launcher: Arc<dyn Launcher>,
 }
 
 impl Service {
@@ -219,9 +244,15 @@ impl Service {
                 cfg,
                 rx,
                 model,
+                launcher: Arc::new(OsLauncher),
             },
             handle,
         )
+    }
+
+    /// What `play` launches with (tests use a fake).
+    pub fn set_launcher(&mut self, launcher: Arc<dyn Launcher>) {
+        self.launcher = launcher;
     }
 
     /// Runs [`Service::run`] on its own thread with a current-thread tokio runtime: the run
@@ -248,6 +279,7 @@ impl Service {
             cfg,
             rx,
             model,
+            launcher,
         } = self;
         let (progress_tx, progress) = mpsc::channel(256);
         engine.set_progress(std::sync::Arc::new(move |p: &TransferProgress| {
@@ -305,6 +337,8 @@ impl Service {
             stop: Vec::new(),
             cancel_at: None,
             renew_at: None,
+            refresh: false,
+            launcher,
         };
         refresh_targets(&mut engine, &mut core, &mut inputs, watcher.as_mut()).await;
 
@@ -325,6 +359,24 @@ impl Service {
             }
             if let Some(w) = core.work.pop_front() {
                 do_work(w, &mut engine, &mut core, &mut inputs).await;
+                if std::mem::take(&mut core.refresh) {
+                    if let Some(Ok(report)) = drive(engine.status(), &mut core, &mut inputs).await {
+                        core.report = Some(report);
+                    }
+                    if refresh_targets(&mut engine, &mut core, &mut inputs, watcher.as_mut()).await
+                    {
+                        let fresh = engine.process_names_by_emulator().unwrap_or_default();
+                        if fresh != names {
+                            names = fresh;
+                            poller = ProcessPoller::start(
+                                engine.process_probe(),
+                                names.clone(),
+                                core.cfg.poll,
+                                poll_tx.clone(),
+                            );
+                        }
+                    }
+                }
                 continue;
             }
             if core.renew_at.is_some_and(|t| t <= now) {
@@ -384,8 +436,8 @@ impl Service {
         for w in core.sync_waiters.drain(..) {
             let _ = w.send(stopped());
         }
-        for (_, w) in core.work.drain(..).filter_map(|w| match w {
-            Work::Request(r, tx) => Some((r, tx)),
+        for w in core.work.drain(..).filter_map(|w| match w {
+            Work::Request(_, tx) | Work::Play(_, tx) => Some(tx),
             _ => None,
         }) {
             let _ = w.send(stopped());
@@ -431,8 +483,26 @@ impl Core {
                 }
                 Request::Status if self.report.is_some() => {
                     if let Some(report) = self.report.clone() {
-                        let _ = tx.send(Response::Status(report));
+                        let _ = tx.send(Response::Status(self.with_daemon(report)));
                     }
+                }
+                Request::Play {
+                    player,
+                    emulator,
+                    game,
+                    args,
+                } => self.work.push_back(Work::Play(
+                    PlayCall {
+                        player,
+                        emulator,
+                        game,
+                        args,
+                        io: None,
+                    },
+                    tx,
+                )),
+                Request::Answer(_) => {
+                    let _ = tx.send(bad_request("no question is waiting for an answer"));
                 }
                 Request::Sync { dry_run: false } => {
                     self.scheduler.on_trigger(Trigger::Manual, now);
@@ -444,6 +514,7 @@ impl Core {
                 }
                 other => self.work.push_back(Work::Request(other, tx)),
             },
+            Command::Play(call, tx) => self.work.push_back(Work::Play(call, tx)),
             Command::Suspend(ack) => {
                 self.suspend = Some(ack);
                 self.cancel_at = Some(now.saturating_add(ms(self.cfg.finish)));
@@ -464,6 +535,16 @@ impl Core {
         if self.cancel_at.is_none() {
             self.cancel_at = Some(now.saturating_add(ms(self.cfg.finish)));
         }
+    }
+
+    /// A status report with the daemon's live state (architecture §Process model).
+    fn with_daemon(&self, mut report: StatusReport) -> StatusReport {
+        report.daemon = Some(DaemonStatus {
+            version: env!("CARGO_PKG_VERSION").into(),
+            status: self.model.status(),
+            session: self.session.clone(),
+        });
+        report
     }
 
     fn connection(&mut self, c: lemusync_api::ConnectionEvent) {
@@ -699,8 +780,107 @@ async fn do_work(w: Work, engine: &mut Engine, core: &mut Core, inputs: &mut Inp
             }
         }
         Work::Request(r, tx) => {
+            let refresh = remote::changes_setup(&r);
             let resp = request(r, engine, core, inputs).await;
+            if refresh {
+                // A `status` arriving before the refresh must not get the old report.
+                core.report = None;
+                core.refresh = true;
+            }
             let _ = tx.send(resp);
+        }
+        Work::Play(call, tx) => {
+            let resp = play(call, engine, core, inputs).await;
+            let _ = tx.send(resp);
+        }
+    }
+}
+
+/// Launcher mode for a client or the tray. While it runs the service keeps answering
+/// `status`, `pause` and `resume`, and a suspend is acknowledged at once (the session keeps
+/// its own lease renewals); only a stop that runs out of time ends it early. The process
+/// poller's edges for this emulator during the session are dropped: the session already
+/// took the lease and uploaded.
+async fn play(
+    call: PlayCall,
+    engine: &mut Engine,
+    core: &mut Core,
+    inputs: &mut Inputs,
+) -> Response {
+    let prompt = ChannelPrompt {
+        io: call.io,
+        timeout: PROMPT_TIMEOUT,
+    };
+    let args = remote::os_args(&call.args);
+    let launcher = core.launcher.clone();
+    let name = engine
+        .game_names()
+        .get(&(call.emulator.clone(), call.game.to_lowercase()))
+        .cloned();
+    let session = Session {
+        game: call.game.clone(),
+        name,
+        emulator: call.emulator.clone(),
+        player: call.player.clone(),
+        device: engine.local_config().device.name.clone(),
+        started_ms: now_ms(),
+    };
+    core.session = Some(session.clone());
+    core.model.emit(Event::SessionChanged(Some(session)));
+    let out = drive_play(
+        engine.play(
+            &call.player,
+            &call.emulator,
+            &call.game,
+            &args,
+            &prompt,
+            launcher.as_ref(),
+        ),
+        core,
+        inputs,
+    )
+    .await;
+    core.session = None;
+    core.model.emit(Event::SessionChanged(None));
+    core.work
+        .retain(|w| !matches!(w, Work::Running(e, _) if *e == call.emulator));
+    core.refresh = true;
+    match out {
+        Some(Ok(report)) => Response::Play(report),
+        Some(Err(e)) => Response::Error(error_body(&e)),
+        None => stopped(),
+    }
+}
+
+/// [`drive`] for a play session: suspends are acknowledged at once, and only a stop's
+/// deadline ends the call.
+async fn drive_play<F: Future>(fut: F, core: &mut Core, inputs: &mut Inputs) -> Option<F::Output> {
+    tokio::pin!(fut);
+    loop {
+        if let Some(ack) = core.suspend.take() {
+            core.suspended = true;
+            core.cancel_at = None;
+            let _ = ack.send(());
+        }
+        let left = core
+            .cancel_at
+            .filter(|_| core.stopping)
+            .map(|t| Duration::from_millis(t.saturating_sub(now_ms())));
+        tokio::select! {
+            biased;
+            out = &mut fut => {
+                drain_progress(core, inputs);
+                return Some(out);
+            }
+            Some(c) = inputs.cmd.recv() => core.command(c),
+            Some(s) = inputs.watch.recv() => core.work.push_back(Work::Change(s)),
+            Some((e, r)) = inputs.poll.recv() => core.work.push_back(Work::Running(e, r)),
+            Some(p) = inputs.progress.recv() => core.model.progress(&p),
+            Some(c) = inputs.connection.recv() => core.connection(c),
+            () = sleep_for(left) => {
+                tracing::warn!("stopped a play session at its next step (daemon stop)");
+                return None;
+            }
         }
     }
 }
@@ -855,58 +1035,28 @@ async fn request(
         Request::Status => drive(engine.status(), core, inputs).await.map(|r| {
             r.map(|report| {
                 core.report = Some(report.clone());
-                Response::Status(report)
+                Response::Status(core.with_daemon(report))
             })
         }),
         Request::Sync { dry_run: _ } => run_sync(engine, core, inputs, true)
             .await
             .map(|r| r.map(Response::Sync)),
-        Request::Conflicts => drive(engine.conflicts(), core, inputs)
-            .await
-            .map(|r| r.map(|(list, _)| Response::Conflicts(list))),
-        Request::Games => Some(engine.games_report().map(Response::Games)),
-        Request::History { game, emu, player } => {
-            drive(history(engine, &game, emu.as_deref(), player), core, inputs).await
-        }
-        Request::LeaseStatus => drive(engine.lease_status(), core, inputs)
-            .await
-            .map(|r| r.map(|(list, _)| Response::LeaseStatus(list))),
-        Request::Doctor => drive(engine.doctor(), core, inputs)
-            .await
-            .map(|r| r.map(Response::Doctor)),
         // Answered in `Core::command`.
-        Request::Pause { .. } | Request::Resume | Request::Subscribe | Request::Shutdown => {
-            return Response::Error(ErrorBody {
-                code: "bad_request".into(),
-                message: "answered elsewhere".into(),
-                detail: None,
-            });
-        }
+        Request::Pause { .. }
+        | Request::Resume
+        | Request::Subscribe
+        | Request::Shutdown
+        | Request::Play { .. }
+        | Request::Answer(_) => return bad_request("answered elsewhere"),
+        other => match drive(remote::run(engine, other), core, inputs).await {
+            Some(Some(r)) => Some(r),
+            Some(None) => return bad_request("not an engine request"),
+            None => None,
+        },
     };
     match out {
         Some(Ok(r)) => r,
         Some(Err(e)) => Response::Error(error_body(&e)),
         None => stopped(),
     }
-}
-
-async fn history(
-    engine: &mut Engine,
-    game: &str,
-    emu: Option<&str>,
-    player: Option<String>,
-) -> Result<Response, EngineError> {
-    let (emulator, game) = engine.resolve_game(game, emu).await?;
-    let player = if let Some(p) = player {
-        p
-    } else {
-        let players = engine.status().await?.players;
-        let Ok([p]) = <[String; 1]>::try_from(players) else {
-            return Err(EngineError::Usage("player_needed".into()));
-        };
-        p
-    };
-    Ok(Response::History(
-        engine.history(&player, &emulator, &game).await?,
-    ))
 }

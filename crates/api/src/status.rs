@@ -34,6 +34,9 @@ pub enum ErrorKind {
     Permission,
     /// The config is invalid.
     Config,
+    /// No repo on this device yet: `lemusync init` or `join` first. Shown, like every error,
+    /// before every other state.
+    NotSetUp,
 }
 
 /// What every surface shows: the `StatusChanged` event.

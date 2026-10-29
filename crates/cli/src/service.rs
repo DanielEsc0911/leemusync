@@ -269,6 +269,35 @@ pub fn status(r: &mut dyn Runner) -> Result<ServiceStatus, EngineError> {
     Ok(parse_show(&out))
 }
 
+/// The unit's state for `doctor`, through the same runner as `service status`. `None` off
+/// Linux or when `systemctl` can't be asked.
+#[must_use]
+pub fn current() -> Option<ServiceStatus> {
+    if !cfg!(target_os = "linux") {
+        return None;
+    }
+    let mut runner: Box<dyn Runner> = match test_root() {
+        Some(root) => Box::new(RecordRunner { root }),
+        None => Box::new(SystemRunner),
+    };
+    status(runner.as_mut()).ok()
+}
+
+/// Where systemd keeps the linger flags (`<root>/linger` in tests).
+#[must_use]
+pub fn linger_dir() -> PathBuf {
+    test_root().map_or_else(
+        || PathBuf::from("/var/lib/systemd/linger"),
+        |r| r.join("linger"),
+    )
+}
+
+/// True in tests (`LEMUSYNC_TEST_ROOT`): nothing outside the root is asked.
+#[must_use]
+pub fn under_test() -> bool {
+    test_root().is_some()
+}
+
 fn yes(b: bool) -> FluentValue<'static> {
     s(if b { "yes" } else { "no" })
 }

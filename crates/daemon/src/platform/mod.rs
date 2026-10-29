@@ -66,7 +66,6 @@ pub struct TrayMenuText {
     pub pause_until_resume: String,
     pub resume: String,
     pub recent: String,
-    pub open: String,
     pub quit: String,
 }
 
@@ -78,7 +77,6 @@ pub enum TrayAction {
     PauseUntilResume,
     Resume,
     Play(String),
-    Open,
     Quit,
 }
 

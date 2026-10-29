@@ -1,9 +1,10 @@
 //! `lemusync config path | list | get | set | unset` (config-and-cli §Commands).
 
 use clap::Subcommand;
-use lemusync_engine::{Engine, EngineError};
+use lemusync_engine::EngineError;
 use serde_json::{Value, json};
 
+use crate::daemon_client::Api;
 use crate::i18n::{I18n, s};
 use crate::output;
 
@@ -41,11 +42,11 @@ fn shown(v: &Value) -> String {
 
 /// # Errors
 /// What the engine returns for the key.
-pub fn run(engine: &mut Engine, cmd: &ConfigCmd, t: &I18n, json: bool) -> Result<(), EngineError> {
+pub async fn run(eng: &mut Api, cmd: &ConfigCmd, t: &I18n, json: bool) -> Result<(), EngineError> {
     let api = lemusync_api::API_VERSION;
     match cmd {
         ConfigCmd::Path => {
-            let path = engine.config_path().display().to_string();
+            let path = eng.config_path().await?.display().to_string();
             if json {
                 output::json(&json!({ "api_version": api, "path": path }));
             } else {
@@ -53,7 +54,7 @@ pub fn run(engine: &mut Engine, cmd: &ConfigCmd, t: &I18n, json: bool) -> Result
             }
         }
         ConfigCmd::List => {
-            let values = engine.config_values()?;
+            let values = eng.config_values().await?;
             if json {
                 output::json(&json!({ "api_version": api, "values": values }));
             } else {
@@ -63,7 +64,7 @@ pub fn run(engine: &mut Engine, cmd: &ConfigCmd, t: &I18n, json: bool) -> Result
             }
         }
         ConfigCmd::Get { key } => {
-            let value = engine.config_get(key)?;
+            let value = eng.config_get(key).await?;
             if json {
                 output::json(&json!({ "api_version": api, "key": key, "value": value }));
             } else if value.is_null() {
@@ -73,8 +74,8 @@ pub fn run(engine: &mut Engine, cmd: &ConfigCmd, t: &I18n, json: bool) -> Result
             }
         }
         ConfigCmd::Set { key, values } => {
-            engine.config_set(key, values)?;
-            let value = engine.config_get(key)?;
+            eng.config_set(key, values).await?;
+            let value = eng.config_get(key).await?;
             if json {
                 output::json(&json!({ "api_version": api, "key": key, "value": value }));
             } else {
@@ -89,10 +90,10 @@ pub fn run(engine: &mut Engine, cmd: &ConfigCmd, t: &I18n, json: bool) -> Result
             }
         }
         ConfigCmd::Unset { key } => {
-            engine.config_unset(key)?;
+            eng.config_unset(key).await?;
             if json {
                 output::json(
-                    &json!({ "api_version": api, "key": key, "value": engine.config_get(key)? }),
+                    &json!({ "api_version": api, "key": key, "value": eng.config_get(key).await? }),
                 );
             } else {
                 output::line(
