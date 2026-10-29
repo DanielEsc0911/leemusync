@@ -3,6 +3,7 @@
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use zeroize::Zeroizing;
 
 use crate::IpcError;
 
@@ -28,7 +29,8 @@ where
     if len > MAX_FRAME {
         return Err(IpcError::FrameTooLarge(len.into()));
     }
-    let mut body = vec![0u8; len as usize];
+    // Frames may carry secrets (security §Local IPC): the buffer is wiped once parsed.
+    let mut body = Zeroizing::new(vec![0u8; len as usize]);
     r.read_exact(&mut body).await?;
     Ok(Some(serde_json::from_slice(&body)?))
 }
@@ -42,7 +44,7 @@ where
     T: Serialize + ?Sized,
     W: AsyncWrite + Unpin,
 {
-    let body = serde_json::to_vec(value)?;
+    let body = Zeroizing::new(serde_json::to_vec(value)?);
     let len = u32::try_from(body.len())
         .ok()
         .filter(|l| *l <= MAX_FRAME)

@@ -16,6 +16,7 @@ pub enum ErrorKind {
     Quota,
     Permission,
     Config,
+    NotSetUp,
 }
 
 /// The one state shown (priority already applied: error > attention > syncing > offline >
@@ -97,6 +98,7 @@ pub fn status_text(st: &StatusInput, t: &I18n) -> String {
                 ErrorKind::Quota => "status-error-quota",
                 ErrorKind::Permission => "status-error-permission",
                 ErrorKind::Config => "status-error-config",
+                ErrorKind::NotSetUp => "status-error-not-set-up",
             },
             &[],
         ),
@@ -141,7 +143,6 @@ pub fn tray_view(status: &StatusInput, session: Option<&SessionInput>, t: &I18n)
             pause_until_resume: t.t("tray-pause-until-resume", &[]),
             resume: t.t("tray-resume", &[]),
             recent: t.t("tray-recent", &[]),
-            open: t.t("tray-open", &[]),
             quit: t.t("tray-quit", &[]),
         },
     }
@@ -246,6 +247,15 @@ mod tests {
             ..StatusInput::new(ViewState::Attention)
         };
         assert_eq!(line(&st, "en"), "1 game is in use on another device");
+        let st = StatusInput::new(ViewState::Error(ErrorKind::NotSetUp));
+        assert_eq!(
+            line(&st, "en"),
+            "Not set up yet: run lemusync init or lemusync join"
+        );
+        assert_eq!(
+            line(&st, "es"),
+            "Aún no está configurado: ejecuta lemusync init o lemusync join"
+        );
         for kind in [ErrorKind::Quota, ErrorKind::Permission, ErrorKind::Config] {
             let st = StatusInput::new(ViewState::Error(kind));
             for lang in ["en", "es"] {
@@ -278,7 +288,6 @@ mod tests {
             &en.menu.pause_until_resume,
             &en.menu.resume,
             &en.menu.recent,
-            &en.menu.open,
             &en.menu.quit,
         ] {
             assert!(!label.starts_with("tray-"), "{label}");

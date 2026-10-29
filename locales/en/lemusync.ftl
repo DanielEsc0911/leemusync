@@ -373,6 +373,7 @@ status-error-auth = Storage sign-in expired
 status-error-quota = Storage is full
 status-error-permission = LemuSync can't open a save folder
 status-error-config = The config file has a problem
+status-error-not-set-up = Not set up yet: run lemusync init or lemusync join
 status-playing = Playing { $game } · { $player }
 
 ## Daemon: tray menu
@@ -382,19 +383,16 @@ tray-pause-1h = For 1 hour
 tray-pause-until-resume = Until I resume
 tray-resume = Resume sync
 tray-recent = Recent games
-tray-open = Open LemuSync
 tray-quit = Quit
 
 ## Daemon: notifications
 notice-conflict-title = Two devices changed { $game }
-notice-conflict-body = Choose which save to keep.
+notice-conflict-body = Run lemusync conflicts to choose which save to keep.
 notice-foreign-lease-title = { $game } is in use on { $device }
-notice-foreign-lease-body = Wait until it's free, or open LemuSync to decide.
+notice-foreign-lease-body = Choose Wait and LemuSync tells you when it's free.
 notice-auth-body = Sign in to your storage again to keep syncing.
 notice-quota-body = Free up space on your storage to keep syncing.
-notice-action-review = Review
 notice-action-wait = Wait
-notice-action-open = Open
 notice-remote-newer-title = Newer save of { $game } from { $device }
 notice-remote-newer-body = Close { $emulator } and LemuSync updates it.
 
@@ -427,3 +425,29 @@ error-usage-daemon_path_invalid = lemusyncd must be an existing file with an abs
 ## lemusyncd (the daemon)
 daemon-already-running = LemuSync is already running for this user (another lemusyncd or lemusync command holds { $path }).
 daemon-start-failed = lemusyncd couldn't start: { $error }
+
+## Daemon: notifications for the tray's Play and Wait
+notice-lease-free-title = { $game } is free to play
+notice-lease-free-body = The other device let it go. Play it from the LemuSync menu.
+notice-play-failed-title = Couldn't start { $game }
+
+## CLI over the daemon (pause, resume, logs, status)
+help-pause = Pause automatic sync in the daemon (until resume, or for a while).
+help-pause-duration = How long, e.g. 30m, 1h, 1h30m (at most 30 days).
+help-resume = Resume automatic sync in the daemon.
+help-logs = Print the daemon's log.
+help-logs-follow = Keep printing new lines.
+pause-done = Sync paused until you run lemusync resume.
+pause-done-for = { $minutes ->
+    [one] Sync paused for 1 minute.
+   *[other] Sync paused for { $minutes } minutes.
+}
+resume-done = Sync resumed.
+status-daemon = Background service: { $state }
+error-daemon = The background service failed: { $detail }
+error-usage-daemon_not_running = The daemon isn't running, so there's nothing to pause or resume. Start it with `lemusync service start`.
+error-usage-daemon_running_oauth = The Google Drive sign-in runs in this terminal, not in the daemon. Run `lemusync service stop`, sign in, then `lemusync service start`.
+error-usage-duration_invalid = "{ $detail }" isn't a duration. Use e.g. 30m, 1h or 1h30m.
+error-usage-no_log = The daemon hasn't written a log yet ({ $detail }).
+error-usage-play_arg_not_utf8 = The daemon can only pass text arguments to the emulator: { $detail }
+error-usage-path_not_utf8 = The daemon can only use text paths: { $detail }

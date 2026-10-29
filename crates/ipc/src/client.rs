@@ -20,7 +20,7 @@ pub struct Client {
 #[serde(untagged)]
 enum HelloAnswer {
     Ok(HelloReply),
-    Refused(Response),
+    Refused(Box<Response>),
 }
 
 impl Client {
@@ -51,8 +51,10 @@ impl Client {
         write_frame(&mut stream, &hello).await?;
         match read_frame::<HelloAnswer, _>(&mut stream).await? {
             Some(HelloAnswer::Ok(daemon)) => Ok(Client { stream, daemon }),
-            Some(HelloAnswer::Refused(Response::Error(body))) => Err(IpcError::Rejected(body)),
-            Some(HelloAnswer::Refused(_)) => Err(IpcError::Protocol),
+            Some(HelloAnswer::Refused(r)) => match *r {
+                Response::Error(body) => Err(IpcError::Rejected(body)),
+                _ => Err(IpcError::Protocol),
+            },
             None => Err(IpcError::Closed),
         }
     }
@@ -94,6 +96,47 @@ impl Client {
     #[allow(clippy::unused_async, clippy::unused_async_trait_impl)] // same signature as on Unix
     pub async fn call(&mut self, request: Request) -> Result<Response, IpcError> {
         let _ = request;
+        Err(IpcError::Unsupported)
+    }
+
+    /// Sends one request without waiting: for `play`, whose answer is several frames.
+    ///
+    /// # Errors
+    /// I/O and frame errors.
+    #[cfg(unix)]
+    pub async fn send(&mut self, request: &Request) -> Result<(), IpcError> {
+        crate::frame::write_frame(&mut self.stream, request).await
+    }
+
+    /// See the Unix version.
+    ///
+    /// # Errors
+    /// Always [`IpcError::Unsupported`].
+    #[cfg(not(unix))]
+    #[allow(clippy::unused_async, clippy::unused_async_trait_impl)] // same signature as on Unix
+    pub async fn send(&mut self, request: &Request) -> Result<(), IpcError> {
+        let _ = request;
+        Err(IpcError::Unsupported)
+    }
+
+    /// The next response frame.
+    ///
+    /// # Errors
+    /// [`IpcError::Closed`] when the daemon hangs up; I/O and frame errors.
+    #[cfg(unix)]
+    pub async fn recv(&mut self) -> Result<Response, IpcError> {
+        crate::frame::read_frame(&mut self.stream)
+            .await?
+            .ok_or(IpcError::Closed)
+    }
+
+    /// See the Unix version.
+    ///
+    /// # Errors
+    /// Always [`IpcError::Unsupported`].
+    #[cfg(not(unix))]
+    #[allow(clippy::unused_async, clippy::unused_async_trait_impl)] // same signature as on Unix
+    pub async fn recv(&mut self) -> Result<Response, IpcError> {
         Err(IpcError::Unsupported)
     }
 

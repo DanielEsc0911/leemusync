@@ -2,9 +2,13 @@
 
 mod config_cmd;
 mod connection;
+mod daemon_client;
+mod doctor_desktop;
 mod games_cmd;
 mod i18n;
+mod logs_cmd;
 mod output;
+mod pause;
 mod play;
 mod progress;
 mod prompt;
@@ -19,6 +23,8 @@ use lemusync_engine::{
     BackendConfig, Engine, EngineEnv, EngineError, JoinSecret, Locations, MapChoice, MapOutcome,
     S3Backend, SyncOptions, VersionId,
 };
+
+use crate::daemon_client::Api;
 
 use crate::i18n::{I18n, s};
 
@@ -111,6 +117,15 @@ enum Cmd {
     Service {
         #[command(subcommand)]
         cmd: service::ServiceCmd,
+    },
+    Pause {
+        #[arg(long = "for")]
+        duration: Option<String>,
+    },
+    Resume,
+    Logs {
+        #[arg(long)]
+        follow: bool,
     },
 }
 
@@ -328,21 +343,28 @@ async fn gdrive_login(engine: &mut Engine, t: &I18n, client_id: &str) -> Result<
     Ok(())
 }
 
-/// `--as <player>`, or the only player in the repo.
-async fn player_of(engine: &mut Engine, given: Option<&String>) -> Result<String, EngineError> {
+/// `--as <player>`, or the only player in the repo (the daemon applies the same rule).
+async fn player_of(api: &mut Api, given: Option<&String>) -> Result<String, EngineError> {
     if let Some(p) = given {
         return Ok(p.clone());
     }
-    pick_player(engine.players_list().await?)
+    pick_player(api.players_list().await?)
 }
 
-/// The only player in the repo; "which player?" otherwise.
-fn pick_player(mut players: Vec<String>) -> Result<String, EngineError> {
-    if players.len() == 1 {
-        Ok(players.remove(0))
-    } else {
-        Err(EngineError::Usage("player_needed".into()))
+fn pick_player(players: Vec<String>) -> Result<String, EngineError> {
+    lemusync_engine::only_player(players)
+}
+
+/// The engine in this process, for the commands that only run here (the Google Drive login).
+fn local(api: &mut Api) -> Result<&mut Engine, EngineError> {
+    match api {
+        Api::Local(e) => Ok(e),
+        Api::Daemon(_) => Err(EngineError::Usage("daemon_running_oauth".into())),
     }
+}
+
+fn now_ms_u64() -> u64 {
+    u64::try_from(now_ms()).unwrap_or(0)
 }
 
 fn now_ms() -> i64 {
@@ -353,7 +375,7 @@ fn now_ms() -> i64 {
 
 /// `play`, `conflicts`, `resolve` and `lease` (sync-model §Launcher mode, §Conflicts, §Leases).
 #[allow(clippy::too_many_lines)] // one match arm per command, each a few lines
-async fn run_play(engine: &mut Engine, cmd: &Cmd, t: &I18n, json: bool) -> Result<u8, EngineError> {
+async fn run_play(api: &mut Api, cmd: &Cmd, t: &I18n, json: bool) -> Result<u8, EngineError> {
     match cmd {
         Cmd::Play {
             game,
@@ -361,8 +383,9 @@ async fn run_play(engine: &mut Engine, cmd: &Cmd, t: &I18n, json: bool) -> Resul
             player,
             args,
         } => {
-            let (emulator, game) = &engine.resolve_game(game, emu.as_deref()).await?;
-            let player = player_of(engine, player.as_ref()).await?;
+            let (emulator, game) = &api.resolve_game(game, emu.as_deref()).await?;
+            let player = player_of(api, player.as_ref()).await?;
+            let names = api.game_names().await;
             let p = play::TermPrompt {
                 lang: I18n::env_lang(),
                 ask: !json && prompt::interactive(),
@@ -374,32 +397,23 @@ async fn run_play(engine: &mut Engine, cmd: &Cmd, t: &I18n, json: bool) -> Resul
                     "{}",
                     t.t(
                         "play-starting",
-                        &[("game", s(games_cmd::label_of(engine, emulator, game)))]
+                        &[("game", s(games_cmd::label_of(&names, emulator, game)))]
                     )
                 );
             }
             let guard = play::hold_ctrl_c(t, !json);
-            let report = engine
-                .play(
-                    &player,
-                    emulator,
-                    game,
-                    args,
-                    &p,
-                    &lemusync_engine::OsLauncher,
-                )
-                .await;
+            let report = api.play(&player, emulator, game, args, &p).await;
             guard.abort();
             let report = report?;
             if json {
                 output::json(&report);
             } else {
-                let label = games_cmd::label_of(engine, emulator, game);
+                let label = games_cmd::label_of(&names, emulator, game);
                 output::play(t, emulator, &report, &label, output::color_on());
             }
         }
         Cmd::Conflicts => {
-            let (list, warnings) = engine.conflicts().await?;
+            let (list, warnings) = api.conflicts().await?;
             if json {
                 output::json(&serde_json::json!({
                     "api_version": lemusync_api::API_VERSION,
@@ -419,8 +433,8 @@ async fn run_play(engine: &mut Engine, cmd: &Cmd, t: &I18n, json: bool) -> Resul
             let keep: VersionId = version
                 .parse()
                 .map_err(|_| EngineError::Usage(format!("version_invalid:{version}")))?;
-            let (emulator, game) = engine.resolve_game(game, None).await?;
-            let (list, _) = engine.conflicts().await?;
+            let (emulator, game) = api.resolve_game(game, None).await?;
+            let (list, _) = api.conflicts().await?;
             let mut found: Vec<_> = list
                 .iter()
                 .filter(|c| {
@@ -434,7 +448,7 @@ async fn run_play(engine: &mut Engine, cmd: &Cmd, t: &I18n, json: bool) -> Resul
                 1 => found.remove(0),
                 _ => return Err(EngineError::Usage("player_needed".into())),
             };
-            let (report, warnings) = engine.resolve(&c.player, &c.emulator, &game, keep).await?;
+            let (report, warnings) = api.resolve(&c.player, &c.emulator, &game, keep).await?;
             if json {
                 output::json(&report);
             } else {
@@ -453,7 +467,7 @@ async fn run_play(engine: &mut Engine, cmd: &Cmd, t: &I18n, json: bool) -> Resul
         Cmd::Lease {
             cmd: LeaseCmd::Status,
         } => {
-            let (list, warnings) = engine.lease_status().await?;
+            let (list, warnings) = api.lease_status().await?;
             if json {
                 output::json(&serde_json::json!({
                     "api_version": lemusync_api::API_VERSION,
@@ -468,8 +482,8 @@ async fn run_play(engine: &mut Engine, cmd: &Cmd, t: &I18n, json: bool) -> Resul
         Cmd::Lease {
             cmd: LeaseCmd::Release { game, .. },
         } => {
-            let (_, game) = &engine.resolve_game(game, None).await?;
-            let released = engine.lease_release_game(game).await?;
+            let (_, game) = &api.resolve_game(game, None).await?;
+            let released = api.lease_release_game(game).await?;
             if json {
                 output::json(&serde_json::json!({
                     "api_version": lemusync_api::API_VERSION,
@@ -493,26 +507,76 @@ async fn run_play(engine: &mut Engine, cmd: &Cmd, t: &I18n, json: bool) -> Resul
 
 #[allow(clippy::too_many_lines)] // one match arm per command, each a few lines
 async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
-    if let Cmd::Service { cmd } = &cli.command {
-        service::run(cmd, t, cli.json)?;
-        return Ok(0);
-    }
-    let mut engine = Engine::open(env()?)?;
     let json = cli.json;
+    match &cli.command {
+        Cmd::Service { cmd } => {
+            service::run(cmd, t, json)?;
+            return Ok(0);
+        }
+        Cmd::Logs { follow } => return logs_cmd::run(&env()?.locations.data_dir, *follow).await,
+        _ => {}
+    }
+    let mut api = Api::open(env).await?;
+    match (&cli.command, &mut api) {
+        // D28: the OAuth loopback listener runs only in this process, never in the daemon,
+        // and D35 rules out borrowing the daemon's lock: the daemon has to stop first.
+        (
+            Cmd::Backend {
+                cmd:
+                    BackendCmd::Login
+                    | BackendCmd::Add {
+                        kind: BackendKind::Gdrive { .. },
+                    },
+            },
+            Api::Daemon(_),
+        ) => return Err(EngineError::Usage("daemon_running_oauth".into())),
+        (Cmd::Pause { .. } | Cmd::Resume, Api::Local(_)) => {
+            return Err(EngineError::Usage("daemon_not_running".into()));
+        }
+        (Cmd::Pause { duration }, Api::Daemon(d)) => {
+            let until = match duration {
+                Some(text) => Some(now_ms_u64().saturating_add(pause::parse_duration(text)?)),
+                None => None,
+            };
+            d.pause(until).await?;
+            pause::done(t, json, until);
+            return Ok(0);
+        }
+        (Cmd::Resume, Api::Daemon(d)) => {
+            d.resume().await?;
+            pause::resumed(t, json);
+            return Ok(0);
+        }
+        _ => {}
+    }
     let mut live = progress::Live::new(json);
-    engine.set_progress(live.sink());
-    if !json {
-        engine.set_connection_sink(connection::sink(I18n::env_lang(), live.on()));
+    let conn_sink = (!json).then(|| connection::sink(I18n::env_lang(), live.on()));
+    match &mut api {
+        Api::Local(engine) => {
+            engine.set_progress(live.sink());
+            if let Some(c) = conn_sink {
+                engine.set_connection_sink(c);
+            }
+        }
+        Api::Daemon(d) => {
+            let long = matches!(
+                cli.command,
+                Cmd::Sync { .. } | Cmd::Restore { .. } | Cmd::Accounts { .. } | Cmd::Play { .. }
+            );
+            if long && !json {
+                d.watch_progress(live.sink(), conn_sink).await;
+            }
+        }
     }
     match &cli.command {
         cmd @ (Cmd::Play { .. } | Cmd::Conflicts | Cmd::Resolve { .. } | Cmd::Lease { .. }) => {
-            return run_play(&mut engine, cmd, t, json).await;
+            return run_play(&mut api, cmd, t, json).await;
         }
-        Cmd::Config { cmd } => config_cmd::run(&mut engine, cmd, t, json)?,
-        Cmd::Service { .. } => {}
+        Cmd::Config { cmd } => config_cmd::run(&mut api, cmd, t, json).await?,
+        Cmd::Service { .. } | Cmd::Logs { .. } | Cmd::Pause { .. } | Cmd::Resume => {}
         Cmd::Init => {
             let pass = prompt::new_passphrase(t)?;
-            let (report, recovery) = engine.init(&pass).await?;
+            let (report, recovery) = api.init(&pass).await?;
             eprintln!(
                 "{}\n\n    {}\n",
                 t.t("init-recovery", &[]),
@@ -539,7 +603,7 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
             } else {
                 JoinSecret::Passphrase(prompt::secret(t, "prompt-passphrase")?.to_string())
             };
-            let report = engine.join(secret).await?;
+            let report = api.join(secret).await?;
             if json {
                 output::json(&report);
             } else {
@@ -558,7 +622,7 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
                 kind: BackendKind::Fs { path },
             },
         } => {
-            engine.backend_add_fs(path)?;
+            api.backend_add_fs(path).await?;
             output::line(
                 t,
                 "backend-fs-done",
@@ -571,7 +635,7 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
                     kind: BackendKind::Gdrive { client_id },
                 },
         } => {
-            gdrive_login(&mut engine, t, client_id).await?;
+            gdrive_login(local(&mut api)?, t, client_id).await?;
         }
         Cmd::Backend {
             cmd:
@@ -592,7 +656,7 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
                 region: region.clone(),
                 access_key_id: access_key_id.clone(),
             };
-            engine.backend_add_s3(backend, &secret).await?;
+            api.backend_add_s3(backend, &secret).await?;
             output::line(
                 t,
                 "backend-s3-done",
@@ -605,17 +669,18 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
         Cmd::Backend {
             cmd: BackendCmd::Login,
         } => {
+            let engine = local(&mut api)?;
             let Some(BackendConfig::Gdrive { client_id, .. }) =
                 engine.local_config().backend.clone()
             else {
                 return Err(EngineError::NotSetUp("gdrive_backend"));
             };
-            gdrive_login(&mut engine, t, &client_id).await?;
+            gdrive_login(engine, t, &client_id).await?;
         }
         Cmd::Grant {
             cmd: GrantCmd::Add { path },
         } => {
-            let granted = engine.grant_add(path)?;
+            let granted = api.grant_add(path).await?;
             output::line(
                 t,
                 "grant-done",
@@ -625,11 +690,7 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
         Cmd::Grant {
             cmd: GrantCmd::List,
         } => {
-            let grants: Vec<String> = engine
-                .grant_list()
-                .iter()
-                .map(|g| g.display().to_string())
-                .collect();
+            let grants = api.grant_list().await?;
             if json {
                 output::json(&grants);
             } else if grants.is_empty() {
@@ -643,14 +704,14 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
         Cmd::Players {
             cmd: PlayersCmd::Add { name },
         } => {
-            let warnings = engine.players_add(name).await?;
+            let warnings = api.players_add(name).await?;
             output::line(t, "players-added", &[("name", s(name.clone()))]);
             output::warnings(t, &warnings);
         }
         Cmd::Players {
             cmd: PlayersCmd::List,
         } => {
-            let players = engine.players_list().await?;
+            let players = api.players_list().await?;
             if json {
                 output::json(&players);
             } else if players.is_empty() {
@@ -662,7 +723,7 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
             }
         }
         Cmd::Scan => {
-            let report = engine.scan().await?;
+            let report = api.scan().await?;
             if json {
                 output::json(&report);
             } else {
@@ -686,9 +747,7 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
             } else {
                 MapChoice::Ask
             };
-            let mut outcome = engine
-                .accounts_map(player, emulator, account, choice)
-                .await?;
+            let mut outcome = api.accounts_map(player, emulator, account, choice).await?;
             if let MapOutcome::NeedsChoice { games } = &outcome {
                 let games = games.join(", ");
                 if json || !prompt::interactive() {
@@ -713,9 +772,7 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
                         ));
                     }
                 };
-                outcome = engine
-                    .accounts_map(player, emulator, account, choice)
-                    .await?;
+                outcome = api.accounts_map(player, emulator, account, choice).await?;
             }
             if matches!(outcome, MapOutcome::Mapped) {
                 output::line(
@@ -755,7 +812,7 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
                 }
             }
             let created = live
-                .run(t, engine.create_account(player, emulator, name.as_deref()))
+                .run(t, api.create_account(player, emulator, name.as_deref()))
                 .await?;
             if json {
                 output::json(&created);
@@ -781,7 +838,7 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
                 },
         } => {
             let report = live
-                .run(t, engine.accounts_recover(emulator, account, player))
+                .run(t, api.accounts_recover(emulator, account, player))
                 .await?;
             if json {
                 output::json(&report);
@@ -799,7 +856,7 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
         Cmd::Sync { dry_run, yes } => {
             let opts = || SyncOptions { dry_run: *dry_run };
             let started = std::time::Instant::now();
-            let report = match live.run(t, engine.sync(opts())).await {
+            let report = match live.run(t, api.sync(opts())).await {
                 Err(EngineError::NeedsConfirmation) => {
                     let ok = *yes
                         || (!json
@@ -808,8 +865,8 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
                     if !ok {
                         return Err(EngineError::NeedsConfirmation);
                     }
-                    engine.confirm_first_sync()?;
-                    live.run(t, engine.sync(opts())).await?
+                    api.confirm_first_sync().await?;
+                    live.run(t, api.sync(opts())).await?
                 }
                 other => other?,
             };
@@ -840,7 +897,7 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
             }
         }
         Cmd::Games { cmd: None } => {
-            let report = engine.games_report()?;
+            let report = api.games_report().await?;
             if json {
                 output::json(&report);
             } else {
@@ -850,7 +907,8 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
         Cmd::Games {
             cmd: Some(GamesCmd::Alias { game, alias, emu }),
         } => {
-            let (emulator, key) = engine.alias_add(game, emu.as_deref(), alias).await?;
+            let (emulator, key) = api.alias_add(game, emu.as_deref(), alias).await?;
+            let names = api.game_names().await;
             if json {
                 output::json(&serde_json::json!({
                     "api_version": lemusync_api::API_VERSION,
@@ -864,7 +922,7 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
                     "games-alias-done",
                     &[
                         ("alias", s(alias.clone())),
-                        ("game", s(games_cmd::label_of(&engine, &emulator, &key))),
+                        ("game", s(games_cmd::label_of(&names, &emulator, &key))),
                     ],
                 );
             }
@@ -872,7 +930,7 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
         Cmd::Games {
             cmd: Some(GamesCmd::Unalias { alias }),
         } => {
-            engine.alias_remove(alias)?;
+            api.alias_remove(alias).await?;
             if json {
                 output::json(&serde_json::json!({
                     "api_version": lemusync_api::API_VERSION,
@@ -883,7 +941,7 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
             }
         }
         Cmd::Status => {
-            let report = engine.status().await?;
+            let report = api.status().await?;
             if json {
                 output::json(&report);
             } else {
@@ -891,9 +949,9 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
             }
         }
         Cmd::History { game, emu, player } => {
-            let (emulator, game) = &engine.resolve_game(game, emu.as_deref()).await?;
-            let player = &player_of(&mut engine, player.as_ref()).await?;
-            let report = engine.history(player, emulator, game).await?;
+            let (emulator, game) = &api.resolve_game(game, emu.as_deref()).await?;
+            let player = &player_of(&mut api, player.as_ref()).await?;
+            let report = api.history(player, emulator, game).await?;
             if json {
                 output::json(&report);
             } else {
@@ -907,8 +965,8 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
             player,
             yes,
         } => {
-            let (emulator, game) = &engine.resolve_game(game, emu.as_deref()).await?;
-            let player = &player_of(&mut engine, player.as_ref()).await?;
+            let (emulator, game) = &api.resolve_game(game, emu.as_deref()).await?;
+            let player = &player_of(&mut api, player.as_ref()).await?;
             if !*yes {
                 let question = t.t(
                     "prompt-restore",
@@ -921,7 +979,7 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
                 }
             }
             let report = live
-                .run(t, engine.restore(player, emulator, game, what))
+                .run(t, api.restore(player, emulator, game, what))
                 .await?;
             if json {
                 output::json(&report);
@@ -934,7 +992,11 @@ async fn run(cli: &Cli, t: &I18n) -> Result<u8, EngineError> {
             }
         }
         Cmd::Doctor => {
-            let report = engine.doctor().await?;
+            let mut report = api.doctor().await?;
+            let version = api.daemon().map(|d| d.version().to_owned());
+            report
+                .checks
+                .extend(doctor_desktop::checks(version.as_deref()).await);
             if json {
                 output::json(&report);
             } else {

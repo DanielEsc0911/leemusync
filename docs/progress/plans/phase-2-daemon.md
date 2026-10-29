@@ -171,8 +171,10 @@ Tasks in the same wave touch different files and can run in parallel. Wave 2 sta
 - New commands (P5 parity with the tray): `lemusync pause [--for <duration>]` (`1h`, `30m`; none = until resume), `lemusync resume`, `lemusync logs [--follow]`. `status` shows the daemon's `StatusState` and the session overlay when the daemon runs.
 - `doctor` adds: daemon installed/running (socket answers), service enabled, linger (headless), a StatusNotifierWatcher on the session bus (else the GNOME AppIndicator hint), a notification server (`GetServerInformation`).
 
-- [ ] **Step 1: failing tests:** with a test daemon on a tempdir socket, `status --json`, `sync`, `pause --for 1h`, `resume`, `conflicts` go through IPC (a marker in the reply proves it) and give the same JSON as in-process; with no daemon they still work in-process; `play` with a held lease through the daemon and no TTY → exit 5; en and es for the new strings; `doctor --json` has the new checks.
-- [ ] **Step 2:** implement; pass; clippy; i18n-check; specs; `just check`; commit `feat(cli): talk to the daemon over IPC`.
+- [x] **Step 1: failing tests:** with a test daemon on a tempdir socket, `status --json`, `sync`, `pause --for 1h`, `resume`, `conflicts` go through IPC (a marker in the reply proves it) and give the same JSON as in-process; with no daemon they still work in-process; `play` with a held lease through the daemon and no TTY → exit 5; en and es for the new strings; `doctor --json` has the new checks.
+- [x] **Step 2:** implement; pass; clippy; i18n-check; specs; `just check`; commit `feat(cli): talk to the daemon over IPC`.
+
+**Deviation (as built):** the IPC marker is not in the command's reply, so that replies stay byte-identical to in-process: `lemusyncd` logs `ipc client <name> connected` (info) per connection and `crates/cli/tests/daemon.rs` counts those lines; `status --json` also carries the `daemon` object only from the daemon. Pause and resume need a running daemon (in-process they are the usage error `daemon_not_running`). The held-lease `play` → exit 5 test runs against a fake daemon on a tempdir socket (`crates/cli/src/daemon_client.rs` tests), because a binary test can't set up a repo without the OS keystore. `backend add gdrive`/`backend login` refuse while the daemon runs (`daemon_running_oauth`, D28 + D35). The daemon-side request mapping lives in `crates/engine/src/{remote,remote_play}.rs`, and `logs` in `crates/cli/src/logs_cmd.rs`.
 
 ### Task 10: daemon budgets
 

@@ -216,7 +216,7 @@ async fn watch_mode_takes_the_lease_uploads_after_exit_and_releases() {
     let Response::LeaseStatus(leases) = svc.handle.call(Request::LeaseStatus).await else {
         panic!("lease status")
     };
-    assert!(leases.iter().any(|l| l.ours && l.live), "{leases:?}");
+    assert!(leases.value.iter().any(|l| l.ours && l.live), "{leases:?}");
     // I3: while the emulator runs nothing is uploaded, even on a manual sync.
     let Response::Sync(r) = svc.handle.call(Request::Sync { dry_run: false }).await else {
         panic!("sync")
@@ -236,7 +236,7 @@ async fn watch_mode_takes_the_lease_uploads_after_exit_and_releases() {
         let Response::LeaseStatus(leases) = svc.handle.call(Request::LeaseStatus).await else {
             panic!("lease status")
         };
-        if leases.is_empty() {
+        if leases.value.is_empty() {
             break;
         }
         assert!(Instant::now() < end, "lease not released: {leases:?}");
@@ -360,5 +360,155 @@ async fn an_emulator_start_warns_of_a_newer_save_elsewhere_and_restores_nothing(
     .await;
     assert_eq!((n.player.as_str(), n.game.as_str()), ("Ana", "101c9400"));
     assert_eq!(std::fs::read(&file).unwrap(), b"first");
+    svc.stop().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_watch_mode_lease_is_renewed_while_the_emulator_runs() {
+    let root = tempfile::tempdir().unwrap();
+    let a = pc(root.path()).await;
+    let file = save_file(&a);
+    let probe = Arc::clone(&a.probe);
+    let svc = start(a.engine, cfg());
+    started(&svc.handle).await;
+    let mut rx = svc.handle.subscribe();
+    probe.set(true);
+    let end = Instant::now() + DEADLINE;
+    let mut n = 0u32;
+    loop {
+        assert!(Instant::now() < end, "no session");
+        n += 1;
+        std::fs::write(&file, n.to_le_bytes()).unwrap();
+        if let Ok(Ok(Event::SessionChanged(Some(_)))) =
+            timeout(Duration::from_millis(300), rx.recv()).await
+        {
+            break;
+        }
+    }
+    let ours = |r: Response| match r {
+        Response::LeaseStatus(l) => l.value.into_iter().find(|l| l.ours && l.live),
+        other => panic!("{other:?}"),
+    };
+    let first = loop {
+        if let Some(l) = ours(svc.handle.call(Request::LeaseStatus).await) {
+            break l.renewed_at_ms;
+        }
+        assert!(Instant::now() < end, "no lease");
+        let _ = timeout(Duration::from_millis(100), rx.recv()).await;
+    };
+    // `renew` is 500 ms in these tests: a later renewal shows up while it keeps running.
+    let end = Instant::now() + DEADLINE;
+    loop {
+        let now = ours(svc.handle.call(Request::LeaseStatus).await).map(|l| l.renewed_at_ms);
+        if now.is_some_and(|t| t > first) {
+            break;
+        }
+        assert!(Instant::now() < end, "lease never renewed");
+        let _ = timeout(Duration::from_millis(100), rx.recv()).await;
+    }
+    probe.set(false);
+    svc.stop().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_setup_change_through_the_service_refreshes_its_status_report() {
+    let root = tempfile::tempdir().unwrap();
+    let a = pc(root.path()).await;
+    let svc = start(a.engine, cfg());
+    started(&svc.handle).await;
+    // Cached now.
+    let Response::Status(before) = svc.handle.call(Request::Status).await else {
+        panic!("status")
+    };
+    assert_eq!(before.players, vec!["Ana".to_owned()]);
+    assert!(
+        before.daemon.is_some(),
+        "the daemon overlay is in the report"
+    );
+    let r = svc
+        .handle
+        .call(Request::PlayersAdd { name: "Bea".into() })
+        .await;
+    assert!(matches!(r, Response::Warnings(_)), "{r:?}");
+    let Response::Status(after) = svc.handle.call(Request::Status).await else {
+        panic!("status")
+    };
+    assert_eq!(after.players, vec!["Ana".to_owned(), "Bea".to_owned()]);
+    // History with two players and none given: the CLI's "which player?".
+    let r = svc
+        .handle
+        .call(Request::History {
+            game: "101c9400".into(),
+            emu: None,
+            player: None,
+        })
+        .await;
+    let Response::Error(e) = r else {
+        panic!("{r:?}")
+    };
+    assert_eq!(
+        lemusync_engine::EngineError::from_body(&e).to_string(),
+        "player_needed"
+    );
+    svc.stop().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn play_with_a_held_lease_and_nobody_to_ask_fails_with_exit_5() {
+    let root = tempfile::tempdir().unwrap();
+    let mut a = pc(root.path()).await;
+    let mut b = Pc::new(&root.path().join("b"), false, b"first");
+    common::join(&mut b, &root.path().join("remote")).await;
+    map(&mut b, "Ana", "80000001", MapChoice::Replace).await;
+    b.sync().await;
+    let (stream, player) = a
+        .engine
+        .stream_for("Ana", "cemu", "101c9400")
+        .await
+        .unwrap();
+    let _held = b.engine.lease_acquire(stream, player, false).await.unwrap();
+    let game = root.path().join("botw.wux");
+    std::fs::write(&game, b"fake").unwrap();
+    a.engine
+        .config_set("emulators.cemu.exe", &["/usr/bin/cemu".into()])
+        .unwrap();
+    a.engine
+        .config_set(
+            "emulators.cemu.games.101c9400",
+            &[game.display().to_string()],
+        )
+        .unwrap();
+    let svc = start(a.engine, cfg());
+    started(&svc.handle).await;
+    let r = svc
+        .handle
+        .call(Request::Play {
+            player: "Ana".into(),
+            emulator: "cemu".into(),
+            game: "101c9400".into(),
+            args: vec![],
+        })
+        .await;
+    let Response::Error(e) = r else {
+        panic!("{r:?}")
+    };
+    assert_eq!(
+        lemusync_engine::EngineError::from_body(&e).exit_code(),
+        5,
+        "{e:?}"
+    );
+    svc.stop().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_daemon_with_no_repo_is_not_set_up_not_a_config_error() {
+    let root = tempfile::tempdir().unwrap();
+    let a = Pc::new(&root.path().join("a"), true, b"first");
+    let svc = start(a.engine, cfg());
+    until(&svc.handle, "not set up", |s| {
+        s.error == Some(lemusync_api::ErrorKind::NotSetUp)
+    })
+    .await;
+    assert_eq!(svc.handle.status().state, StatusState::Error);
     svc.stop().await;
 }

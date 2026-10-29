@@ -1,14 +1,16 @@
 //! The notifications the daemon sends, localised. Pure. Policy:
 //! docs/specs/ui/status-and-notifications.md §Notification policy (coalescing is the
 //! caller's job). Action ids are stable English; labels are localised.
+//!
+//! Only actions the daemon can carry out are offered (F2): "Wait" on a foreign lease (the
+//! daemon polls the lease and tells the player when it's free). "Review" and "Open" need the
+//! desktop app (Phase 3) and are not shown until then; the texts point at the CLI instead.
 
 use crate::i18n::{I18n, s};
 use crate::platform::{Notice, NoticeKind};
 
-/// Action ids carried back with a click.
-pub const ACTION_REVIEW: &str = "review";
+/// Action id carried back with a click.
 pub const ACTION_WAIT: &str = "wait";
-pub const ACTION_OPEN: &str = "open";
 
 /// What happened that needs the player.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -27,6 +29,15 @@ pub enum NoticeEvent {
         game: String,
         device: String,
         emulator: String,
+    },
+    /// After "Wait": the lease another device held is gone.
+    LeaseFree {
+        game: String,
+    },
+    /// "Play" from the tray didn't launch; `reason` is already localised.
+    PlayFailed {
+        game: String,
+        reason: String,
     },
 }
 
@@ -64,7 +75,7 @@ pub fn notice(ev: &NoticeEvent, t: &I18n) -> Notice {
             kind: NoticeKind::Attention,
             title: t.t("notice-conflict-title", &[("game", s(game.clone()))]),
             body: t.t("notice-conflict-body", &[]),
-            actions: vec![action(ACTION_REVIEW, "notice-action-review")],
+            actions: vec![],
         },
         NoticeEvent::ForeignLease { game, device } => Notice {
             kind: NoticeKind::Attention,
@@ -73,16 +84,13 @@ pub fn notice(ev: &NoticeEvent, t: &I18n) -> Notice {
                 &[("game", s(game.clone())), ("device", s(device.clone()))],
             ),
             body: t.t("notice-foreign-lease-body", &[]),
-            actions: vec![
-                action(ACTION_WAIT, "notice-action-wait"),
-                action(ACTION_OPEN, "notice-action-open"),
-            ],
+            actions: vec![action(ACTION_WAIT, "notice-action-wait")],
         },
         NoticeEvent::AuthError => Notice {
             kind: NoticeKind::Error,
             title: t.t("status-error-auth", &[]),
             body: t.t("notice-auth-body", &[]),
-            actions: vec![action(ACTION_OPEN, "notice-action-open")],
+            actions: vec![],
         },
         NoticeEvent::RemoteNewer {
             game,
@@ -98,13 +106,25 @@ pub fn notice(ev: &NoticeEvent, t: &I18n) -> Notice {
                 "notice-remote-newer-body",
                 &[("emulator", s(emulator.clone()))],
             ),
-            actions: vec![action(ACTION_OPEN, "notice-action-open")],
+            actions: vec![],
         },
         NoticeEvent::QuotaError => Notice {
             kind: NoticeKind::Error,
             title: t.t("status-error-quota", &[]),
             body: t.t("notice-quota-body", &[]),
-            actions: vec![action(ACTION_OPEN, "notice-action-open")],
+            actions: vec![],
+        },
+        NoticeEvent::LeaseFree { game } => Notice {
+            kind: NoticeKind::Info,
+            title: t.t("notice-lease-free-title", &[("game", s(game.clone()))]),
+            body: t.t("notice-lease-free-body", &[]),
+            actions: vec![],
+        },
+        NoticeEvent::PlayFailed { game, reason } => Notice {
+            kind: NoticeKind::Error,
+            title: t.t("notice-play-failed-title", &[("game", s(game.clone()))]),
+            body: reason.clone(),
+            actions: vec![],
         },
     }
 }
@@ -130,6 +150,13 @@ mod tests {
                 device: "Deck".into(),
                 emulator: "Cemu".into(),
             },
+            NoticeEvent::LeaseFree {
+                game: "BotW".into(),
+            },
+            NoticeEvent::PlayFailed {
+                game: "BotW".into(),
+                reason: "Deck holds the lease".into(),
+            },
         ];
         for lang in ["en", "es"] {
             let t = I18n::new(lang);
@@ -149,6 +176,12 @@ mod tests {
         assert_eq!(es.actions[0], ("wait".into(), "Esperar".into()));
         let en = notice(&events[4], &I18n::new("en"));
         assert_eq!(en.body, "Close Cemu and LemuSync updates it.");
+        // Only actions the daemon carries out (F2).
+        for ev in &events {
+            let n = notice(ev, &I18n::new("en"));
+            assert!(n.actions.iter().all(|(id, _)| id == ACTION_WAIT), "{ev:?}");
+        }
+        assert_eq!(es.actions.len(), 1);
     }
 
     #[test]

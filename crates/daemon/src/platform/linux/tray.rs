@@ -37,6 +37,9 @@ fn item(label: &str, action: TrayAction) -> MenuItem<Item> {
 }
 
 impl ksni::Tray for Item {
+    // A click opens the menu: there is no app window to open until Phase 3.
+    const MENU_ON_ACTIVATE: bool = true;
+
     fn id(&self) -> String {
         "lemusync".into()
     }
@@ -105,13 +108,8 @@ impl ksni::Tray for Item {
             pause,
             recent.into(),
             MenuItem::Separator,
-            item(&m.open, TrayAction::Open),
             item(&m.quit, TrayAction::Quit),
         ]
-    }
-
-    fn activate(&mut self, _x: i32, _y: i32) {
-        let _ = self.tx.try_send(TrayAction::Open);
     }
 }
 

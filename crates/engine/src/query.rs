@@ -76,6 +76,7 @@ impl Engine {
                 .collect(),
             players,
             streams,
+            daemon: None,
         })
     }
 
