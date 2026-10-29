@@ -5,7 +5,8 @@
 //! Names: `init.*`, `upload.*`, `restore.*`, `resolve.after_commit`, `lease.after_list` (a
 //! pause after the first listing, so both engines list before either writes) and
 //! `lease.after_write` (a hit, and a pause between writing our lease and listing again); the
-//! two pauses together force the both-write-at-once race. `tests/kill.rs` fails when a hit name
+//! two pauses together force the both-write-at-once race. `upload.before_manifest` is also a
+//! pause: blobs are up, the manifest isn't (the daemon's mid-transfer suspend and status tests). `tests/kill.rs` fails when a hit name
 //! has no crash case. A pause whose barrier never fills panics after `PAUSE_TIMEOUT` instead of
 //! hanging.
 

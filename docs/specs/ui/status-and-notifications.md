@@ -1,6 +1,6 @@
 # Status and notifications
 
-> **Status:** Draft · **Related:** [rules](../../rules.md) (P4, P6, F1), [architecture §Engine API](../architecture.md#engine-api), [sync-model](../sync-model.md#play-sessions), [navigation](navigation.md#deep-links), [platforms/desktop](../platforms/desktop.md), [platforms/android](../platforms/android.md), [platforms/ios](../platforms/ios.md), [i18n](../i18n.md) · **Code:** `crates/api` (status types), `crates/daemon` (tray), `app/android`, `app/ios` (planned)
+> **Status:** Draft · **Related:** [rules](../../rules.md) (P4, P6, F1), [architecture §Engine API](../architecture.md#engine-api), [sync-model](../sync-model.md#play-sessions), [navigation](navigation.md#deep-links), [platforms/desktop](../platforms/desktop.md), [platforms/android](../platforms/android.md), [platforms/ios](../platforms/ios.md), [i18n](../i18n.md) · **Code:** `crates/api/src/status.rs` (status model), `crates/daemon/src/{view,notices,platform,run}` (tray, notifications, the daemon's mapping from the status model), `app/android`, `app/ios` (planned)
 
 ## Purpose
 Every surface (tray, notifications, Live Updates, Live Activities, the app) shows the same truth from one status model, using each platform's best surface (P4).
@@ -21,17 +21,21 @@ Emitted by the engine as `StatusChanged` / `SessionChanged` events.
 
 Priority when several apply: `error` > `attention` > `syncing` > `offline` > `paused` > `scanning` > `synced`.
 
+`Status::from_facts` applies this priority to the engine's raw facts (`StatusFacts`); the counts travel with every state.
+
 ## Notification policy
 - Notify only when something needs the player or changes their plan: conflicts, foreign leases at play time, errors, a takeover of their save. Optional "synced" confirmations are off by default.
 - Coalesce bursts (one notification per stream per event type per 5 min). Never spam.
+- Desktop daemon (`crates/daemon/src/run.rs`, `notices.rs`): `conflict_detected` (once per new conflict), a live `lease_warning`, `remote_newer` ("Newer save of BotW from Deck" · "Close Cemu and LemuSync updates it") and a change into the auth or quota `error` each become a notice; `notices::Coalescer` applies the 5-minute rule. Other events only update the tray.
 - Every notification deep-links to the relevant screen ([navigation](navigation.md#deep-links)). Actions are offered where the platform supports them ("Review", "Wait", "Open").
 - Channels/categories: **Sync progress** (silent), **Needs attention** (high), **Errors** (default).
 
 ## Desktop tray and menu bar
 - Icon states: synced · syncing (low-rate frame animation, ≤ 4 fps, to save CPU) · paused · offline · attention · error. Monochrome template image on macOS, light/dark variants on Windows, symbolic icons on Linux.
-- Tooltip = status text.
+- Tooltip = status text; during a play session the session line ("Playing BotW · Daniel") comes first.
 - Menu: status line · Sync now · Pause (1 h / until resume) · Recent games ▸ Play · Open LemuSync · Quit (warns if a transfer is active).
-- Linux GNOME shows tray icons only with the AppIndicator extension (Ubuntu ships it; Fedora Workstation doesn't). Without it: notifications + app only, and `doctor` explains. KDE and XFCE show them natively (XFCE measured in SP2: [desktop §Linux results](../platforms/desktop.md#linux-results-sp2-xfce)).
+- Linux GNOME shows tray icons only with the AppIndicator extension (Ubuntu ships it; Fedora Workstation doesn't). Without it: notifications + app only, and `doctor` explains. KDE and XFCE show them natively (measured: [desktop §Linux results](../platforms/desktop.md#linux-results-sp2-xfce)).
+- Linux implementation: `ksni` StatusNotifierItem with freedesktop symbolic icons (`emblem-ok`, `emblem-synchronizing`, `media-playback-pause`, `network-offline`, `dialog-warning`, `dialog-error`, each `-symbolic`); `scanning` shows the syncing icon. The syncing icon is static for now: zero wakeups while idle, inside the ≤ 4 fps ceiling. Without a `org.kde.StatusNotifierWatcher` the tray waits and registers when one appears; without a session bus it stays off. Notifications: `notify-rust`, urgency critical for attention, normal for errors, low for info; a click comes back as the action id (`review`, `wait`, `open`). The view and notice texts are pure functions (`view::tray_view`, `notices::notice`) over local input types that the daemon loop fills from the status model. Code: `crates/daemon/src/view.rs`, `crates/daemon/src/notices.rs`, `crates/daemon/src/platform/`.
 
 ## Android
 - **Ongoing progress notification** during transfers and play sessions (`NotificationCompat`, progress, Pause/Open actions).

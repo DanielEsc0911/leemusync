@@ -22,6 +22,9 @@ use crate::{
     ConflictPolicy, Engine, EngineError, StreamRow, fsx, history_dir, now_ms, repo_config,
 };
 
+/// A granted install with the `(player, game)` keys `sync` covers for it.
+pub(crate) type SyncedInstall = (Profile, Install, BTreeSet<(PlayerId, String)>);
+
 pub struct SyncOptions {
     pub dry_run: bool,
 }
@@ -41,7 +44,7 @@ pub(crate) fn action_kind(a: &Action) -> StreamAction {
     }
 }
 
-fn process_names(profile: &Profile) -> Vec<String> {
+pub(crate) fn process_names(profile: &Profile) -> Vec<String> {
     profile
         .platforms
         .get("linux")
@@ -156,22 +159,18 @@ impl Engine {
         Ok(out)
     }
 
+    /// The installs `sync` covers (granted, not provisional) with their `(player, game)` keys.
+    /// The others become `NotGranted` warnings. Local only. Also used by `watch_targets`.
+    ///
     /// # Errors
-    /// `NeedsConfirmation` on the first real sync; storage, crypto and file errors abort the run.
-    pub async fn sync(&mut self, opts: SyncOptions) -> Result<SyncReport, EngineError> {
-        self.ensure_repo().await?;
-        if !opts.dry_run && self.state.meta(FIRST_SYNC)?.is_none() {
-            return Err(EngineError::NeedsConfirmation);
-        }
-        let mut warnings = self.recover_journal()?;
+    /// `Config` for a broken bundled profile; `Io` while discovering saves.
+    pub(crate) fn synced_installs(
+        &self,
+        config: &RepoConfig,
+        warnings: &mut Vec<Warning>,
+    ) -> Result<Vec<SyncedInstall>, EngineError> {
         let device = self.device_id();
-        let loaded = repo_config::load(self.repo_ref()?, &self.state).await?;
-        // Invalid config versions, renamed players and merged heads (D30): reported once, here.
-        warnings.extend(loaded.warnings());
-        let merged = loaded.heads.len() > 1;
-        let config = loaded.config;
-        let mut streams = Vec::new();
-        let mut new_games: Vec<(PlayerId, String, String)> = Vec::new();
+        let mut out = Vec::new();
         for (profile, install, discovery) in self.installs()? {
             let Some(discovery) = discovery else {
                 warnings.push(Warning {
@@ -188,6 +187,29 @@ impl Engine {
                 });
                 continue;
             }
+            let keys = stream_keys(config, device, &profile.id, &discovery);
+            out.push((profile, install, keys));
+        }
+        Ok(out)
+    }
+
+    /// # Errors
+    /// `NeedsConfirmation` on the first real sync; storage, crypto and file errors abort the run.
+    pub async fn sync(&mut self, opts: SyncOptions) -> Result<SyncReport, EngineError> {
+        self.ensure_repo().await?;
+        if !opts.dry_run && self.state.meta(FIRST_SYNC)?.is_none() {
+            return Err(EngineError::NeedsConfirmation);
+        }
+        let mut warnings = self.recover_journal()?;
+        let device = self.device_id();
+        let loaded = repo_config::load(self.repo_ref()?, &self.state).await?;
+        // Invalid config versions, renamed players and merged heads (D30): reported once, here.
+        warnings.extend(loaded.warnings());
+        let merged = loaded.heads.len() > 1;
+        let config = loaded.config;
+        let mut streams = Vec::new();
+        let mut new_games: Vec<(PlayerId, String, String)> = Vec::new();
+        for (profile, install, keys) in self.synced_installs(&config, &mut warnings)? {
             let names = process_names(&profile);
             let running = self.env.processes.running(&names);
             if running {
@@ -196,7 +218,6 @@ impl Engine {
                     detail: profile.name.clone(),
                 });
             }
-            let keys = stream_keys(&config, device, &profile.id, &discovery);
             for (player, game) in keys {
                 let report = if running {
                     skipped(&config, device, player, &profile.id, &game)
