@@ -293,6 +293,7 @@ pub fn linger_dir() -> PathBuf {
 }
 
 /// True in tests (`LEMUSYNC_TEST_ROOT`): nothing outside the root is asked.
+#[cfg(target_os = "linux")]
 #[must_use]
 pub fn under_test() -> bool {
     test_root().is_some()
