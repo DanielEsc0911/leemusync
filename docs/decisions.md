@@ -110,3 +110,6 @@ When `lemusyncd` runs, it owns the one engine (it holds the state lock) and ever
 
 ### D36 Phase 2 builds the daemon on Linux first (2026-10-28)
 The [Phase 2 plan](progress/plans/phase-2-daemon.md) builds and tests `lemusyncd` on Linux (the M1 machines) with every platform piece behind a small trait. Windows and macOS get their implementations after SP2 runs on them, which the maintainer deferred on 2026-10-08 (V-DESK-1, V-DESK-3, V-REL-2); until then they compile with no-op implementations, so CI stays green. Why: the spikes that exist are Linux ones, and no facts are invented for the other OSes (W3). Rejected: writing Windows and macOS code now from documentation only.
+
+### D37 Dev builds keep line tables only (2026-10-28)
+`[profile.dev]` sets `debug = "line-tables-only"`. Panics, backtraces and test failures still show file and line; a debugger can step by line but cannot inspect local variables. Why: full debug info made `target/` grow past 100 GB on the maintainer's machine. Anyone who needs full debug info can build with `CARGO_PROFILE_DEV_DEBUG=true`. Rejected: full debug info (disk use); no debug info (loses file:line in backtraces).
