@@ -180,9 +180,11 @@ Tasks in the same wave touch different files and can run in parallel. Wave 2 sta
 
 **Files:** `crates/daemon/benches/` or `xtask` (`cargo xtask budgets`), `justfile` (`just bench`), CI job (non-blocking report first), spec `reliability.md` §Budgets and V-REL-3.
 
-- [ ] **Step 1:** measure on the Fedora PC, release build: idle CPU over 10 min (`/proc/<pid>/stat` utime+stime) with 3 emulators' process names polled; daemon RSS; cold start to "IPC ready"; change detected → upload started; `lemusyncd` binary size. If the binary is over 15 MB, record by how much and what adds the most (`cargo bloat` if available); don't change the budget.
-- [ ] **Step 2:** a CI check fails on a >20 % regression of binary size and rescan time against values in the spec (idle CPU and latency stay manual).
-- [ ] **Step 3:** record (date, machine, numbers) in §Budgets; `just check`; commit `perf(daemon): measure and guard the daemon budgets`.
+- [x] **Step 1:** measure on the Fedora PC, release build: idle CPU over 10 min (`/proc/<pid>/stat` utime+stime) with 3 emulators' process names polled; daemon RSS; cold start to "IPC ready"; change detected → upload started; `lemusyncd` binary size. If the binary is over 15 MB, record by how much and what adds the most (`cargo bloat` if available); don't change the budget.
+- [x] **Step 2:** a CI check fails on a >20 % regression of binary size and rescan time against values in the spec (idle CPU and latency stay manual).
+- [x] **Step 3:** record (date, machine, numbers) in §Budgets; `just check`; commit `perf(daemon): measure and guard the daemon budgets`.
+
+**Deviation (as built):** `cargo xtask budgets [idle-secs]` runs the release daemon isolated with no repo (the binary only has the OS keystore) and one fake Cemu install granted, so the poll looks for Cemu's 3 process names; it is the only bundled profile with a loader, and the poll does one `/proc` walk whatever the number of emulators. Change → upload is measured in-process through `engine::Service` in the engine bench (1 s quiet period, reported as quiet + overhead). Binary-size contributors come from `nm` on an unstripped build, because `cargo bloat` isn't installed. Idle CPU is 0.71 %, over the ≈ 0 % budget (V-DAEMON-2 refuted); fixing the poll is left for a follow-up. The CI job `budgets` is non-blocking (`continue-on-error`) and its references are the PC's numbers.
 
 ### Task 11: Windows and macOS (blocked: SP2 on those OSes)
 
@@ -199,7 +201,7 @@ V-DESK-2: static `--filesystem=~/.var/app/<id>` per emulator, the document porta
 ## Verify
 
 - **V-DAEMON-1** (new, Task 8) Narrowing a daemon-triggered sync to the changed streams is cheap enough to bother; otherwise a full sync each time.
-- **V-DAEMON-2** (new, Task 5, measured in Task 10) A 3 s process poll costs ≈ 0 % idle CPU on the Fedora PC.
+- **V-DAEMON-2** (new, Task 5, measured in Task 10) A 3 s process poll costs ≈ 0 % idle CPU on the Fedora PC. **Refuted 2026-10-29:** 0.71 % (426 ticks over 600 s), from the `sysinfo` walk of every process; a cheaper poll (read only `/proc/<pid>/comm`, or a longer interval) is open.
 - Existing: V-REL-1, V-REL-4, V-REL-5 (sleep on GNOME/KDE, lingering, desktop idle suspend), V-DESK-1/2/3, V-REL-2, V-REL-3.
 
 ## Self-review
