@@ -99,12 +99,12 @@ Measured 2026-10-21 on the Fedora PC (AMD Ryzen AI 7 350), release build, `just 
 | Binary size (daemon) | ≤ 15 MB | 14.0 MB (14 016 632 bytes): `lemusync` CLI, Linux x86-64 | **18.2 MB (18 230 232 bytes), 3.2 MB (21.5 %) over the target**. The CLI is 17.4 MB, so the daemon-only crates (zbus 0.78 MB + zvariant 0.37 MB, ksni 0.36 MB, notify-rust, tracing) add ≈ 0.8 MB; the rest is the engine stack. Largest in an unstripped build (`nm` sizes by crate; `cargo bloat` is not installed): monomorphised `core`/`alloc`/`std` 2.8 MB, unwind tables 1.2 MB, `lemusync_engine` 0.82 MB, SQLite 0.79 MB, `crc_fast` 0.73 MB (via `opendal-service-s3`), OpenDAL core + gdrive + s3 0.92 MB, `tokio` 0.50 MB, `rustls` + ring 0.77 MB |
 
 ### CI reference
-Values `cargo xtask budgets-check` compares with (fails above +20 %). Measured on the Fedora PC 2026-10-29; update them in the commit that knowingly changes them (W1). CI runners differ from the PC, so the job stays non-blocking until a few runs calibrate them.
+Values `cargo xtask budgets-check` compares with (fails above +20 %). `lemusyncd_bytes` was measured on the Fedora PC 2026-10-29 (the binary size matches CI). `rescan_10k_ms` is calibrated for the GitHub `ubuntu-latest` runner, which runs the bench about 2.2× slower than the PC: 49.7 and 47.0 ms in the first two runs (2026-10-30). Update them in the commit that knowingly changes them (W1). The job stays non-blocking until more runs confirm them.
 
 | Key | Reference |
 |---|---|
 | `lemusyncd_bytes` | 18 230 232 |
-| `rescan_10k_ms` | 22.1 |
+| `rescan_10k_ms` | 48.4 |
 
 ## Verify
 - **V-REL-1** logind sleep inhibition from a user service on GNOME and KDE (SP2). XFCE is done ([Sleep and resume](#sleep-and-resume)). GNOME and KDE deferred by the maintainer on 2026-10-08.
