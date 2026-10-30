@@ -26,6 +26,11 @@ test:
     cargo test --workspace
     cd app && flutter test
 
+# The Linux Secret Service client on a throwaway D-Bus session (never yours); cleans up after
+# itself and after any earlier crashed run. Needs dbus-run-session and gnome-keyring-daemon.
+secret-service-test dir="target":
+    scripts/isolated-secret-service.sh {{dir}}
+
 # Everything CI runs; must pass before every commit
 check: lint test
 

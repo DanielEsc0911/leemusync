@@ -5,6 +5,8 @@ All notable changes to this project. Format: [Keep a Changelog](https://keepacha
 ## [Unreleased]
 
 ### Fixed
+- On Linux, LemuSync could start GNOME Keyring and take the desktop's secret store from KWallet when linger started the daemon before login. The keystore client now never starts, unlocks or creates a secret store: it waits, with backoff, until the session's own store (whatever provides it) is there ([D38](docs/decisions.md#d38-the-linux-keystore-client-never-starts-unlocks-or-creates-a-store-2026-10-29)).
+- `lemusync service install` binds the daemon to the graphical session (`graphical-session.target`), so it no longer starts at boot under linger; `install` and `uninstall` also remove links an older unit left behind ([D39](docs/decisions.md#d39-the-desktop-unit-starts-with-the-graphical-session-2026-10-29)).
 - Tests no longer touch the real keystore: `lemusync doctor` under `LEMUSYNC_TEST_ROOT` wrote a probe item to it.
 
 ### Changed

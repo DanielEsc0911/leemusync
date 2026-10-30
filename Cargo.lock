@@ -2115,6 +2115,7 @@ name = "lemusync-engine"
 version = "0.0.1-alpha.1"
 dependencies = [
  "criterion",
+ "dbus",
  "directories",
  "futures-util",
  "keyring",

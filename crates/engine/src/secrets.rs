@@ -1,13 +1,14 @@
 //! Secrets live in the OS keystore only (security §Credentials).
 
 use std::collections::BTreeMap;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use lemusync_core::DeviceId;
 use zeroize::Zeroizing;
 
 use crate::EngineError;
 
+#[cfg(not(target_os = "linux"))]
 const SERVICE: &str = "lemusync";
 
 pub trait SecretStore: Send + Sync {
@@ -41,13 +42,30 @@ pub fn secret_s3_key(device: DeviceId) -> String {
     format!("device-{device}-s3-secret-access-key")
 }
 
-/// Secret Service on Linux (`KWallet` or GNOME Keyring), Keychain, Credential Manager.
+/// The OS keystore: the Secret Service on Linux (whoever provides it, never started by us),
+/// Keychain on macOS, Credential Manager on Windows.
+#[must_use]
+pub fn os_secrets() -> Arc<dyn SecretStore> {
+    #[cfg(target_os = "linux")]
+    {
+        Arc::new(crate::secret_service::SecretServiceStore::session())
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        Arc::new(KeyringSecrets)
+    }
+}
+
+/// Keychain and Credential Manager through `keyring`.
+#[cfg(not(target_os = "linux"))]
 pub struct KeyringSecrets;
 
+#[cfg(not(target_os = "linux"))]
 fn keyring_err(e: &keyring::Error) -> EngineError {
     EngineError::Secrets(lemusync_store::redact(&e.to_string()))
 }
 
+#[cfg(not(target_os = "linux"))]
 impl SecretStore for KeyringSecrets {
     fn get(&self, name: &str) -> Result<Option<Zeroizing<String>>, EngineError> {
         let entry = keyring::Entry::new(SERVICE, name).map_err(|e| keyring_err(&e))?;
@@ -149,8 +167,11 @@ mod tests {
         assert_eq!(s.delete("a").unwrap_err().code(), "secrets");
     }
 
+    // Linux: the Secret Service client is tested only on a throwaway bus
+    // (`scripts/isolated-secret-service.sh`, crates/engine/tests/secret_service.rs).
+    #[cfg(not(target_os = "linux"))]
     #[test]
-    #[ignore = "writes one `lemusync` item to the real OS keystore; run by hand only"]
+    #[ignore = "writes one `lemusync` item to the real Keychain/Credential Manager; run by hand only"]
     fn keyring_round_trip() {
         let s = KeyringSecrets;
         s.set("lemusync-selftest", "x").unwrap();
