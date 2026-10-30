@@ -8,9 +8,14 @@
 //! `budgets-check` (CI): fails when the release `lemusyncd` size or the engine bench's warm
 //! rescan time is more than 20 % over the reference values in the spec's "CI reference" table.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
+#[cfg(target_os = "linux")]
+use std::path::PathBuf;
+#[cfg(target_os = "linux")]
 use std::process::{Command, Stdio};
-use std::time::{Duration, Instant};
+use std::time::Duration;
+#[cfg(target_os = "linux")]
+use std::time::Instant;
 
 const SPEC: &str = "docs/specs/reliability.md";
 /// Allowed growth over the reference before the check fails.
@@ -256,10 +261,12 @@ fn memory(pid: u32) -> Result<(u64, u64), String> {
     Ok((kib("VmRSS:")?, kib("VmHWM:")?))
 }
 
+#[cfg(target_os = "linux")]
 fn ms(d: Duration) -> f64 {
     d.as_secs_f64() * 1000.0
 }
 
+#[cfg(target_os = "linux")]
 #[allow(clippy::cast_precision_loss)]
 fn kib_mib(k: u64) -> f64 {
     k as f64 / 1024.0

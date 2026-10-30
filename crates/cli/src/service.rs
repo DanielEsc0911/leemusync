@@ -494,7 +494,9 @@ WantedBy=graphical-session.target
         assert!(check_daemon(Path::new("/no/such/lemusyncd")).is_err());
     }
 
+    #[cfg(unix)]
     struct Rec(Vec<String>);
+    #[cfg(unix)]
     impl Runner for Rec {
         fn run(&mut self, argv: &[&str]) -> Result<String, EngineError> {
             self.0.push(argv.join(" "));
@@ -502,6 +504,8 @@ WantedBy=graphical-session.target
         }
     }
 
+    // Symlinks need Unix; the unit and its links only exist on Linux.
+    #[cfg(unix)]
     #[test]
     fn install_then_uninstall_order() {
         let dir = tempfile::tempdir().unwrap();
