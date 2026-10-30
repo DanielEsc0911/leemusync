@@ -4,6 +4,9 @@ All notable changes to this project. Format: [Keep a Changelog](https://keepacha
 
 ## [Unreleased]
 
+### Fixed
+- Tests no longer touch the real keystore: `lemusync doctor` under `LEMUSYNC_TEST_ROOT` wrote a probe item to it.
+
 ### Changed
 - **Breaking:** every command that takes a game accepts an alias, the game key or its name typed loosely (case, punctuation, accents and region tags like `(USA)` ignored): `play <game> [--emu <id>] [--as <player>]`, `history <game> [--emu] [--as]`, `restore <game> <what> [--emu] [--as] [--yes]`, `resolve <game> <version>`, `lease release --force <game>`. `history` and `restore` default to the only player. The old `play <emulator> <game>` and `<player> <emulator> <game>` forms are gone.
 - The project is renamed from LeemuSync to LemuSync (lemur + emu + sync). Binaries, app id, env vars, local folders and the remote storage prefix change with no migration ([D33](docs/decisions.md#d33-the-project-is-named-lemusync-2026-10-27)).

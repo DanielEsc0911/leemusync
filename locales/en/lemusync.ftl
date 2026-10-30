@@ -124,6 +124,7 @@ error-config-invalid_flatpak_app_id = An emulator profile has an invalid Flatpak
 error-config-invalid_regex = An emulator profile has an invalid pattern.
 error-config-unsupported_capture = An emulator profile uses an unsupported pattern.
 error-secrets-bad_master_key = The repo key in the system keyring is damaged. Run `lemusync join` again.
+error-secrets-off_under_test_root = The system keyring is off while LEMUSYNC_TEST_ROOT is set.
 error-data-repo_format_newer = The repo was made by a newer LemuSync. Update LemuSync on this device.
 error-data-history_changed = A local history copy changed while it was being uploaded: { $detail }
 error-data-blob_corrupt = A file in the repo is damaged ({ $detail }).

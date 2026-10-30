@@ -123,6 +123,7 @@ error-config-invalid_flatpak_app_id = Un perfil de emulador tiene un id de app d
 error-config-invalid_regex = Un perfil de emulador tiene un patrón no válido.
 error-config-unsupported_capture = Un perfil de emulador usa un patrón no compatible.
 error-secrets-bad_master_key = La clave del repo en el llavero del sistema está dañada. Vuelve a ejecutar `lemusync join`.
+error-secrets-off_under_test_root = El llavero del sistema está desactivado mientras LEMUSYNC_TEST_ROOT está definido.
 error-data-repo_format_newer = El repo lo creó una versión más nueva de LemuSync. Actualiza LemuSync en este dispositivo.
 error-data-history_changed = Una copia del historial local cambió mientras se subía: { $detail }
 error-data-blob_corrupt = Un archivo del repo está dañado ({ $detail }).

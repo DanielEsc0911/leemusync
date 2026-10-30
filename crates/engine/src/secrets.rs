@@ -73,6 +73,24 @@ impl SecretStore for KeyringSecrets {
     }
 }
 
+/// Under `LEMUSYNC_TEST_ROOT` the binaries never reach the user's real keystore: every call
+/// fails (security §Credentials).
+pub struct DisabledSecrets;
+
+impl SecretStore for DisabledSecrets {
+    fn get(&self, _: &str) -> Result<Option<Zeroizing<String>>, EngineError> {
+        Err(EngineError::Secrets("off_under_test_root".into()))
+    }
+
+    fn set(&self, _: &str, _: &str) -> Result<(), EngineError> {
+        Err(EngineError::Secrets("off_under_test_root".into()))
+    }
+
+    fn delete(&self, _: &str) -> Result<(), EngineError> {
+        Err(EngineError::Secrets("off_under_test_root".into()))
+    }
+}
+
 /// In-memory keystore for tests.
 #[derive(Default)]
 pub struct MemorySecrets(Mutex<BTreeMap<String, String>>);
@@ -124,7 +142,15 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "uses the real OS keystore"]
+    fn disabled_secrets_refuse_everything() {
+        let s = DisabledSecrets;
+        assert_eq!(s.get("a").unwrap_err().code(), "secrets");
+        assert_eq!(s.set("a", "b").unwrap_err().code(), "secrets");
+        assert_eq!(s.delete("a").unwrap_err().code(), "secrets");
+    }
+
+    #[test]
+    #[ignore = "writes one `lemusync` item to the real OS keystore; run by hand only"]
     fn keyring_round_trip() {
         let s = KeyringSecrets;
         s.set("lemusync-selftest", "x").unwrap();

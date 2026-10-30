@@ -61,7 +61,7 @@ pub use process::{Child, FakeProbe, Launcher, OsLauncher, ProcessProbe, SysinfoP
 pub use progress::{ConnectionSink, ProgressSink};
 pub use remote::only_player;
 pub use remote_play::{PROMPT_TIMEOUT, PlayCall, PlayFrame};
-pub use secrets::{KeyringSecrets, MemorySecrets, SecretStore};
+pub use secrets::{DisabledSecrets, KeyringSecrets, MemorySecrets, SecretStore};
 pub use service::{Service, ServiceConfig, ServiceHandle};
 pub use session::{DEFAULT_POLL, ProcessPoller};
 pub use setup::{GdriveLogin, JoinSecret, S3Backend};
