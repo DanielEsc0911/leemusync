@@ -36,7 +36,6 @@ impl StatusModel {
         }
     }
 
-    #[cfg(test)]
     pub fn status(&self) -> Status {
         self.status.borrow().clone()
     }
@@ -140,8 +139,8 @@ pub fn error_kind(e: &EngineError) -> Option<ErrorKind> {
             _ => None,
         },
         EngineError::NotGranted(_) => Some(ErrorKind::Permission),
+        EngineError::NotSetUp(_) => Some(ErrorKind::NotSetUp),
         EngineError::Config(_)
-        | EngineError::NotSetUp(_)
         | EngineError::NeedsConfirmation
         | EngineError::Unlock
         | EngineError::Secrets(_) => Some(ErrorKind::Config),
@@ -216,7 +215,7 @@ mod tests {
         );
         assert_eq!(
             error_kind(&EngineError::NotSetUp("repo")),
-            Some(ErrorKind::Config)
+            Some(ErrorKind::NotSetUp)
         );
     }
 }

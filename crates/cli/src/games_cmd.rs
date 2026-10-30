@@ -2,7 +2,6 @@
 //! Local and offline: the engine's game catalog, never the store.
 
 use lemusync_api::{GameSource, GamesReport};
-use lemusync_engine::Engine;
 
 use crate::i18n::{I18n, s};
 use crate::output;
@@ -27,9 +26,12 @@ pub fn label(name: Option<&str>, key: &str) -> String {
 }
 
 /// [`label`] with the name from the engine's catalog on this device.
-pub fn label_of(engine: &Engine, emulator: &str, key: &str) -> String {
+pub fn label_of(
+    names: &std::collections::BTreeMap<(String, String), String>,
+    emulator: &str,
+    key: &str,
+) -> String {
     let key = key.to_lowercase();
-    let names = engine.game_names();
     label(
         names
             .get(&(emulator.to_owned(), key.clone()))

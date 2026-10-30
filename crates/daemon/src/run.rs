@@ -9,12 +9,17 @@
 use std::future::Future;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use lemusync_api::{ErrorKind as ApiErrorKind, Event, Request, Session, Status, StatusState};
-use lemusync_engine::ServiceHandle;
+use std::collections::HashMap;
+
+use lemusync_api::{
+    ErrorBody, ErrorKind as ApiErrorKind, Event, GamesReport, PlayAnswer, Request, Response,
+    Session, Status, StatusReport, StatusState,
+};
+use lemusync_engine::{PlayCall, PlayFrame, ServiceHandle};
 use lemusync_ipc::{Incoming, Server};
 use tokio::sync::{broadcast, mpsc};
 
-use crate::i18n::I18n;
+use crate::i18n::{I18n, s as fs};
 use crate::notices::{Coalescer, NoticeEvent, notice};
 use crate::platform::{
     IdleGuard, NoticeId, Notifier, Power, SleepEdge, Tray, TrayAction, start_notifier, start_power,
@@ -65,6 +70,7 @@ pub fn status_input(s: &Status) -> StatusInput {
             Some(ApiErrorKind::Auth) => ErrorKind::Auth,
             Some(ApiErrorKind::Quota) => ErrorKind::Quota,
             Some(ApiErrorKind::Permission) => ErrorKind::Permission,
+            Some(ApiErrorKind::NotSetUp) => ErrorKind::NotSetUp,
             Some(ApiErrorKind::Config) | None => ErrorKind::Config,
         }),
     };
@@ -125,7 +131,9 @@ pub fn notice_for(e: &Event, last: Option<&Status>) -> Option<(String, &'static 
     }
 }
 
-/// The request a tray click means; `None` for `Quit` and the items with no target yet.
+/// The request a tray click means; `None` for `Quit`. "Play" is launcher mode with the
+/// non-interactive policy: a held lease or a conflict becomes a notification, nothing
+/// launches.
 #[must_use]
 pub fn tray_request(a: &TrayAction, now_ms: u64) -> Option<Request> {
     match a {
@@ -135,7 +143,88 @@ pub fn tray_request(a: &TrayAction, now_ms: u64) -> Option<Request> {
         }),
         TrayAction::PauseUntilResume => Some(Request::Pause { until_ms: None }),
         TrayAction::Resume => Some(Request::Resume),
-        TrayAction::Play(_) | TrayAction::Open | TrayAction::Quit => None,
+        TrayAction::Play(r) => {
+            let (player, emulator, game) = parse_play_ref(r)?;
+            Some(Request::Play {
+                player,
+                emulator,
+                game,
+                args: Vec::new(),
+            })
+        }
+        TrayAction::Quit => None,
+    }
+}
+
+/// Separates the parts of a "Play" item's id (unit separator: never in a name).
+const SEP: char = '\u{1f}';
+
+/// Most "Play" items in the tray.
+pub const RECENT_MAX: usize = 8;
+
+fn play_ref(player: &str, emulator: &str, game: &str) -> String {
+    format!("{player}{SEP}{emulator}{SEP}{game}")
+}
+
+fn parse_play_ref(r: &str) -> Option<(String, String, String)> {
+    let mut parts = r.split(SEP);
+    let (p, e, g) = (parts.next()?, parts.next()?, parts.next()?);
+    parts
+        .next()
+        .is_none()
+        .then(|| (p.to_owned(), e.to_owned(), g.to_owned()))
+}
+
+/// The tray's "Play" items: every synced stream whose game this device can launch (a known
+/// path), as `(id, label)`. The player is in the label when there are several.
+#[must_use]
+pub fn recent_games(status: &StatusReport, games: &GamesReport) -> Vec<(String, String)> {
+    let many = status.players.len() > 1;
+    status
+        .streams
+        .iter()
+        .filter_map(|st| {
+            let g = games.games.iter().find(|g| {
+                g.emulator == st.emulator
+                    && g.key.eq_ignore_ascii_case(&st.game)
+                    && g.path.is_some()
+            })?;
+            let name = g.name.clone().unwrap_or_else(|| g.key.clone());
+            let label = if many {
+                format!("{name} · {}", st.player)
+            } else {
+                name
+            };
+            Some((play_ref(&st.player, &st.emulator, &st.game), label))
+        })
+        .take(RECENT_MAX)
+        .collect()
+}
+
+/// A failed tray "Play" as a notice: a held lease and a conflict get their own (the lease one
+/// offers "Wait"); anything else says why in the player's language.
+#[must_use]
+pub fn play_failed(game: &str, e: &ErrorBody, t: &I18n) -> NoticeEvent {
+    let detail = e.detail.clone().unwrap_or_default();
+    match e.code.as_str() {
+        "lease_held" => NoticeEvent::ForeignLease {
+            game: game.to_owned(),
+            device: detail,
+        },
+        "needs_decision" => NoticeEvent::Conflict {
+            game: game.to_owned(),
+        },
+        code => {
+            let (key, data) = detail.split_once(':').unwrap_or((detail.as_str(), ""));
+            let reason = t
+                .get(&format!("error-{code}-{key}"), &[("detail", fs(data))])
+                .or_else(|| t.get(&format!("error-{code}"), &[("detail", fs(detail.clone()))]))
+                .unwrap_or_else(|| e.message.clone());
+            NoticeEvent::PlayFailed {
+                game: game.to_owned(),
+                reason,
+            }
+        }
     }
 }
 
@@ -170,7 +259,7 @@ async fn connection(incoming: Incoming, handle: ServiceHandle, quit: mpsc::Sende
             return;
         }
     };
-    tracing::debug!("ipc client {}", conn.client());
+    tracing::info!("ipc client {} connected", conn.client());
     while let Some(request) = conn.recv().await {
         match request {
             Request::Subscribe => {
@@ -200,6 +289,23 @@ async fn connection(incoming: Incoming, handle: ServiceHandle, quit: mpsc::Sende
                     }
                 }
             }
+            Request::Play {
+                player,
+                emulator,
+                game,
+                args,
+            } => {
+                let call = PlayCall {
+                    player,
+                    emulator,
+                    game,
+                    args,
+                    io: None,
+                };
+                if !play(&mut conn, &handle, call).await {
+                    return;
+                }
+            }
             Request::Shutdown => {
                 let r = handle.call(Request::Shutdown).await;
                 let _ = conn.send(&r).await;
@@ -216,6 +322,94 @@ async fn connection(incoming: Incoming, handle: ServiceHandle, quit: mpsc::Sende
     }
 }
 
+/// `play` for a client: steps and questions go out as frames, answers come back. Once the
+/// client is gone the session still runs to the end (upload, lease release), every later
+/// question gets the non-interactive answer. `false` when the client is gone.
+async fn play(
+    conn: &mut lemusync_ipc::Connection,
+    handle: &ServiceHandle,
+    mut call: PlayCall,
+) -> bool {
+    let (tx, mut rx) = mpsc::unbounded_channel();
+    call.io = Some(tx);
+    let h = handle.clone();
+    let done = h.play(call);
+    tokio::pin!(done);
+    let mut alive = true;
+    loop {
+        tokio::select! {
+            r = &mut done => {
+                return alive && conn.send(&r).await.is_ok();
+            }
+            Some(frame) = rx.recv() => match frame {
+                PlayFrame::Event(e) => {
+                    alive = alive && conn.send(&Response::PlayEvent(e)).await.is_ok();
+                }
+                PlayFrame::Ask(q, reply) => {
+                    let answer = if alive && conn.send(&Response::Prompt(q)).await.is_ok() {
+                        match conn.recv().await {
+                            Some(Request::Answer(a)) => a,
+                            Some(_) => PlayAnswer::Refuse,
+                            None => {
+                                alive = false;
+                                PlayAnswer::Refuse
+                            }
+                        }
+                    } else {
+                        alive = false;
+                        PlayAnswer::Refuse
+                    };
+                    let _ = reply.send(answer);
+                }
+            },
+        }
+    }
+}
+
+/// `(player, emulator, game)`.
+type Stream = (String, String, String);
+
+/// How often "Wait" checks whether a foreign lease is gone, and for how long at most.
+const WAIT_POLL: Duration = Duration::from_secs(30);
+const WAIT_MAX: Duration = Duration::from_hours(12);
+
+/// After "Wait" on a foreign-lease notice: polls `lease_status` until no other device holds a
+/// live lease on the stream, then sends `LeaseFree`.
+async fn wait_for_lease(
+    handle: ServiceHandle,
+    stream: Stream,
+    game: String,
+    out: mpsc::Sender<(NoticeEvent, Option<Stream>)>,
+    poll: Duration,
+) {
+    let end = tokio::time::Instant::now() + WAIT_MAX;
+    while tokio::time::Instant::now() < end {
+        if let Response::LeaseStatus(l) = handle.call(Request::LeaseStatus).await {
+            let held = l.value.iter().any(|l| {
+                l.live
+                    && !l.ours
+                    && (&l.player, &l.emulator, &l.game) == (&stream.0, &stream.1, &stream.2)
+            });
+            if !held {
+                let _ = out.send((NoticeEvent::LeaseFree { game }, None)).await;
+                return;
+            }
+        }
+        tokio::time::sleep(poll).await;
+    }
+}
+
+/// Fetches the tray's "Play" items.
+async fn fetch_recent(handle: ServiceHandle, out: mpsc::Sender<Vec<(String, String)>>) {
+    let (Response::Status(st), Response::Games(g)) = (
+        handle.call(Request::Status).await,
+        handle.call(Request::Games).await,
+    ) else {
+        return;
+    };
+    let _ = out.send(recent_games(&st, &g)).await;
+}
+
 /// Desktop state the loop keeps between events.
 struct Presence {
     tray: Box<dyn Tray>,
@@ -226,12 +420,17 @@ struct Presence {
     session: Option<Session>,
     coalesce: Coalescer,
     idle: Option<IdleGuard>,
+    recent: Vec<(String, String)>,
+    /// Foreign-lease notices that offer "Wait": the stream and the game's label.
+    waitable: HashMap<NoticeId, (Stream, String)>,
 }
 
 impl Presence {
     fn show(&self) {
         let session = self.session.as_ref().map(session_input);
-        let view = tray_view(&status_input(&self.status), session.as_ref(), &self.i18n);
+        let mut input = status_input(&self.status);
+        input.recent.clone_from(&self.recent);
+        let view = tray_view(&input, session.as_ref(), &self.i18n);
         self.tray.show(&view);
     }
 
@@ -239,7 +438,16 @@ impl Presence {
         if let Some((stream, kind, ev)) = notice_for(e, Some(&self.status))
             && self.coalesce.allow(&stream, kind, now_ms())
         {
-            self.notifier.notify(notice(&ev, &self.i18n));
+            let id = self.notifier.notify(notice(&ev, &self.i18n));
+            if let (Event::LeaseWarning(l), NoticeEvent::ForeignLease { game, .. }) = (e, &ev) {
+                self.waitable.insert(
+                    id,
+                    (
+                        (l.player.clone(), l.emulator.clone(), l.game.clone()),
+                        game.clone(),
+                    ),
+                );
+            }
         }
         match e {
             Event::StatusChanged(s) => {
@@ -261,6 +469,45 @@ impl Presence {
             _ => {}
         }
     }
+}
+
+/// Sends the request a tray click means. A failed "Play" comes back as a notice.
+fn tray_click(
+    a: &TrayAction,
+    handle: &ServiceHandle,
+    presence: Option<&Presence>,
+    own_tx: &mpsc::Sender<(NoticeEvent, Option<Stream>)>,
+) {
+    let Some(r) = tray_request(a, now_ms()) else {
+        return;
+    };
+    let h = handle.clone();
+    let (
+        TrayAction::Play(id),
+        Request::Play {
+            player,
+            emulator,
+            game,
+            ..
+        },
+    ) = (a, &r)
+    else {
+        tokio::spawn(async move { h.call(r).await });
+        return;
+    };
+    let label = presence
+        .and_then(|p| p.recent.iter().find(|(i, _)| i == id))
+        .map_or_else(|| game.clone(), |(_, l)| l.clone());
+    let stream = (player.clone(), emulator.clone(), game.clone());
+    let out = own_tx.clone();
+    let lang = I18n::env_lang();
+    tokio::spawn(async move {
+        if let Response::Error(e) = h.call(r).await {
+            tracing::info!("tray play did not launch ({})", e.code);
+            let ev = play_failed(&label, &e, &I18n::new(lang));
+            let _ = out.send((ev, Some(stream))).await;
+        }
+    });
 }
 
 /// Runs the daemon until `shutdown` resolves, a client sends `Shutdown` or the tray's Quit
@@ -288,12 +535,19 @@ pub async fn run(
             session: None,
             coalesce: Coalescer::default(),
             idle: None,
+            recent: Vec::new(),
+            waitable: HashMap::new(),
         }
     });
     let mut sleep_rx = presence.as_ref().map(|p| p.power.sleep_events());
+    // Notices from background tasks (tray "Play", "Wait"), with the stream "Wait" would poll.
+    let (own_tx, mut own_rx) = mpsc::channel::<(NoticeEvent, Option<Stream>)>(16);
+    let (recent_tx, mut recent_rx) = mpsc::channel(4);
     if let Some(p) = &presence {
         p.show();
+        tokio::spawn(fetch_recent(handle.clone(), recent_tx.clone()));
     }
+    let mut last_sync = None;
     tokio::pin!(shutdown);
     loop {
         tokio::select! {
@@ -303,6 +557,13 @@ pub async fn run(
                 Ok(e) => {
                     if let Some(p) = &mut presence {
                         p.on_event(&e);
+                        // A finished sync may have added games: refresh the "Play" items.
+                        if let Event::StatusChanged(s) = &e
+                            && s.last_sync_ms != last_sync
+                        {
+                            last_sync = s.last_sync_ms;
+                            tokio::spawn(fetch_recent(handle.clone(), recent_tx.clone()));
+                        }
                     }
                 }
                 Err(broadcast::error::RecvError::Lagged(_)) => {}
@@ -312,15 +573,30 @@ pub async fn run(
                 if a == TrayAction::Quit {
                     break;
                 }
-                if let Some(r) = tray_request(&a, now_ms()) {
-                    let h = handle.clone();
-                    tokio::spawn(async move { h.call(r).await });
-                } else {
-                    tracing::info!("tray action {a:?} has no target yet");
-                }
+                tray_click(&a, &handle, presence.as_ref(), &own_tx);
             }
             Some((id, action)) = recv_opt(notice_rx.as_mut()) => {
-                tracing::info!("notification {} action {action}", id.0);
+                let target = presence.as_mut().and_then(|p| p.waitable.remove(&id));
+                match (action.as_str(), target) {
+                    (crate::notices::ACTION_WAIT, Some((stream, game))) => {
+                        tokio::spawn(wait_for_lease(handle.clone(), stream, game, own_tx.clone(), WAIT_POLL));
+                    }
+                    (other, _) => tracing::info!("notification {} action {other}: nothing to do", id.0),
+                }
+            }
+            Some((ev, stream)) = own_rx.recv() => {
+                if let Some(p) = &mut presence {
+                    let id = p.notifier.notify(notice(&ev, &p.i18n));
+                    if let (NoticeEvent::ForeignLease { game, .. }, Some(stream)) = (&ev, stream) {
+                        p.waitable.insert(id, (stream, game.clone()));
+                    }
+                }
+            }
+            Some(recent) = recent_rx.recv() => {
+                if let Some(p) = &mut presence {
+                    p.recent = recent;
+                    p.show();
+                }
             }
             Some(edge) = recv_opt(sleep_rx.as_mut()) => match edge {
                 SleepEdge::Suspending => {
@@ -477,5 +753,97 @@ mod tests {
             Some(Request::Sync { dry_run: false })
         );
         assert_eq!(tray_request(&TrayAction::Quit, 0), None);
+        let id = play_ref("Ana", "cemu", "101c9400");
+        assert_eq!(
+            tray_request(&TrayAction::Play(id), 0),
+            Some(Request::Play {
+                player: "Ana".into(),
+                emulator: "cemu".into(),
+                game: "101c9400".into(),
+                args: vec![],
+            })
+        );
+        assert_eq!(tray_request(&TrayAction::Play("junk".into()), 0), None);
+    }
+
+    #[test]
+    fn not_set_up_is_its_own_error() {
+        let s = Status::from_facts(&StatusFacts {
+            error: Some(ApiErrorKind::NotSetUp),
+            ..Default::default()
+        });
+        assert_eq!(
+            status_input(&s).state,
+            ViewState::Error(ErrorKind::NotSetUp)
+        );
+    }
+
+    #[test]
+    fn play_items_are_the_launchable_synced_games() {
+        use lemusync_api::{GameInfo, GameSource, StreamStatus};
+        let stream = |p: &str, g: &str| StreamStatus {
+            player: p.into(),
+            emulator: "cemu".into(),
+            game: g.into(),
+            name: None,
+            account: None,
+            base: None,
+        };
+        let game = |k: &str, path: Option<&str>| GameInfo {
+            emulator: "cemu".into(),
+            key: k.into(),
+            name: Some(format!("Game {k}")),
+            path: path.map(Into::into),
+            source: GameSource::Config,
+            aliases: vec![],
+        };
+        let mut st = StatusReport {
+            api_version: 1,
+            device: "pc".into(),
+            device_id: "d".into(),
+            repo: None,
+            backend: None,
+            grants: vec![],
+            players: vec!["Ana".into()],
+            streams: vec![stream("Ana", "AA"), stream("Ana", "bb")],
+            daemon: None,
+        };
+        let games = GamesReport {
+            api_version: 1,
+            games: vec![game("aa", Some("/g/a")), game("bb", None)],
+        };
+        let r = recent_games(&st, &games);
+        assert_eq!(r, vec![(play_ref("Ana", "cemu", "AA"), "Game aa".into())]);
+        st.players.push("Bea".into());
+        assert_eq!(recent_games(&st, &games)[0].1, "Game aa · Ana");
+    }
+
+    #[test]
+    fn a_failed_tray_play_says_why() {
+        let t = I18n::new("en");
+        let body = |code: &str, detail: &str| ErrorBody {
+            code: code.into(),
+            message: "m".into(),
+            detail: Some(detail.into()),
+        };
+        assert_eq!(
+            play_failed("BotW", &body("lease_held", "Deck"), &t),
+            NoticeEvent::ForeignLease {
+                game: "BotW".into(),
+                device: "Deck".into()
+            }
+        );
+        assert_eq!(
+            play_failed("BotW", &body("needs_decision", "g"), &t),
+            NoticeEvent::Conflict {
+                game: "BotW".into()
+            }
+        );
+        let NoticeEvent::PlayFailed { reason, .. } =
+            play_failed("BotW", &body("emulator_running", "Cemu"), &t)
+        else {
+            panic!("play failed")
+        };
+        assert!(reason.contains("Cemu"), "{reason}");
     }
 }

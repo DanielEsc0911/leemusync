@@ -41,7 +41,8 @@ fn detail(e: &EngineError) -> String {
         | EngineError::Data(d)
         | EngineError::Busy(d)
         | EngineError::NeedsDecision(d)
-        | EngineError::LeaseHeld(d) => d.clone(),
+        | EngineError::LeaseHeld(d)
+        | EngineError::Daemon(d) => d.clone(),
         EngineError::Crypto(c) => c.to_string(),
         EngineError::NotSetUp(d) | EngineError::Injected(d) => (*d).to_owned(),
         // Storage text goes on its own `Details` line (`store_detail`), never in the message.
@@ -402,6 +403,54 @@ pub fn status(t: &I18n, r: &StatusReport) {
                 ),
             ],
         );
+    }
+    if let Some(d) = &r.daemon {
+        line(
+            t,
+            "status-daemon",
+            &[("state", s(daemon_state(t, &d.status)))],
+        );
+        if let Some(sn) = &d.session {
+            line(
+                t,
+                "status-playing",
+                &[
+                    ("game", s(label(sn.name.as_deref(), &sn.game))),
+                    ("player", s(sn.player.clone())),
+                ],
+            );
+        }
+    }
+}
+
+/// The daemon's state in the tray's words (status-and-notifications §Status model).
+pub fn daemon_state(t: &I18n, st: &lemusync_api::Status) -> String {
+    use lemusync_api::{ErrorKind, StatusState};
+    let n = FluentValue::from;
+    match st.state {
+        StatusState::Synced => t.t("status-synced", &[]),
+        StatusState::Scanning => t.t("status-scanning", &[]),
+        StatusState::Syncing => match (st.uploads, st.downloads) {
+            (up, 0) => t.t("status-uploading", &[("count", n(up))]),
+            (0, down) => t.t("status-downloading", &[("count", n(down))]),
+            (up, down) => t.t("status-syncing", &[("count", n(up.saturating_add(down)))]),
+        },
+        StatusState::Paused => t.t("status-paused", &[]),
+        StatusState::Offline => t.t("status-offline", &[("count", n(st.queued))]),
+        StatusState::Attention if st.conflicts > 0 => {
+            t.t("status-conflicts", &[("count", n(st.conflicts))])
+        }
+        StatusState::Attention => t.t("status-foreign-leases", &[("count", n(st.foreign_leases))]),
+        StatusState::Error => t.t(
+            match st.error {
+                Some(ErrorKind::Auth) => "status-error-auth",
+                Some(ErrorKind::Quota) => "status-error-quota",
+                Some(ErrorKind::Permission) => "status-error-permission",
+                Some(ErrorKind::NotSetUp) => "status-error-not-set-up",
+                Some(ErrorKind::Config) | None => "status-error-config",
+            },
+            &[],
+        ),
     }
 }
 

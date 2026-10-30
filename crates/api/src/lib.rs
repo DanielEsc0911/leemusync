@@ -3,11 +3,16 @@
 
 use serde::{Deserialize, Serialize};
 
+pub mod secret;
 pub mod status;
 pub mod wire;
 
+pub use secret::Secret;
 pub use status::{ErrorKind, Session, Status, StatusFacts, StatusState};
-pub use wire::{Event, Hello, HelloReply, RemoteNewer, Request, Response};
+pub use wire::{
+    ConfigOp, Event, GameName, GameRef, Hello, HelloReply, JoinWire, LeaseAnswer, MapChoiceWire,
+    MapResult, PlayAnswer, PlayQuestion, RemoteNewer, Request, Response, WithWarnings,
+};
 
 /// Version of the report and request shapes in this crate. Bumped on breaking changes.
 pub const API_VERSION: u32 = 1;
@@ -266,6 +271,21 @@ pub struct StatusReport {
     pub players: Vec<String>,
     /// Status of each stream.
     pub streams: Vec<StreamStatus>,
+    /// The daemon's live state, when the report came from a running daemon (architecture
+    /// §Process model). Absent in-process.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub daemon: Option<DaemonStatus>,
+}
+
+/// What a running daemon adds to `status`: its status model and the play session overlay.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DaemonStatus {
+    /// The daemon's crate version.
+    pub version: String,
+    /// The status model, as the tray shows it.
+    pub status: Status,
+    /// The running play session, if any.
+    pub session: Option<Session>,
 }
 
 /// Status of one stream as shown by `status`.

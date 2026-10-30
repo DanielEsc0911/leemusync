@@ -2029,6 +2029,7 @@ version = "0.0.1-alpha.1"
 dependencies = [
  "serde",
  "serde_json",
+ "zeroize",
 ]
 
 [[package]]
@@ -2048,8 +2049,10 @@ version = "0.0.1-alpha.1"
 dependencies = [
  "clap",
  "fluent-bundle",
+ "futures-util",
  "lemusync-api",
  "lemusync-engine",
+ "lemusync-ipc",
  "lemusync-store",
  "rpassword",
  "serde",
@@ -2057,6 +2060,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "unic-langid",
+ "zbus 5.19.0",
  "zeroize",
 ]
 
@@ -2143,6 +2147,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+ "zeroize",
 ]
 
 [[package]]

@@ -372,6 +372,7 @@ status-error-auth = La sesión del almacenamiento expiró
 status-error-quota = El almacenamiento está lleno
 status-error-permission = LemuSync no puede abrir una carpeta de partidas
 status-error-config = El archivo de configuración tiene un problema
+status-error-not-set-up = Aún no está configurado: ejecuta lemusync init o lemusync join
 status-playing = Jugando { $game } · { $player }
 
 ## Daemon: menú de la bandeja
@@ -381,19 +382,16 @@ tray-pause-1h = Por 1 hora
 tray-pause-until-resume = Hasta que la reanude
 tray-resume = Reanudar sincronización
 tray-recent = Juegos recientes
-tray-open = Abrir LemuSync
 tray-quit = Salir
 
 ## Daemon: notificaciones
 notice-conflict-title = Dos dispositivos cambiaron { $game }
-notice-conflict-body = Elige qué partida guardada conservar.
+notice-conflict-body = Ejecuta lemusync conflicts para elegir qué partida guardada conservar.
 notice-foreign-lease-title = { $game } está en uso en { $device }
-notice-foreign-lease-body = Espera a que se libere o abre LemuSync para decidir.
+notice-foreign-lease-body = Elige Esperar y LemuSync te avisa cuando se libere.
 notice-auth-body = Vuelve a iniciar sesión en tu almacenamiento para seguir sincronizando.
 notice-quota-body = Libera espacio en tu almacenamiento para seguir sincronizando.
-notice-action-review = Revisar
 notice-action-wait = Esperar
-notice-action-open = Abrir
 notice-remote-newer-title = Hay una partida más nueva de { $game } en { $device }
 notice-remote-newer-body = Cierra { $emulator } y LemuSync la actualiza.
 
@@ -426,3 +424,29 @@ error-usage-daemon_path_invalid = lemusyncd debe ser un archivo existente con ru
 ## lemusyncd (el daemon)
 daemon-already-running = LemuSync ya se está ejecutando para este usuario (otro lemusyncd o comando lemusync usa { $path }).
 daemon-start-failed = lemusyncd no pudo iniciar: { $error }
+
+## Daemon: avisos de Jugar y Esperar en la bandeja
+notice-lease-free-title = { $game } ya está libre
+notice-lease-free-body = El otro dispositivo lo soltó. Juégalo desde el menú de LemuSync.
+notice-play-failed-title = No se pudo iniciar { $game }
+
+## CLI con el daemon (pause, resume, logs, status)
+help-pause = Pausa la sincronización automática del daemon (hasta reanudarla o por un tiempo).
+help-pause-duration = Cuánto tiempo, p. ej. 30m, 1h, 1h30m (como máximo 30 días).
+help-resume = Reanuda la sincronización automática del daemon.
+help-logs = Muestra el registro del daemon.
+help-logs-follow = Sigue mostrando las líneas nuevas.
+pause-done = Sincronización en pausa hasta que ejecutes lemusync resume.
+pause-done-for = { $minutes ->
+    [one] Sincronización en pausa por 1 minuto.
+   *[other] Sincronización en pausa por { $minutes } minutos.
+}
+resume-done = Sincronización reanudada.
+status-daemon = Servicio en segundo plano: { $state }
+error-daemon = Falló el servicio en segundo plano: { $detail }
+error-usage-daemon_not_running = El daemon no está en ejecución, así que no hay nada que pausar ni reanudar. Inícialo con `lemusync service start`.
+error-usage-daemon_running_oauth = El inicio de sesión de Google Drive se hace en esta terminal, no en el daemon. Ejecuta `lemusync service stop`, inicia sesión y luego `lemusync service start`.
+error-usage-duration_invalid = "{ $detail }" no es una duración. Usa p. ej. 30m, 1h o 1h30m.
+error-usage-no_log = El daemon todavía no escribió un registro ({ $detail }).
+error-usage-play_arg_not_utf8 = El daemon solo puede pasar argumentos de texto al emulador: { $detail }
+error-usage-path_not_utf8 = El daemon solo puede usar rutas de texto: { $detail }
